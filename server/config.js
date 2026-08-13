@@ -18,8 +18,6 @@ module.exports = {
   demoMode: String(process.env.DEMO_MODE || 'false').toLowerCase() === 'true',
   awarenessScript: 'Hello, how are you? This is an AI-generated security awareness simulation. But imagine if this message asked you to transfer money, share an OTP, reveal a password, or disclose confidential information. A familiar face and voice do not always prove who is really behind a message. Verify unusual requests through a trusted channel and stay safe.',
   providers: {
-    geminiKey: process.env.GEMINI_API_KEY || '',
-    geminiModel: process.env.GEMINI_MODEL || 'gemini-2.5-flash',
     elevenLabsKey: process.env.ELEVENLABS_API_KEY || '',
     elevenLabsModel: process.env.ELEVENLABS_MODEL_ID || 'eleven_multilingual_v2',
     didKey: process.env.DID_API_KEY || ''
