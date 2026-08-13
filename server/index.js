@@ -51,7 +51,6 @@ app.get('/api/health', (_req, res) => {
     service: 'deepfake-awareness-simulation',
     demoMode: config.demoMode,
     providers: {
-      gemini: Boolean(config.providers.geminiKey),
       elevenLabs: Boolean(config.providers.elevenLabsKey),
       did: Boolean(config.providers.didKey)
     }
