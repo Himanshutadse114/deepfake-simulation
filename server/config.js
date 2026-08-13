@@ -18,8 +18,14 @@ module.exports = {
   demoMode: String(process.env.DEMO_MODE || 'false').toLowerCase() === 'true',
   awarenessScript: 'Hello, how are you? This is an AI-generated security awareness simulation. But imagine if this message asked you to transfer money, share an OTP, reveal a password, or disclose confidential information. A familiar face and voice do not always prove who is really behind a message. Verify unusual requests through a trusted channel and stay safe.',
   providers: {
-    elevenLabsKey: process.env.ELEVENLABS_API_KEY || '',
-    elevenLabsModel: process.env.ELEVENLABS_MODEL_ID || 'eleven_multilingual_v2',
-    didKey: process.env.DID_API_KEY || ''
+    replicateToken: process.env.REPLICATE_API_TOKEN || '',
+    chatterboxModel: process.env.CHATTERBOX_MODEL || 'resemble-ai/chatterbox-multilingual:9cfba4c265e685f840612be835424f8c33bdee685d7466ece7684b0d9d4c0b1c',
+    chatterboxLanguage: process.env.CHATTERBOX_LANGUAGE || 'en',
+    prunaModel: process.env.PRUNA_MODEL || 'prunaai/p-video-avatar',
+    prunaResolution: process.env.PRUNA_RESOLUTION || '720p',
+    heygenApiKey: process.env.HEYGEN_API_KEY || '',
+    heygenAccessToken: process.env.HEYGEN_ACCESS_TOKEN || '',
+    heygenEnabled: String(process.env.HEYGEN_ADAPTER_ENABLED || 'false').toLowerCase() === 'true',
+    videoProviderPreference: (process.env.VIDEO_PROVIDER_PREFERENCE || 'heygen,pruna').split(',').map((item) => item.trim()).filter(Boolean)
   }
 };
