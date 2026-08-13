@@ -8,7 +8,7 @@ The application is intentionally constrained:
 - the uploaded photograph must be asserted to be the participant's own image;
 - the uploaded/recorded voice must be asserted to be the participant's own voice;
 - the generated speech is a **fixed server-side awareness script** and cannot be edited by the participant;
-- Gemini is used only to assess whether the image is technically suitable, not to identify the person;
+- image validation is performed locally using file-signature, file-size and image-dimension checks;
 - the ElevenLabs voice clone is temporary and is deleted after generation;
 - D-ID image/audio resources are temporary and are deleted after generation;
 - the final MP4 receives a permanent `AI-GENERATED SECURITY AWARENESS SIMULATION` watermark with FFmpeg;
@@ -18,7 +18,7 @@ The application is intentionally constrained:
 
 1. Awareness introduction
 2. Explicit informed consent
-3. Face image upload and binary/Gemini suitability checks
+3. Face image upload and local JPEG/PNG validation
 4. Browser microphone recording or audio upload
 5. Temporary ElevenLabs Instant Voice Clone
 6. Fixed awareness-script TTS
@@ -39,7 +39,7 @@ There is intentionally no API parameter or UI field for arbitrary speech.
 
 - React + Vite frontend
 - Node.js 20 + Express backend
-- Gemini 2.5 Flash for image suitability validation
+- Local JPEG/PNG signature, size and dimension validation
 - ElevenLabs Instant Voice Cloning + Text to Speech
 - D-ID Images, Audios and Talks APIs
 - FFmpeg for a permanent disclosure watermark
@@ -50,16 +50,7 @@ There is intentionally no API parameter or UI field for arbitrary speech.
 
 Copy `.env.example` to `.env`.
 
-### Gemini
-
-```env
-GEMINI_API_KEY=your_google_gemini_key
-GEMINI_MODEL=gemini-2.5-flash
-```
-
-Gemini 2.5 Flash is used as a multimodal validator. It does not generate the talking-head video.
-
-Google documentation: https://ai.google.dev/gemini-api/docs/models/gemini-2.5-flash
+Only two AI-provider credentials are required for real generation.
 
 ### ElevenLabs
 
@@ -86,6 +77,18 @@ D-ID authentication: https://docs.d-id.com/reference/basic-authentication
 
 D-ID Talks API: https://docs.d-id.com/reference/createtalk
 
+## Image validation without Gemini
+
+The application does not require Gemini or another vision API. Uploaded photographs are checked locally for:
+
+- genuine JPEG or PNG binary signature;
+- configured file-size limit;
+- readable image dimensions;
+- minimum dimensions of 256 × 256 pixels;
+- maximum dimensions of 12000 × 12000 pixels.
+
+Local validation intentionally does **not** identify the participant and does not attempt biometric recognition. The UI still instructs participants to use a clear, front-facing, single-person photograph because D-ID output quality depends on the source image.
+
 ## Environment variables
 
 See `.env.example` for the complete list.
@@ -102,7 +105,7 @@ RATE_LIMIT_MAX=3
 RATE_LIMIT_WINDOW_MINUTES=60
 ```
 
-Set `DEMO_MODE=true` while developing the UI if you do not want to call ElevenLabs or D-ID. Demo mode still exercises consent, uploads, file validation and the training experience, but it does not create an AI video.
+Set `DEMO_MODE=true` while developing the UI if you do not want to call ElevenLabs or D-ID. Demo mode still exercises consent, uploads, local file validation and the training experience, but it does not create an AI video.
 
 ## Local development
 
@@ -130,7 +133,7 @@ Vite proxies `/api` requests to the backend.
 
 ### Local real-generation test
 
-Put valid provider keys in `.env`, set:
+Put valid ElevenLabs and D-ID credentials in `.env`, set:
 
 ```env
 DEMO_MODE=false
@@ -164,15 +167,14 @@ The repository includes `render.yaml` and a Dockerfile.
 
 1. In Render, create a new Blueprint.
 2. Connect this GitHub repository.
-3. Use `main` after this feature branch is merged, or select the feature branch for a temporary live test.
+3. Use `main` after this feature branch is merged, or select `feature/consent-aware-simulator` for a temporary live test.
 4. Render reads `render.yaml`.
-5. Provide the three `sync: false` secrets when prompted:
-   - `GEMINI_API_KEY`
+5. Provide the two `sync: false` secrets when prompted:
    - `ELEVENLABS_API_KEY`
    - `DID_API_KEY`
 6. Deploy.
 7. Check `/api/health`.
-8. Confirm the health payload reports the configured providers as `true`.
+8. Confirm the health payload reports both configured providers as `true`.
 
 The application listens on `0.0.0.0:$PORT` and defaults to port `10000`.
 
@@ -192,7 +194,6 @@ Example:
   "service": "deepfake-awareness-simulation",
   "demoMode": false,
   "providers": {
-    "gemini": true,
     "elevenLabs": true,
     "did": true
   }
@@ -310,6 +311,7 @@ Provider cleanup is attempted whether generation succeeds or fails:
 - token required on participant-session endpoints
 - upload size limits
 - binary magic-byte validation rather than trusting filename/MIME alone
+- local image-dimension validation
 - JPEG/PNG only for images
 - WAV/MP3/WebM/M4A only for audio
 - rate limiting for new simulation sessions
