@@ -27,8 +27,9 @@ jobs:
           node --check server/routes.js
           node --check server/pipeline.js
           node --check server/media.js
-          node --check server/services/elevenlabs.js
-          node --check server/services/did.js
+          node --check server/services/chatterbox.js
+          node --check server/services/heygen.js
+          node --check server/services/pruna.js
           node --check server/services/watermark.js
       - name: Build client
         run: npm --prefix client run build
