@@ -1,19 +1,40 @@
-const fs = require('node:fs/promises');
 const path = require('node:path');
 const config = require('./config');
 const { updateStatus, removeLocalSessionFiles } = require('./store');
-const { createTemporaryVoice, synthesizeFixedScript, deleteVoice } = require('./services/elevenlabs');
-const { uploadResource, createTalk, waitForTalk, deleteResource } = require('./services/did');
+const { synthesizeFixedScript } = require('./services/chatterbox');
+const { generateAvatarVideo: generateHeyGenVideo } = require('./services/heygen');
+const { generateAvatarVideo: generatePrunaVideo } = require('./services/pruna');
 const { createWatermarkedVideo } = require('./services/watermark');
+
+function heygenConfigured() {
+  return config.providers.heygenEnabled && Boolean(config.providers.heygenAccessToken || config.providers.heygenApiKey);
+}
+
+async function generateVideoWithFallback(session, speechPath) {
+  const failures = [];
+  for (const provider of config.providers.videoProviderPreference) {
+    try {
+      if (provider === 'heygen') {
+        if (!heygenConfigured()) continue;
+        updateStatus(session, 'generating_video', 'HeyGen is animating the consented portrait with the fixed awareness audio.');
+        return await generateHeyGenVideo(session.face, speechPath, session.id);
+      }
+      if (provider === 'pruna') {
+        updateStatus(session, 'generating_video', 'Pruna is animating the consented portrait with the fixed awareness audio.');
+        return await generatePrunaVideo(session.face, speechPath);
+      }
+    } catch (error) {
+      failures.push(`${provider}: ${error.message}`);
+    }
+  }
+  throw new Error(`No video provider completed the simulation. ${failures.join(' | ')}`.trim());
+}
 
 async function generateSimulation(session) {
   const directory = path.join(config.uploadRoot, session.id);
-  const speechPath = path.join(directory, 'speech.mp3');
+  const speechPath = path.join(directory, 'speech.wav');
   const rawVideoPath = path.join(directory, 'raw.mp4');
   const outputPath = path.join(directory, 'simulation.mp4');
-  let voiceId;
-  let didImage;
-  let didAudio;
 
   try {
     if (!session.face || !session.voice) throw new Error('Both face and voice media are required.');
@@ -22,52 +43,29 @@ async function generateSimulation(session) {
     updateStatus(session, 'validating', 'Consent and uploaded media checks passed.');
 
     if (config.demoMode) {
-      updateStatus(session, 'demo_ready', 'DEMO_MODE is enabled, so paid cloning/video providers were not called.');
+      updateStatus(session, 'demo_ready', 'DEMO_MODE is enabled, so paid AI providers were not called.');
       await removeLocalSessionFiles(session);
       return;
     }
 
-    if (!config.providers.elevenLabsKey || !config.providers.didKey) throw new Error('ElevenLabs and D-ID API keys are required when DEMO_MODE=false.');
+    if (!config.providers.replicateToken) throw new Error('REPLICATE_API_TOKEN is required when DEMO_MODE=false.');
 
-    updateStatus(session, 'cloning_voice', 'Creating an ephemeral voice clone from the participant-provided sample.');
-    voiceId = await createTemporaryVoice(session.voice, session.id);
-    session.provider.elevenLabsVoiceId = voiceId;
+    updateStatus(session, 'generating_audio', 'Chatterbox Multilingual is generating the fixed awareness message from the participant-provided reference voice.');
+    await synthesizeFixedScript(session.voice, speechPath);
 
-    updateStatus(session, 'generating_audio', 'Generating the fixed security-awareness script.');
-    await synthesizeFixedScript(voiceId, speechPath);
-
-    updateStatus(session, 'uploading_media', 'Uploading temporary animation inputs to D-ID.');
-    [didImage, didAudio] = await Promise.all([
-      uploadResource('image', session.face.path, session.face.mime),
-      uploadResource('audio', speechPath, 'audio/mpeg')
-    ]);
-    session.provider.didImageId = didImage.id;
-    session.provider.didAudioId = didAudio.id;
-
-    updateStatus(session, 'generating_video', 'D-ID is animating the consented portrait using the fixed awareness audio.');
-    const talkId = await createTalk(didImage.url, didAudio.url, session.id);
-    session.provider.didTalkId = talkId;
-    const resultUrl = await waitForTalk(talkId);
+    const video = await generateVideoWithFallback(session, speechPath);
+    session.provider.video = video.provider;
 
     updateStatus(session, 'watermarking', 'Burning a permanent AI-generated simulation disclosure into the result.');
-    await createWatermarkedVideo(resultUrl, rawVideoPath, outputPath);
+    await createWatermarkedVideo(video.url, rawVideoPath, outputPath);
     session.output = outputPath;
 
-    updateStatus(session, 'completed', 'The restricted awareness simulation is ready.');
+    updateStatus(session, 'completed', `The restricted awareness simulation is ready (${video.provider}).`);
     await removeLocalSessionFiles(session, { keepOutput: true });
   } catch (error) {
     updateStatus(session, 'failed', error.message || 'Generation failed.');
     await removeLocalSessionFiles(session).catch(() => {});
-  } finally {
-    await Promise.allSettled([
-      deleteVoice(voiceId),
-      deleteResource('image', didImage?.id),
-      deleteResource('audio', didAudio?.id)
-    ]);
-    session.provider.elevenLabsVoiceId = null;
-    session.provider.didImageId = null;
-    session.provider.didAudioId = null;
   }
 }
 
-module.exports = { generateSimulation };
+module.exports = { generateSimulation, generateVideoWithFallback };
