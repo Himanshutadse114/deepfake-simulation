@@ -2,7 +2,6 @@ const express = require('express');
 const fs = require('node:fs/promises');
 const { createSession, getSession, publicSession, updateStatus, deleteSession } = require('./store');
 const { upload, persistParticipantFile } = require('./media');
-const { validateFaceImage } = require('./services/gemini');
 const { generateSimulation } = require('./pipeline');
 
 const router = express.Router();
@@ -30,14 +29,17 @@ router.post('/:id/face', loadAuthorisedSession, upload.single('face'), async (re
   try {
     if (req.simulation.status !== 'collecting') return res.status(409).json({ error: 'This session is no longer accepting media.' });
     const saved = await persistParticipantFile(req.simulation.id, 'face', req.file);
-    const validation = await validateFaceImage(saved);
-    if (!validation.usable) {
-      await fs.rm(saved.path, { force: true });
-      req.simulation.face = null;
-      return res.status(422).json({ error: validation.reason || 'The photograph is not suitable for this simulation.', validation });
-    }
     req.simulation.face = saved;
-    res.json({ ok: true, validation });
+    res.json({
+      ok: true,
+      validation: {
+        usable: true,
+        method: 'local',
+        reason: 'Image passed local file-signature, size and dimension checks.',
+        width: saved.width,
+        height: saved.height
+      }
+    });
   } catch (error) { next(error); }
 });
 
