@@ -12,8 +12,14 @@ services:
         value: 10000
       - key: DEMO_MODE
         value: "false"
-      - key: ELEVENLABS_MODEL_ID
-        value: eleven_multilingual_v2
+      - key: CHATTERBOX_LANGUAGE
+        value: en
+      - key: PRUNA_RESOLUTION
+        value: 720p
+      - key: HEYGEN_ADAPTER_ENABLED
+        value: "true"
+      - key: VIDEO_PROVIDER_PREFERENCE
+        value: heygen,pruna
       - key: MAX_IMAGE_SIZE_MB
         value: 8
       - key: MAX_AUDIO_SIZE_MB
@@ -26,7 +32,3 @@ services:
         value: 60
       - key: SESSION_SECRET
         generateValue: true
-      - key: ELEVENLABS_API_KEY
-        sync: false
-      - key: DID_API_KEY
-        sync: false
