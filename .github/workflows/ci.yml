@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - feature/**
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            client/package-lock.json
+      - name: Install server dependencies
+        run: npm install
+      - name: Install client dependencies
+        run: npm --prefix client install
+      - name: Unit tests
+        run: npm test
+      - name: Syntax check server
+        run: |
+          node --check server/index.js
+          node --check server/routes.js
+          node --check server/pipeline.js
+          node --check server/media.js
+          node --check server/services/gemini.js
+          node --check server/services/elevenlabs.js
+          node --check server/services/did.js
+          node --check server/services/watermark.js
+      - name: Build client
+        run: npm --prefix client run build
+      - name: Build Docker image
+        run: docker build -t deepfake-awareness:test .
