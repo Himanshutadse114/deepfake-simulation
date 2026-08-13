@@ -46,14 +46,18 @@ const createLimiter = rateLimit({
 app.use('/api/simulation/session', createLimiter);
 
 app.get('/api/health', (_req, res) => {
+  const heygenConfigured = config.providers.heygenEnabled && Boolean(config.providers.heygenAccessToken || config.providers.heygenApiKey);
   res.json({
     ok: true,
     service: 'deepfake-awareness-simulation',
     demoMode: config.demoMode,
     providers: {
-      elevenLabs: Boolean(config.providers.elevenLabsKey),
-      did: Boolean(config.providers.didKey)
-    }
+      replicate: Boolean(config.providers.replicateToken),
+      chatterbox: Boolean(config.providers.replicateToken),
+      heygen: heygenConfigured,
+      pruna: Boolean(config.providers.replicateToken)
+    },
+    videoProviderPreference: config.providers.videoProviderPreference
   });
 });
 
