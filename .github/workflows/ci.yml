@@ -28,10 +28,14 @@ jobs:
           node --check server/pipeline.js
           node --check server/media.js
           node --check server/services/chatterbox.js
+          node --check server/services/did.js
           node --check server/services/heygen.js
           node --check server/services/pruna.js
           node --check server/services/watermark.js
+          node --check server/scripts/watermark-smoke.js
       - name: Build client
         run: npm --prefix client run build
       - name: Build Docker image
         run: docker build -t deepfake-awareness:test .
+      - name: FFmpeg watermark smoke test in production image
+        run: docker run --rm deepfake-awareness:test node server/scripts/watermark-smoke.js
