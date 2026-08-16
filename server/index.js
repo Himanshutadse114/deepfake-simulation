@@ -47,6 +47,7 @@ app.use('/api/simulation/session', createLimiter);
 
 app.get('/api/health', (_req, res) => {
   const heygenConfigured = config.providers.heygenEnabled && Boolean(config.providers.heygenAccessToken || config.providers.heygenApiKey);
+  const didConfigured = config.providers.didEnabled && Boolean(config.providers.didKey);
   res.json({
     ok: true,
     service: 'deepfake-awareness-simulation',
@@ -54,6 +55,7 @@ app.get('/api/health', (_req, res) => {
     providers: {
       replicate: Boolean(config.providers.replicateToken),
       chatterbox: Boolean(config.providers.replicateToken),
+      did: didConfigured,
       heygen: heygenConfigured,
       pruna: Boolean(config.providers.replicateToken)
     },
