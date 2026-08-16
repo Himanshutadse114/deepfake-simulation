@@ -2,9 +2,14 @@ const path = require('node:path');
 const config = require('./config');
 const { updateStatus, removeLocalSessionFiles } = require('./store');
 const { synthesizeFixedScript } = require('./services/chatterbox');
+const { generateAvatarVideo: generateDidVideo } = require('./services/did');
 const { generateAvatarVideo: generateHeyGenVideo } = require('./services/heygen');
 const { generateAvatarVideo: generatePrunaVideo } = require('./services/pruna');
 const { createWatermarkedVideo } = require('./services/watermark');
+
+function didConfigured() {
+  return config.providers.didEnabled && Boolean(config.providers.didKey);
+}
 
 function heygenConfigured() {
   return config.providers.heygenEnabled && Boolean(config.providers.heygenAccessToken || config.providers.heygenApiKey);
@@ -14,6 +19,14 @@ async function generateVideoWithFallback(session, speechPath) {
   const failures = [];
   for (const provider of config.providers.videoProviderPreference) {
     try {
+      if (provider === 'did') {
+        if (!didConfigured()) {
+          failures.push('did: DID_API_KEY is not configured');
+          continue;
+        }
+        updateStatus(session, 'generating_video', 'D-ID is animating the consented portrait with the fixed Chatterbox awareness audio.');
+        return await generateDidVideo(session.face, speechPath, session.id);
+      }
       if (provider === 'heygen') {
         if (!heygenConfigured()) continue;
         updateStatus(session, 'generating_video', 'HeyGen is animating the consented portrait with the fixed awareness audio.');
@@ -23,6 +36,7 @@ async function generateVideoWithFallback(session, speechPath) {
         updateStatus(session, 'generating_video', 'Pruna is animating the consented portrait with the fixed awareness audio.');
         return await generatePrunaVideo(session.face, speechPath);
       }
+      failures.push(`${provider}: unsupported video provider`);
     } catch (error) {
       failures.push(`${provider}: ${error.message}`);
     }
