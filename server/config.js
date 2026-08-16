@@ -21,11 +21,17 @@ module.exports = {
     replicateToken: process.env.REPLICATE_API_TOKEN || '',
     chatterboxModel: process.env.CHATTERBOX_MODEL || 'resemble-ai/chatterbox-multilingual:9cfba4c265e685f840612be835424f8c33bdee685d7466ece7684b0d9d4c0b1c',
     chatterboxLanguage: process.env.CHATTERBOX_LANGUAGE || 'en',
+
+    didKey: process.env.DID_API_KEY || '',
+    didEnabled: String(process.env.DID_ADAPTER_ENABLED || 'true').toLowerCase() !== 'false',
+
     prunaModel: process.env.PRUNA_MODEL || 'prunaai/p-video-avatar',
     prunaResolution: process.env.PRUNA_RESOLUTION || '720p',
     heygenApiKey: process.env.HEYGEN_API_KEY || '',
     heygenAccessToken: process.env.HEYGEN_ACCESS_TOKEN || '',
     heygenEnabled: String(process.env.HEYGEN_ADAPTER_ENABLED || 'true').toLowerCase() !== 'false',
-    videoProviderPreference: (process.env.VIDEO_PROVIDER_PREFERENCE || 'heygen,pruna').split(',').map((item) => item.trim().toLowerCase()).filter(Boolean)
+
+    // Keep D-ID isolated by default during provider testing so failures do not trigger another paid provider.
+    videoProviderPreference: (process.env.VIDEO_PROVIDER_PREFERENCE || 'did').split(',').map((item) => item.trim().toLowerCase()).filter(Boolean)
   }
 };
