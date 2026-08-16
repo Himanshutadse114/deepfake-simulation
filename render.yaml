@@ -14,12 +14,14 @@ services:
         value: "false"
       - key: CHATTERBOX_LANGUAGE
         value: en
+      - key: DID_ADAPTER_ENABLED
+        value: "true"
+      - key: VIDEO_PROVIDER_PREFERENCE
+        value: did
       - key: PRUNA_RESOLUTION
         value: 720p
       - key: HEYGEN_ADAPTER_ENABLED
         value: "true"
-      - key: VIDEO_PROVIDER_PREFERENCE
-        value: heygen,pruna
       - key: MAX_IMAGE_SIZE_MB
         value: 8
       - key: MAX_AUDIO_SIZE_MB
