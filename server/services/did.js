@@ -7,8 +7,9 @@ const BASE = 'https://api.d-id.com';
 function authorization() {
   const key = String(config.providers.didKey || '').trim();
   if (!key) throw new Error('DID_API_KEY is not configured.');
-  if (/^Basic\s+/i.test(key)) return key;
-  return `Basic ${Buffer.from(key).toString('base64')}`;
+  // D-ID Studio returns the credential in API_USERNAME:API_PASSWORD format.
+  // Their API expects that generated key directly after the Basic scheme.
+  return /^Basic\s+/i.test(key) ? key : `Basic ${key}`;
 }
 
 async function didFetch(endpoint, options = {}) {
@@ -29,6 +30,15 @@ async function didFetch(endpoint, options = {}) {
     throw new Error(String(message));
   }
   return payload;
+}
+
+async function verifyAccount() {
+  // This is a non-generation request. It validates the D-ID credential before
+  // any image/audio upload or paid talk creation is attempted.
+  await didFetch('/credits', {
+    method: 'GET',
+    signal: AbortSignal.timeout(30_000)
+  });
 }
 
 async function uploadImage(faceFile) {
@@ -78,18 +88,20 @@ async function createTalk(imageUrl, audioUrl, sessionId) {
 }
 
 async function waitForTalk(talkId) {
-  for (let attempt = 0; attempt < 80; attempt += 1) {
+  let lastStatus = 'created';
+  for (let attempt = 0; attempt < 60; attempt += 1) {
     const talk = await didFetch(`/talks/${encodeURIComponent(talkId)}`, {
       method: 'GET',
       signal: AbortSignal.timeout(30_000)
     });
-    if (['done', 'completed'].includes(talk.status) && talk.result_url) return talk.result_url;
-    if (['error', 'failed', 'rejected'].includes(talk.status)) {
+    lastStatus = talk.status || lastStatus;
+    if (['done', 'completed'].includes(lastStatus) && talk.result_url) return talk.result_url;
+    if (['error', 'failed', 'rejected'].includes(lastStatus)) {
       throw new Error(talk.error?.description || talk.error?.message || talk.error || 'D-ID video generation failed.');
     }
     await new Promise((resolve) => setTimeout(resolve, 3000));
   }
-  throw new Error('D-ID video generation timed out.');
+  throw new Error(`D-ID video generation timed out while status was "${lastStatus}".`);
 }
 
 async function deleteResource(kind, id) {
@@ -113,6 +125,7 @@ async function generateAvatarVideo(faceFile, speechPath, sessionId) {
   let talkId;
 
   try {
+    await verifyAccount();
     [image, audio] = await Promise.all([
       uploadImage(faceFile),
       uploadAudio(speechPath)
@@ -129,4 +142,4 @@ async function generateAvatarVideo(faceFile, speechPath, sessionId) {
   }
 }
 
-module.exports = { generateAvatarVideo, uploadImage, uploadAudio, createTalk, waitForTalk, deleteResource };
+module.exports = { generateAvatarVideo, uploadImage, uploadAudio, createTalk, waitForTalk, deleteResource, verifyAccount, authorization };
