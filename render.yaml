@@ -1,0 +1,36 @@
+services:
+  - type: web
+    name: innvikta-deepfake-awareness
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health
+    autoDeployTrigger: commit
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: DEMO_MODE
+        value: "false"
+      - key: CHATTERBOX_LANGUAGE
+        value: en
+      - key: DID_ADAPTER_ENABLED
+        value: "true"
+      - key: VIDEO_PROVIDER_PREFERENCE
+        value: did
+      - key: PRUNA_RESOLUTION
+        value: 720p
+      - key: HEYGEN_ADAPTER_ENABLED
+        value: "true"
+      - key: MAX_IMAGE_SIZE_MB
+        value: 8
+      - key: MAX_AUDIO_SIZE_MB
+        value: 20
+      - key: MEDIA_RETENTION_MINUTES
+        value: 30
+      - key: RATE_LIMIT_MAX
+        value: 3
+      - key: RATE_LIMIT_WINDOW_MINUTES
+        value: 60
+      - key: SESSION_SECRET
+        generateValue: true
