@@ -16,7 +16,8 @@ module.exports = {
   maxAudioBytes: numberEnv('MAX_AUDIO_SIZE_MB', 20) * 1024 * 1024,
   retentionMs: numberEnv('MEDIA_RETENTION_MINUTES', 30) * 60 * 1000,
   demoMode: String(process.env.DEMO_MODE || 'false').toLowerCase() === 'true',
-  awarenessScript: 'Hello, how are you? This is an AI-generated security awareness simulation. But imagine if this message asked you to transfer money, share an OTP, reveal a password, or disclose confidential information. A familiar face and voice do not always prove who is really behind a message. Verify unusual requests through a trusted channel and stay safe.',
+  // Keep the spoken simulation short so the generated awareness clip is roughly 8-10 seconds.
+  awarenessScript: 'This is an AI-generated security awareness simulation. A familiar face or voice can be faked. Verify unusual requests through a trusted channel before acting.',
   providers: {
     replicateToken: process.env.REPLICATE_API_TOKEN || '',
     chatterboxModel: process.env.CHATTERBOX_MODEL || 'resemble-ai/chatterbox-multilingual:9cfba4c265e685f840612be835424f8c33bdee685d7466ece7684b0d9d4c0b1c',
