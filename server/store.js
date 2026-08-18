@@ -19,6 +19,8 @@ function createSession(consents) {
     face: null,
     voice: null,
     output: null,
+    variants: [],
+    variantError: null,
     provider: {}
   };
   sessions.set(id, session);
@@ -44,10 +46,14 @@ async function removeLocalSessionFiles(session, { keepOutput = false } = {}) {
     await fs.rm(directory, { recursive: true, force: true });
     return;
   }
-  const keep = session.output ? path.basename(session.output) : null;
+
+  const keep = new Set();
+  if (session.output) keep.add(path.basename(session.output));
+  for (const variant of session.variants || []) keep.add(path.basename(variant));
+
   let files = [];
   try { files = await fs.readdir(directory); } catch { return; }
-  await Promise.all(files.filter((file) => file !== keep).map((file) => fs.rm(path.join(directory, file), { force: true })));
+  await Promise.all(files.filter((file) => !keep.has(file)).map((file) => fs.rm(path.join(directory, file), { force: true })));
 }
 
 async function deleteSession(id) {
