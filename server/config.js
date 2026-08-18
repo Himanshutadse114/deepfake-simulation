@@ -23,15 +23,15 @@ module.exports = {
     chatterboxLanguage: process.env.CHATTERBOX_LANGUAGE || 'en',
 
     didKey: process.env.DID_API_KEY || '',
-    didEnabled: String(process.env.DID_ADAPTER_ENABLED || 'true').toLowerCase() !== 'false',
+    didEnabled: String(process.env.DID_ADAPTER_ENABLED || 'false').toLowerCase() !== 'false',
 
     prunaModel: process.env.PRUNA_MODEL || 'prunaai/p-video-avatar',
     prunaResolution: process.env.PRUNA_RESOLUTION || '720p',
     heygenApiKey: process.env.HEYGEN_API_KEY || '',
     heygenAccessToken: process.env.HEYGEN_ACCESS_TOKEN || '',
-    heygenEnabled: String(process.env.HEYGEN_ADAPTER_ENABLED || 'true').toLowerCase() !== 'false',
+    heygenEnabled: String(process.env.HEYGEN_ADAPTER_ENABLED || 'false').toLowerCase() !== 'false',
 
-    // Keep D-ID isolated by default during provider testing so failures do not trigger another paid provider.
-    videoProviderPreference: (process.env.VIDEO_PROVIDER_PREFERENCE || 'did').split(',').map((item) => item.trim().toLowerCase()).filter(Boolean)
+    // Keep Pruna isolated during provider testing so a failure never triggers another paid video provider.
+    videoProviderPreference: (process.env.VIDEO_PROVIDER_PREFERENCE || 'pruna').split(',').map((item) => item.trim().toLowerCase()).filter(Boolean)
   }
 };
