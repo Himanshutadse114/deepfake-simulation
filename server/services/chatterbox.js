@@ -3,6 +3,7 @@ const path = require('node:path');
 const { spawn } = require('node:child_process');
 const Replicate = require('replicate');
 const config = require('../config');
+const { runWithReplicateRetry } = require('./replicate-retry');
 
 function requireReplicate() {
   if (!config.providers.replicateToken) throw new Error('REPLICATE_API_TOKEN is not configured.');
@@ -62,17 +63,20 @@ async function synthesizeFixedScript(voiceFile, outputPath) {
 
   try {
     for (let index = 0; index < chunks.length; index += 1) {
-      const output = await replicate.run(config.providers.chatterboxModel, {
-        input: {
-          text: chunks[index],
-          language: config.providers.chatterboxLanguage,
-          reference_audio: reference,
-          exaggeration: 0.5,
-          cfg_weight: 0.5,
-          temperature: 0.8,
-          seed: 0
-        }
-      });
+      const output = await runWithReplicateRetry(
+        () => replicate.run(config.providers.chatterboxModel, {
+          input: {
+            text: chunks[index],
+            language: config.providers.chatterboxLanguage,
+            reference_audio: reference,
+            exaggeration: 0.5,
+            cfg_weight: 0.5,
+            temperature: 0.8,
+            seed: 0
+          }
+        }),
+        { label: `Chatterbox chunk ${index + 1}/${chunks.length}` }
+      );
       const partPath = path.join(directory, `speech-${index}.wav`);
       await saveReplicateOutput(output, partPath);
       partPaths.push(partPath);
