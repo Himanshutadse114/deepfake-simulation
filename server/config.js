@@ -20,8 +20,16 @@ module.exports = {
   awarenessScript: 'This is an AI-generated security awareness simulation. A familiar face or voice can be faked. Verify unusual requests through a trusted channel before acting.',
   providers: {
     replicateToken: process.env.REPLICATE_API_TOKEN || '',
+    voiceProvider: String(process.env.VOICE_PROVIDER || 'chatterbox').trim().toLowerCase(),
     chatterboxModel: process.env.CHATTERBOX_MODEL || 'resemble-ai/chatterbox-multilingual:9cfba4c265e685f840612be835424f8c33bdee685d7466ece7684b0d9d4c0b1c',
     chatterboxLanguage: process.env.CHATTERBOX_LANGUAGE || 'en',
+
+    elevenLabsApiKey: process.env.ELEVENLABS_API_KEY || '',
+    elevenLabsModel: process.env.ELEVENLABS_MODEL || 'eleven_multilingual_v2',
+
+    fluxEnabled: String(process.env.FLUX_ENABLED || 'false').toLowerCase() === 'true',
+    fluxModel: process.env.FLUX_MODEL || 'black-forest-labs/flux-2-pro',
+    fluxGridImages: numberEnv('FLUX_GRID_IMAGES', 4),
 
     didKey: process.env.DID_API_KEY || '',
     didEnabled: String(process.env.DID_ADAPTER_ENABLED || 'false').toLowerCase() !== 'false',
