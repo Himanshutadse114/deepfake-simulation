@@ -1,6 +1,7 @@
 const fs = require('node:fs/promises');
 const Replicate = require('replicate');
 const config = require('../config');
+const { runWithReplicateRetry } = require('./replicate-retry');
 
 function requireReplicate() {
   if (!config.providers.replicateToken) throw new Error('REPLICATE_API_TOKEN is not configured.');
@@ -14,14 +15,17 @@ async function generateAvatarVideo(faceFile, speechPath) {
     fs.readFile(speechPath)
   ]);
 
-  const output = await replicate.run(config.providers.prunaModel, {
-    input: {
-      image,
-      audio,
-      resolution: config.providers.prunaResolution,
-      disable_safety_filter: false
-    }
-  });
+  const output = await runWithReplicateRetry(
+    () => replicate.run(config.providers.prunaModel, {
+      input: {
+        image,
+        audio,
+        resolution: config.providers.prunaResolution,
+        disable_safety_filter: false
+      }
+    }),
+    { label: 'Pruna avatar video' }
+  );
 
   const url = typeof output === 'string' ? output : typeof output?.url === 'function' ? output.url() : output?.url;
   if (!url) throw new Error('Pruna did not return a video URL.');
