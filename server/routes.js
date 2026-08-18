@@ -62,8 +62,8 @@ router.post('/:id/generate', loadAuthorisedSession, (req, res) => {
 });
 
 router.get('/:id/status', loadAuthorisedSession, (req, res) => {
-  const { status, detail, expiresAt } = req.simulation;
-  res.json({ status, detail, expiresAt });
+  const { status, detail, expiresAt, variants = [], variantError, provider } = req.simulation;
+  res.json({ status, detail, expiresAt, variantCount: variants.length, variantError, provider });
 });
 
 router.get('/:id/video', loadAuthorisedSession, async (req, res, next) => {
@@ -73,6 +73,21 @@ router.get('/:id/video', loadAuthorisedSession, async (req, res, next) => {
     res.setHeader('cache-control', 'private, no-store');
     res.setHeader('content-disposition', 'inline; filename="ai-awareness-simulation.mp4"');
     res.sendFile(req.simulation.output);
+  } catch (error) { next(error); }
+});
+
+router.get('/:id/variant/:index', loadAuthorisedSession, async (req, res, next) => {
+  try {
+    if (req.simulation.status !== 'completed') return res.status(409).json({ error: 'Synthetic awareness images are not ready.' });
+    const index = Number(req.params.index);
+    if (!Number.isInteger(index) || index < 0 || index >= (req.simulation.variants || []).length) {
+      return res.status(404).json({ error: 'Synthetic awareness image was not found.' });
+    }
+    const file = req.simulation.variants[index];
+    await fs.access(file);
+    res.setHeader('cache-control', 'private, no-store');
+    res.setHeader('content-disposition', `inline; filename="ai-awareness-variant-${index + 1}.jpg"`);
+    res.sendFile(file);
   } catch (error) { next(error); }
 });
 
