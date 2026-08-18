@@ -55,10 +55,15 @@ app.get('/api/health', (_req, res) => {
     providers: {
       replicate: Boolean(config.providers.replicateToken),
       chatterbox: Boolean(config.providers.replicateToken),
+      elevenlabs: Boolean(config.providers.elevenLabsApiKey),
+      flux: config.providers.fluxEnabled && Boolean(config.providers.replicateToken),
       did: didConfigured,
       heygen: heygenConfigured,
       pruna: Boolean(config.providers.replicateToken)
     },
+    voiceProvider: config.providers.voiceProvider,
+    fluxEnabled: config.providers.fluxEnabled,
+    fluxGridImages: config.providers.fluxGridImages,
     videoProviderPreference: config.providers.videoProviderPreference
   });
 });
