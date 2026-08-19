@@ -123,16 +123,18 @@ async function generateSimulation(session) {
 }
 
 async function generateProfileVariants(session) {
-  if (session.status !== 'completed' || !session.output) throw new Error('Complete the deepfake video stage before generating the profile demo.');
-  if (!config.providers.fluxEnabled) throw new Error('FLUX profile generation is disabled. Set FLUX_ENABLED=true.');
-  if (!config.providers.replicateToken) throw new Error('REPLICATE_API_TOKEN is required for FLUX image generation.');
-  if (!session.face?.path) throw new Error('The temporary participant portrait is no longer available for this session.');
-
   updateProfileStatus(session, 'generating', 'FLUX.2 Pro is turning the single consented portrait into four synthetic social-profile photos with different settings.');
   session.profileError = null;
 
   try {
+    if (session.status !== 'completed' || !session.output) throw new Error('Complete the deepfake video stage before generating the profile demo.');
+    if (!config.providers.fluxEnabled) throw new Error('FLUX profile generation is disabled. Set FLUX_ENABLED=true.');
+    if (!config.providers.replicateToken) throw new Error('REPLICATE_API_TOKEN is required for FLUX image generation.');
+    if (!session.face?.path) throw new Error('The temporary participant portrait is no longer available for this session.');
+
     session.variants = await generateIdentityVariants(session.face, session.id);
+    if (!session.variants.length) throw new Error('FLUX did not return any synthetic profile images.');
+
     session.provider.images = 'flux-2-pro';
     updateProfileStatus(session, 'completed', `${session.variants.length} synthetic profile images are ready for the impersonation lesson.`);
 
