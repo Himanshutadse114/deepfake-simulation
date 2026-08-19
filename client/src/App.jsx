@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { VOICE_QUESTIONS, VoiceDeepfakeLearningPanel, WhatsAppVoiceDemo } from './VoiceDeepfake';
 
 const CONSENT_ITEMS = [
   ['faceOwnership', 'I confirm that the photograph I upload is of me.'],
@@ -86,7 +87,7 @@ const processingLabels = {
   uploading_media: 'Preparing secure animation inputs',
   generating_video: 'Synchronising face and speech',
   watermarking: 'Adding the AI-generated disclosure',
-  completed: 'Deepfake demo ready',
+  completed: 'Voice and video demos ready',
   demo_ready: 'Demo mode ready',
   failed: 'Generation failed'
 };
@@ -109,11 +110,12 @@ function stageIndex(step) {
   if (step === 3) return 2;
   if (step <= 5) return 3;
   if (step === 6) return 4;
-  return 5;
+  if (step === 7) return 5;
+  return 6;
 }
 
 function Stepper({ step }) {
-  const labels = ['Consent', 'Photo', 'Voice', 'Deepfake', 'Impersonation', 'Complete'];
+  const labels = ['Consent', 'Photo', 'Voice', 'Voice Scam', 'Video', 'Profile', 'Complete'];
   const activeIndex = stageIndex(step);
   return (
     <div className="stepper" aria-label="Module progress">
@@ -192,16 +194,16 @@ function KnowledgeCheck({ title, intro, questions, answers, setAnswers, submitte
 function DeepfakeLearningPanel() {
   return (
     <div className="learning-panel">
-      <span className="micro-label danger-label">DEEPFAKE VIDEO + AUDIO</span>
-      <h2>This demo warned you. A real deepfake probably will not.</h2>
+      <span className="micro-label danger-label">VIDEO DEEPFAKE</span>
+      <h2>The same cloned voice can become a convincing video.</h2>
       <p className="lead-copy">
-        Your consented voice sample was cloned and your portrait was animated to deliver a fixed message. A criminal can use the same idea to create urgency, trust or authority around a fraudulent request.
+        The video uses the exact same fixed Qwen-generated audio you heard in the messaging lesson. Pruna animated your consented portrait around that audio, showing how separate synthetic elements can be combined into a stronger impersonation.
       </p>
 
       <div className="threat-flow">
         <div><b>1</b><span>Collect public photo or audio</span></div>
         <i>→</i>
-        <div><b>2</b><span>Create synthetic face or voice</span></div>
+        <div><b>2</b><span>Create synthetic face and voice</span></div>
         <i>→</i>
         <div><b>3</b><span>Attach a high-pressure request</span></div>
       </div>
@@ -330,8 +332,10 @@ export default function App() {
   const [profileDetail, setProfileDetail] = useState('');
   const [profileError, setProfileError] = useState('');
   const [variantCount, setVariantCount] = useState(0);
+  const [voiceAnswers, setVoiceAnswers] = useState({});
   const [deepfakeAnswers, setDeepfakeAnswers] = useState({});
   const [profileAnswers, setProfileAnswers] = useState({});
+  const [voiceSubmitted, setVoiceSubmitted] = useState(false);
   const [deepfakeSubmitted, setDeepfakeSubmitted] = useState(false);
   const [profileSubmitted, setProfileSubmitted] = useState(false);
   const [error, setError] = useState('');
@@ -341,10 +345,11 @@ export default function App() {
   const chunksRef = useRef([]);
 
   const consentComplete = useMemo(() => Object.values(consent).every(Boolean), [consent]);
+  const voiceScore = useMemo(() => scoreQuestions(VOICE_QUESTIONS, voiceAnswers), [voiceAnswers]);
   const deepfakeScore = useMemo(() => scoreQuestions(DEEPFAKE_QUESTIONS, deepfakeAnswers), [deepfakeAnswers]);
   const profileScore = useMemo(() => scoreQuestions(PROFILE_QUESTIONS, profileAnswers), [profileAnswers]);
-  const totalScore = deepfakeScore + profileScore;
-  const maxScore = DEEPFAKE_QUESTIONS.length + PROFILE_QUESTIONS.length;
+  const totalScore = voiceScore + deepfakeScore + profileScore;
+  const maxScore = VOICE_QUESTIONS.length + DEEPFAKE_QUESTIONS.length + PROFILE_QUESTIONS.length;
 
   useEffect(() => {
     if (!recording) return undefined;
@@ -366,9 +371,9 @@ export default function App() {
 
   useEffect(() => {
     if (!session) return undefined;
-    const videoNeedsPolling = step === 4 && !['completed', 'failed', 'demo_ready'].includes(status);
-    const profileNeedsPolling = step === 6 && ['queued', 'generating'].includes(profileStatus);
-    if (!videoNeedsPolling && !profileNeedsPolling) return undefined;
+    const generationNeedsPolling = step === 4 && !['completed', 'failed', 'demo_ready'].includes(status);
+    const profileNeedsPolling = step === 7 && ['queued', 'generating'].includes(profileStatus);
+    if (!generationNeedsPolling && !profileNeedsPolling) return undefined;
 
     let cancelled = false;
     const poll = async () => {
@@ -490,7 +495,7 @@ export default function App() {
       await api(`/api/simulation/${session.id}/voice`, { method: 'POST', body: form }, session.token);
       const result = await api(`/api/simulation/${session.id}/generate`, { method: 'POST', body: JSON.stringify({}) }, session.token);
       setStatus(result.status || 'queued');
-      setDetail('Your restricted deepfake demo is being generated.');
+      setDetail('Your voice clone and video deepfake assets are being generated from the same fixed awareness audio.');
       setStep(4);
     } catch (requestError) {
       setError(requestError.message);
@@ -509,7 +514,7 @@ export default function App() {
       if (Number.isFinite(result.variantCount)) setVariantCount(result.variantCount);
       setProfileDetail('Creating four synthetic social-profile images from your consented portrait.');
       setProfileError('');
-      setStep(6);
+      setStep(7);
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -539,7 +544,7 @@ export default function App() {
     }
     setSession(null);
     setBusy(false);
-    setStep(7);
+    setStep(8);
   }
 
   const reset = async () => {
@@ -564,15 +569,15 @@ export default function App() {
           <div className="hero card">
             <div className="eyebrow">INTERACTIVE DEEPFAKE AWARENESS</div>
             <h1>See how quickly <em>digital trust can be manufactured.</em></h1>
-            <p>Use your own photo and voice, with explicit consent, to experience two controlled demonstrations: a synthetic talking-head video and a simulated impersonation profile.</p>
+            <p>Use your own photo and voice, with explicit consent, to experience three controlled demonstrations: a cloned voice note, a synthetic talking-head video and a simulated impersonation profile.</p>
             <div className="hero-grid four">
               <div><b>01</b><span>Give informed consent</span></div>
-              <div><b>02</b><span>Experience a deepfake demo</span></div>
-              <div><b>03</b><span>See a synthetic profile</span></div>
-              <div><b>04</b><span>Learn how to verify safely</span></div>
+              <div><b>02</b><span>Hear a cloned voice note</span></div>
+              <div><b>03</b><span>See the same audio become video</span></div>
+              <div><b>04</b><span>See a synthetic profile</span></div>
             </div>
             <button className="primary hero-cta" onClick={() => setStep(1)}>Start Awareness Module <span>→</span></button>
-            <p className="privacy-note">The generated speech is fixed and benign. Your media is processed only for this authorised module and is automatically cleaned up.</p>
+            <p className="privacy-note">Generated speech is fixed and benign. Your media is processed only for this authorised module and is automatically cleaned up.</p>
           </div>
         )}
 
@@ -589,7 +594,7 @@ export default function App() {
                 </label>
               ))}
             </div>
-            <div className="notice"><strong>Restricted simulation:</strong> the video can say only the pre-approved awareness message. The synthetic profile is displayed only inside this module and is never published.</div>
+            <div className="notice"><strong>Restricted simulation:</strong> generated audio and video can say only the pre-approved awareness message. The WhatsApp-style chat and synthetic profile exist only inside this training module and are never sent or published.</div>
             <button className="primary" disabled={!consentComplete || busy} onClick={beginConsentSession}>{busy ? 'Creating secure session…' : 'I Consent — Continue'}</button>
           </div>
         )}
@@ -598,7 +603,7 @@ export default function App() {
           <div className="card narrow">
             <div className="eyebrow">STEP 2 — YOUR PHOTO</div>
             <h2>Upload one clear photograph of yourself.</h2>
-            <p className="muted">This same consented portrait will later demonstrate how AI can manufacture additional social-profile photos.</p>
+            <p className="muted">This portrait will be used for the controlled video demo and later to demonstrate how AI can manufacture additional social-profile photos.</p>
             <div className={`upload-box ${facePreview ? 'has-preview' : ''}`}>
               {facePreview ? <img src={facePreview} alt="Selected participant preview" /> : <div className="upload-icon">◎</div>}
               <div><strong>{faceFile ? faceFile.name : 'Choose a JPG or PNG'}</strong><small>One person · front-facing preferred · good lighting · max 8 MB</small></div>
@@ -612,7 +617,7 @@ export default function App() {
           <div className="card narrow">
             <div className="eyebrow">STEP 3 — YOUR VOICE</div>
             <h2>Record a short, clean sample of your own voice.</h2>
-            <p className="muted">Qwen3-TTS can clone from short reference audio. For better consistency, aim for around 10–20 seconds in a quiet room and read the sample below naturally.</p>
+            <p className="muted">For better consistency, aim for around 10–20 seconds in a quiet room and read the sample below naturally.</p>
             <blockquote>{RECORDING_SCRIPT}</blockquote>
             <div className={`recorder ${recording ? 'recording' : ''}`}>
               <div className="mic">{recording ? '●' : '◉'}</div>
@@ -622,8 +627,8 @@ export default function App() {
             <div className="or"><span>or upload an existing recording</span></div>
             <label className="upload-audio">Upload MP3, WAV or WebM<input type="file" accept="audio/*" onChange={uploadVoiceFile} /></label>
             {voicePreview && <audio controls src={voicePreview} className="audio-preview" />}
-            <div className="fixed-script-preview"><span>THE GENERATED VIDEO CAN ONLY SAY</span><p>“{AWARENESS_SCRIPT}”</p></div>
-            <button className="primary" disabled={!voiceBlob || recording || busy} onClick={submitVoiceAndGenerate}>{busy ? 'Uploading securely…' : 'Generate My Deepfake Demo'}</button>
+            <div className="fixed-script-preview"><span>THE GENERATED VOICE AND VIDEO CAN ONLY SAY</span><p>“{AWARENESS_SCRIPT}”</p></div>
+            <button className="primary" disabled={!voiceBlob || recording || busy} onClick={submitVoiceAndGenerate}>{busy ? 'Uploading securely…' : 'Generate My Awareness Demos'}</button>
           </div>
         )}
 
@@ -632,7 +637,7 @@ export default function App() {
             {!['completed', 'demo_ready', 'failed'].includes(status) && (
               <div className="processing" aria-live="polite">
                 <div className="scanner"><div className="scan-line" /></div>
-                <div className="eyebrow">GENERATING AUTHORISED DEEPFAKE DEMO</div>
+                <div className="eyebrow">GENERATING AUTHORISED DEEPFAKE DEMOS</div>
                 <h2>{processingLabels[status] || 'Processing'}</h2>
                 <p className="muted">{detail || 'Your uploads are being processed temporarily. Keep this page open.'}</p>
                 <div className="provider-track">
@@ -648,10 +653,10 @@ export default function App() {
             {status === 'completed' && (
               <div className="ready-state">
                 <div className="ready-icon">✓</div>
-                <div className="eyebrow">DEEPFAKE DEMO READY</div>
-                <h2>The video is only the beginning of the lesson.</h2>
-                <p className="muted">Next, compare what you just generated with the risks of real-world voice and video impersonation.</p>
-                <button className="primary" onClick={() => setStep(5)}>View Demo & Learn <span>→</span></button>
+                <div className="eyebrow">VOICE + VIDEO ASSETS READY</div>
+                <h2>First, hear what a cloned voice can do on its own.</h2>
+                <p className="muted">The next screen places your generated fixed awareness audio inside a simulated WhatsApp-style chat before showing how the exact same audio can be reused in a deepfake video.</p>
+                <button className="primary" onClick={() => setStep(5)}>Start Voice Deepfake Lesson <span>→</span></button>
               </div>
             )}
             {status === 'demo_ready' && (
@@ -662,7 +667,7 @@ export default function App() {
               </div>
             )}
             {status === 'failed' && (
-              <div className="ready-state"><div className="eyebrow warning-text">GENERATION STOPPED</div><h2>We could not complete the deepfake demo.</h2><p className="muted">{detail || 'Temporary assets have been cleaned up. Check provider configuration and try again.'}</p><button className="secondary" onClick={reset}>Start Again</button></div>
+              <div className="ready-state"><div className="eyebrow warning-text">GENERATION STOPPED</div><h2>We could not complete the deepfake demos.</h2><p className="muted">{detail || 'Temporary assets have been cleaned up. Check provider configuration and try again.'}</p><button className="secondary" onClick={reset}>Start Again</button></div>
             )}
           </div>
         )}
@@ -670,8 +675,45 @@ export default function App() {
         {step === 5 && status === 'completed' && session && (
           <div className="module-page">
             <div className="module-title-row">
-              <div><div className="eyebrow">MODULE 1 — DEEPFAKE VIDEO & AUDIO</div><h1 className="module-title">Looks familiar. Sounds familiar. <em>Still not proof.</em></h1></div>
-              <div className="module-tag">QWEN + PRUNA DEMO</div>
+              <div><div className="eyebrow">MODULE 1 — VOICE DEEPFAKE</div><h1 className="module-title">A familiar voice can create <em>instant trust.</em></h1></div>
+              <div className="module-tag">QWEN VOICE DEMO</div>
+            </div>
+
+            <div className="voice-module-grid">
+              <div>
+                <WhatsAppVoiceDemo session={session} />
+                <div className="voice-evidence">
+                  <div><span>VOICE</span><b>Qwen3-TTS</b><small>Generated the fixed awareness message using characteristics from your consented reference sample.</small></div>
+                  <div><span>DELIVERY</span><b>Simulated chat</b><small>The message was not sent anywhere. It is displayed only inside this training experience.</small></div>
+                </div>
+              </div>
+              <VoiceDeepfakeLearningPanel />
+            </div>
+
+            <KnowledgeCheck
+              title="Would you trust the voice—or verify the request?"
+              intro="Answer all three questions. Focus on what you would do if the voice note contained a sensitive or urgent request."
+              questions={VOICE_QUESTIONS}
+              answers={voiceAnswers}
+              setAnswers={setVoiceAnswers}
+              submitted={voiceSubmitted}
+              onSubmit={() => setVoiceSubmitted(true)}
+            />
+
+            {voiceSubmitted && (
+              <div className="same-audio-bridge">
+                <div><span>NEXT: SAME AUDIO, STRONGER IMPERSONATION</span><strong>Now see the exact same cloned audio become a talking-head video.</strong><small>No second voice clone is created—the Pruna video uses the same generated audio file you just heard.</small></div>
+                <button className="primary" onClick={() => setStep(6)}>Continue to Video Deepfake <span>→</span></button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {step === 6 && status === 'completed' && session && (
+          <div className="module-page">
+            <div className="module-title-row">
+              <div><div className="eyebrow">MODULE 2 — VIDEO DEEPFAKE</div><h1 className="module-title">Looks familiar. Sounds familiar. <em>Still not proof.</em></h1></div>
+              <div className="module-tag">SAME QWEN AUDIO + PRUNA</div>
             </div>
 
             <div className="demo-learning-grid">
@@ -681,8 +723,8 @@ export default function App() {
                   <div className="video-watermark">AI-GENERATED SECURITY AWARENESS SIMULATION</div>
                 </div>
                 <div className="demo-evidence">
-                  <div><span>VOICE</span><b>Qwen3-TTS</b><small>Cloned speaker characteristics from your consented reference sample.</small></div>
-                  <div><span>VIDEO</span><b>Pruna</b><small>Animated your original portrait to match the synthetic fixed audio.</small></div>
+                  <div><span>VOICE</span><b>Same Qwen audio</b><small>The same fixed cloned audio from the voice-note lesson is reused here.</small></div>
+                  <div><span>VIDEO</span><b>Pruna</b><small>Animated your original portrait to match that already-generated synthetic audio.</small></div>
                   <div><span>SAFEGUARD</span><b>Permanent disclosure</b><small>This training output is visibly marked as AI-generated.</small></div>
                 </div>
                 <p className="script-note"><strong>Fixed generated script:</strong> “{AWARENESS_SCRIPT}”</p>
@@ -691,7 +733,7 @@ export default function App() {
             </div>
 
             <KnowledgeCheck
-              title="Could you respond safely to a convincing deepfake?"
+              title="Could you respond safely to a convincing video deepfake?"
               intro="Answer all three questions. There is no pass/fail here—the aim is to practise the verification habit."
               questions={DEEPFAKE_QUESTIONS}
               answers={deepfakeAnswers}
@@ -709,7 +751,7 @@ export default function App() {
           </div>
         )}
 
-        {step === 6 && session && (
+        {step === 7 && session && (
           <div className="module-page">
             {['idle', 'queued', 'generating'].includes(profileStatus) && (
               <div className="card profile-processing" aria-live="polite">
@@ -719,7 +761,7 @@ export default function App() {
                   <div className="skeleton-grid">{[0, 1, 2, 3].map((item) => <span key={item} />)}</div>
                 </div>
                 <div>
-                  <div className="eyebrow">MODULE 2 — BUILDING THE IMPERSONATION DEMO</div>
+                  <div className="eyebrow">MODULE 3 — BUILDING THE IMPERSONATION DEMO</div>
                   <h2>One photo is becoming four synthetic social photos.</h2>
                   <p className="muted">{profileDetail || 'FLUX.2 Pro is creating identity-consistent images in different generic settings. Requests are made sequentially to reduce unnecessary provider throttling.'}</p>
                   <div className="progress-track left"><div className="progress-indeterminate" /></div>
@@ -731,7 +773,7 @@ export default function App() {
               <div className="card result-card">
                 <div className="eyebrow warning-text">PROFILE DEMO STOPPED</div>
                 <h2>FLUX could not complete the synthetic profile images.</h2>
-                <p className="muted">{profileError || profileDetail || 'The video learning module is still complete. You can retry the profile image stage.'}</p>
+                <p className="muted">{profileError || profileDetail || 'The voice and video learning modules are still complete. You can retry the profile image stage.'}</p>
                 <button className="primary" disabled={busy} onClick={retryProfileGeneration}>{busy ? 'Retrying…' : 'Retry FLUX Generation'}</button>
               </div>
             )}
@@ -739,7 +781,7 @@ export default function App() {
             {profileStatus === 'completed' && (
               <>
                 <div className="module-title-row">
-                  <div><div className="eyebrow">MODULE 2 — SYNTHETIC PROFILE IMPERSONATION</div><h1 className="module-title">One real photo. <em>Four invented moments.</em></h1></div>
+                  <div><div className="eyebrow">MODULE 3 — SYNTHETIC PROFILE IMPERSONATION</div><h1 className="module-title">One real photo. <em>Four invented moments.</em></h1></div>
                   <div className="module-tag">FLUX.2 PRO DEMO</div>
                 </div>
 
@@ -769,20 +811,20 @@ export default function App() {
           </div>
         )}
 
-        {step === 7 && (
+        {step === 8 && (
           <div className="card completion-card">
             <div className="completion-orbit"><span>✓</span></div>
             <div className="eyebrow">AI IMPERSONATION AWARENESS COMPLETE</div>
-            <h1 className="completion-title">Trust the process, <em>not just the pixels.</em></h1>
-            <p>You experienced how a voice, a talking-head video and a believable social profile can be synthesised from limited personal media. Temporary server-side simulation assets have been cleaned up.</p>
+            <h1 className="completion-title">Trust the process, <em>not just the pixels—or the voice.</em></h1>
+            <p>You experienced how one voice sample can become a convincing voice note, how the same audio can be reused inside a talking-head video, and how one photograph can become a believable synthetic social profile. Temporary server-side simulation assets have been cleaned up.</p>
             <div className="completion-score"><span>KNOWLEDGE CHECK</span><strong>{totalScore}<small>/{maxScore}</small></strong></div>
             <div className="takeaway-grid">
-              <article><b>01</b><h3>Verify unusual requests</h3><p>Use a known phone number, trusted internal channel or established approval process.</p></article>
-              <article><b>02</b><h3>Protect sensitive information</h3><p>Never provide passwords, OTPs, recovery codes, payment approvals or confidential data because a face or voice seems familiar.</p></article>
-              <article><b>03</b><h3>Question manufactured familiarity</h3><p>Photos, bios, follower counts and even live-looking video can be synthetic or copied.</p></article>
-              <article><b>04</b><h3>Report impersonation</h3><p>Escalate suspicious accounts, unusual calls and synthetic-media scams through approved reporting channels.</p></article>
+              <article><b>01</b><h3>Verify voice requests</h3><p>A familiar voice note is not proof. Independently verify urgent requests through a trusted channel.</p></article>
+              <article><b>02</b><h3>Verify video requests</h3><p>Do not let a realistic face, lip-sync or speaking style replace established approval controls.</p></article>
+              <article><b>03</b><h3>Question manufactured familiarity</h3><p>Photos, bios, follower counts and even everyday-looking posts can be synthetic or copied.</p></article>
+              <article><b>04</b><h3>Protect and report</h3><p>Never disclose secrets because media looks familiar, and report suspicious accounts, calls, voice notes and payment requests.</p></article>
             </div>
-            <div className="final-callout"><strong>Verify the request — not just the face.</strong><span>AI can imitate appearance and voice. A trusted verification process is your defence.</span></div>
+            <div className="final-callout"><strong>Verify the request — not just the face or voice.</strong><span>AI can imitate appearance and speech. A trusted verification process is your defence.</span></div>
             <button className="secondary restart-button" onClick={() => window.location.reload()}>Restart Module</button>
           </div>
         )}
