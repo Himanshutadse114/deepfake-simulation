@@ -73,7 +73,7 @@ async function generateVideoWithFallback(session, speechPath) {
           failures.push('pruna: REPLICATE_API_TOKEN is not configured');
           continue;
         }
-        updateStatus(session, 'generating_video', 'Pruna is animating the original consented portrait with the cloned fixed awareness audio.');
+        updateStatus(session, 'generating_video', 'Pruna is animating the original consented portrait with the exact same cloned awareness audio used in the voice-deepfake lesson.');
         return await generatePrunaVideo(session.face, speechPath);
       }
       failures.push(`${provider}: unsupported video provider`);
@@ -103,6 +103,8 @@ async function generateSimulation(session) {
     }
 
     await generateVoice(session, speechPath);
+    session.audioOutput = speechPath;
+
     const video = await generateVideoWithFallback(session, speechPath);
     session.provider.video = video.provider;
 
@@ -110,12 +112,16 @@ async function generateSimulation(session) {
     await createWatermarkedVideo(video.url, rawVideoPath, outputPath);
     session.output = outputPath;
 
-    updateStatus(session, 'completed', `Your restricted deepfake-awareness video is ready (${video.provider}).`);
+    updateStatus(session, 'completed', `Your restricted voice and video deepfake-awareness assets are ready (${video.provider}).`);
 
-    // Remove the voice sample, cloned speech and raw video now. Keep only the
-    // watermarked result and the original portrait until the learner reaches
-    // the FLUX impersonation-profile exercise.
-    await removeLocalSessionFiles(session, { keepOutput: true, keepFace: config.providers.fluxEnabled });
+    // Remove the participant's original voice sample and raw video immediately.
+    // Keep only the generated fixed-script clone, watermarked result and original
+    // portrait needed for the later FLUX impersonation-profile exercise.
+    await removeLocalSessionFiles(session, {
+      keepOutput: true,
+      keepAudio: true,
+      keepFace: config.providers.fluxEnabled
+    });
   } catch (error) {
     updateStatus(session, 'failed', error.message || 'Generation failed.');
     await removeLocalSessionFiles(session).catch(() => {});
@@ -138,14 +144,21 @@ async function generateProfileVariants(session) {
     session.provider.images = 'flux-2-pro';
     updateProfileStatus(session, 'completed', `${session.variants.length} synthetic profile images are ready for the impersonation lesson.`);
 
-    // The original server-side portrait is no longer needed once FLUX has
-    // produced the awareness variants. Keep only the watermarked video and
-    // synthetic lesson images until module completion/expiry.
-    await removeLocalSessionFiles(session, { keepOutput: true, keepVariants: true });
+    // Original portrait is no longer required after FLUX. Keep only the
+    // watermarked video, generated clone audio and synthetic lesson images.
+    await removeLocalSessionFiles(session, {
+      keepOutput: true,
+      keepAudio: true,
+      keepVariants: true
+    });
   } catch (error) {
     session.profileError = error.message || 'FLUX profile generation failed.';
     updateProfileStatus(session, 'failed', session.profileError);
-    await removeLocalSessionFiles(session, { keepOutput: true, keepFace: true }).catch(() => {});
+    await removeLocalSessionFiles(session, {
+      keepOutput: true,
+      keepAudio: true,
+      keepFace: true
+    }).catch(() => {});
     throw error;
   }
 }
