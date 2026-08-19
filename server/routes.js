@@ -2,7 +2,7 @@ const express = require('express');
 const fs = require('node:fs/promises');
 const { createSession, getSession, publicSession, updateStatus, deleteSession } = require('./store');
 const { upload, persistParticipantFile } = require('./media');
-const { generateSimulation } = require('./pipeline');
+const { generateSimulation, generateProfileVariants } = require('./pipeline');
 
 const router = express.Router();
 
@@ -47,8 +47,9 @@ router.post('/:id/voice', loadAuthorisedSession, upload.single('voice'), async (
   try {
     if (req.simulation.status !== 'collecting') return res.status(409).json({ error: 'This session is no longer accepting media.' });
     const saved = await persistParticipantFile(req.simulation.id, 'voice', req.file);
+    saved.referenceText = String(req.body?.referenceText || '').trim().slice(0, 1200);
     req.simulation.voice = saved;
-    res.json({ ok: true, size: saved.size, mime: saved.mime });
+    res.json({ ok: true, size: saved.size, mime: saved.mime, transcriptProvided: Boolean(saved.referenceText) });
   } catch (error) { next(error); }
 });
 
@@ -61,9 +62,42 @@ router.post('/:id/generate', loadAuthorisedSession, (req, res) => {
   res.status(202).json({ status: session.status });
 });
 
+router.post('/:id/profile/generate', loadAuthorisedSession, (req, res) => {
+  const session = req.simulation;
+  if (session.status !== 'completed') return res.status(409).json({ error: 'Complete the deepfake video stage first.' });
+  if (session.profileStatus === 'generating') return res.status(202).json({ profileStatus: session.profileStatus });
+  if (session.profileStatus === 'completed') return res.json({ profileStatus: session.profileStatus, variantCount: session.variants.length });
+
+  session.profileStatus = 'queued';
+  session.profileDetail = 'Synthetic profile generation has been queued.';
+  session.profileError = null;
+  setImmediate(() => generateProfileVariants(session).catch((error) => {
+    console.warn(`[profile-generation] ${error.message}`);
+  }));
+  res.status(202).json({ profileStatus: session.profileStatus });
+});
+
 router.get('/:id/status', loadAuthorisedSession, (req, res) => {
-  const { status, detail, expiresAt, variants = [], variantError, provider } = req.simulation;
-  res.json({ status, detail, expiresAt, variantCount: variants.length, variantError, provider });
+  const {
+    status,
+    detail,
+    expiresAt,
+    variants = [],
+    provider,
+    profileStatus,
+    profileDetail,
+    profileError
+  } = req.simulation;
+  res.json({
+    status,
+    detail,
+    expiresAt,
+    provider,
+    profileStatus,
+    profileDetail,
+    profileError,
+    variantCount: variants.length
+  });
 });
 
 router.get('/:id/video', loadAuthorisedSession, async (req, res, next) => {
@@ -78,15 +112,15 @@ router.get('/:id/video', loadAuthorisedSession, async (req, res, next) => {
 
 router.get('/:id/variant/:index', loadAuthorisedSession, async (req, res, next) => {
   try {
-    if (req.simulation.status !== 'completed') return res.status(409).json({ error: 'Synthetic awareness images are not ready.' });
+    if (req.simulation.profileStatus !== 'completed') return res.status(409).json({ error: 'Synthetic profile images are not ready.' });
     const index = Number(req.params.index);
     if (!Number.isInteger(index) || index < 0 || index >= (req.simulation.variants || []).length) {
-      return res.status(404).json({ error: 'Synthetic awareness image was not found.' });
+      return res.status(404).json({ error: 'Synthetic profile image was not found.' });
     }
     const file = req.simulation.variants[index];
     await fs.access(file);
     res.setHeader('cache-control', 'private, no-store');
-    res.setHeader('content-disposition', `inline; filename="ai-awareness-variant-${index + 1}.jpg"`);
+    res.setHeader('content-disposition', `inline; filename="synthetic-profile-${index + 1}.jpg"`);
     res.sendFile(file);
   } catch (error) { next(error); }
 });
