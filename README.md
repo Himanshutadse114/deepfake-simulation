@@ -1,111 +1,148 @@
-# Innvikta Deepfake Awareness Simulation
+# Innvikta AI Impersonation Awareness Module
 
-A consent-gated security-awareness web application that demonstrates how an AI-generated talking-head video can imitate a participant's **own** face and voice.
+A consent-gated security-awareness experience that lets a participant see how their **own** photo and voice can be transformed into synthetic media, then teaches them how to verify identity safely.
 
-The application is intentionally constrained:
+The module is deliberately restricted to awareness use:
 
-- all three participant consent confirmations are mandatory;
-- the uploaded photograph must be asserted to be the participant's own image;
-- the uploaded/recorded voice must be asserted to be the participant's own voice;
-- the generated speech is a **fixed server-side awareness script** and cannot be edited by the participant;
-- image validation is performed locally using file-signature, file-size and image-dimension checks;
-- the ElevenLabs voice clone is temporary and is deleted after generation;
-- D-ID image/audio resources are temporary and are deleted after generation;
-- the final MP4 receives a permanent `AI-GENERATED SECURITY AWARENESS SIMULATION` watermark with FFmpeg;
-- local media and the final video expire automatically.
+- all participant consent confirmations are mandatory;
+- the participant must confirm the uploaded photograph and voice are their own;
+- generated speech is a short, fixed server-side awareness message;
+- there is no arbitrary text-to-impersonation field or API route;
+- the talking-head result has a permanent `AI-GENERATED SECURITY AWARENESS SIMULATION` watermark;
+- the synthetic social profile exists only inside the module and is never posted to a real social network;
+- provider keys stay server-side;
+- media is temporary and is deleted at module completion or session expiry;
+- no biometric identity verification, demographic inference or face recognition is performed.
 
-## Experience
+## Final learner experience
 
-1. Awareness introduction
-2. Explicit informed consent
-3. Face image upload and local JPEG/PNG validation
-4. Browser microphone recording or audio upload
-5. Temporary ElevenLabs Instant Voice Clone
-6. Fixed awareness-script TTS
-7. D-ID photo animation / lip sync
-8. Permanent watermark burned into the MP4
-9. Awareness lesson on verification, OTPs, credentials, money requests and reporting
-10. Automatic cleanup
+1. **Introduction** — explain the purpose of the authorised simulation.
+2. **Informed consent** — participant confirms ownership and temporary processing of face and voice media.
+3. **Photo upload** — locally validate a clear JPEG/PNG portrait.
+4. **Voice sample** — record or upload a short consented voice reference.
+5. **Deepfake video generation**
+   - Qwen3-TTS clones the participant voice from reference audio.
+   - The fixed ~10-second awareness script is synthesised.
+   - Pruna `p-video-avatar` animates the original portrait with the synthetic audio.
+   - FFmpeg burns the permanent AI disclosure into the MP4.
+6. **Deepfake learning screen** — video is shown on the left and a learning panel on the right explaining video/voice impersonation, real-world scam scenarios, red flags and verification habits.
+7. **Knowledge check 1** — three questions reinforce safe responses to synthetic video and voice.
+8. **Synthetic profile generation** — only after the first knowledge check, FLUX.2 Pro turns the single consented portrait into four synthetic social-style photos in different generic settings.
+9. **Profile impersonation screen** — a clearly labelled simulated Instagram-style profile shows a profile picture, bio, follower/following counts and the four AI-generated images.
+10. **Profile impersonation learning** — explain manufactured familiarity, social proof, impersonation outreach and how to verify suspicious accounts.
+11. **Knowledge check 2** — three questions reinforce safe behaviour around fake profiles and messages.
+12. **Completion** — show the combined knowledge-check score without declaring pass/fail and immediately delete temporary server-side session assets.
+
+## Active AI stack
+
+```text
+Participant-owned voice
+        ↓
+Qwen3-TTS voice_clone on Replicate
+        ↓
+Fixed awareness speech
+        ↓
+Pruna p-video-avatar on Replicate
+        ↓
+Permanent FFmpeg watermark
+        ↓
+Deepfake video + learning + quiz
+        ↓
+FLUX.2 Pro on Replicate
+        ↓
+4 synthetic social-profile images
+        ↓
+Profile impersonation learning + quiz
+        ↓
+Completion + cleanup
+```
+
+The active production path therefore requires only one AI-provider credential: a Replicate API token.
 
 ## Fixed generated script
 
-The backend is hard-coded to generate only this message:
+The backend is hard-coded to generate only:
 
-> Hello, how are you? This is an AI-generated security awareness simulation. But imagine if this message asked you to transfer money, share an OTP, reveal a password, or disclose confidential information. A familiar face and voice do not always prove who is really behind a message. Verify unusual requests through a trusted channel and stay safe.
+> This is an AI-generated security awareness simulation. A familiar face or voice can be faked. Verify unusual requests through a trusted channel before acting.
 
-There is intentionally no API parameter or UI field for arbitrary speech.
+There is intentionally no participant-editable generated script.
 
-## Stack
+## Models
 
-- React + Vite frontend
-- Node.js 20 + Express backend
-- Local JPEG/PNG signature, size and dimension validation
-- ElevenLabs Instant Voice Cloning + Text to Speech
-- D-ID Images, Audios and Talks APIs
-- FFmpeg for a permanent disclosure watermark
-- Docker
-- Render Blueprint (`render.yaml`)
+### Voice — Qwen3-TTS
 
-## Required API keys
+Replicate model:
 
-Copy `.env.example` to `.env`.
-
-Only two AI-provider credentials are required for real generation.
-
-### ElevenLabs
-
-```env
-ELEVENLABS_API_KEY=your_elevenlabs_key
-ELEVENLABS_MODEL_ID=eleven_multilingual_v2
+```text
+qwen/qwen3-tts
 ```
 
-The application creates one temporary Instant Voice Clone, generates the fixed script, and then calls the voice-delete endpoint in a `finally` cleanup path.
+The application uses:
 
-ElevenLabs IVC documentation: https://elevenlabs.io/docs/eleven-api/guides/how-to/voices/instant-voice-cloning
-
-For better results, record roughly 1 minute of clean, single-speaker audio in a quiet room. Provider account tier, verification or voice-cloning policy requirements still apply.
-
-### D-ID
-
-```env
-DID_API_KEY=username:password
+```text
+mode=voice_clone
+reference_audio=<participant-owned sample>
+reference_text=<known recording transcript when recorded in-app>
+text=<fixed awareness script>
+language=auto
 ```
 
-Paste the API credential generated in D-ID Studio. The server converts `username:password` to an HTTP Basic authorization header. If you already store an encoded Basic value, that is also supported.
+A new reference voice is supplied for each simulation; no persistent participant voice profile is created by the application.
 
-D-ID authentication: https://docs.d-id.com/reference/basic-authentication
+### Video — Pruna
 
-D-ID Talks API: https://docs.d-id.com/reference/createtalk
+Replicate model:
 
-## Image validation without Gemini
+```text
+prunaai/p-video-avatar
+```
 
-The application does not require Gemini or another vision API. Uploaded photographs are checked locally for:
+The original consented portrait plus the Qwen-generated audio are sent to Pruna. The default resolution is 720p.
 
-- genuine JPEG or PNG binary signature;
-- configured file-size limit;
-- readable image dimensions;
-- minimum dimensions of 256 × 256 pixels;
-- maximum dimensions of 12000 × 12000 pixels.
+### Images — FLUX.2 Pro
 
-Local validation intentionally does **not** identify the participant and does not attempt biometric recognition. The UI still instructs participants to use a clear, front-facing, single-person photograph because D-ID output quality depends on the source image.
+Replicate model:
+
+```text
+black-forest-labs/flux-2-pro
+```
+
+FLUX generation is deliberately deferred until the learner completes the first deepfake knowledge check. Four square synthetic images are created sequentially from the original consented portrait. Prompts are restricted to benign office, cafe, generic public-space and park/lifestyle settings and explicitly avoid documents, badges, brands or other people.
 
 ## Environment variables
 
-See `.env.example` for the complete list.
+Copy `.env.example` to `.env`.
 
-Important values:
+Required for real generation:
 
 ```env
-PORT=10000
+REPLICATE_API_TOKEN=your_replicate_token
 DEMO_MODE=false
-MEDIA_RETENTION_MINUTES=30
+
+VOICE_PROVIDER=qwen
+QWEN_MODEL=qwen/qwen3-tts
+QWEN_LANGUAGE=auto
+
+FLUX_ENABLED=true
+FLUX_MODEL=black-forest-labs/flux-2-pro
+FLUX_GRID_IMAGES=4
+
+VIDEO_PROVIDER_PREFERENCE=pruna
+PRUNA_MODEL=prunaai/p-video-avatar
+PRUNA_RESOLUTION=720p
+```
+
+Operational values:
+
+```env
 MAX_IMAGE_SIZE_MB=8
 MAX_AUDIO_SIZE_MB=20
+MEDIA_RETENTION_MINUTES=30
 RATE_LIMIT_MAX=3
 RATE_LIMIT_WINDOW_MINUTES=60
 ```
 
-Set `DEMO_MODE=true` while developing the UI if you do not want to call ElevenLabs or D-ID. Demo mode still exercises consent, uploads, local file validation and the training experience, but it does not create an AI video.
+Optional legacy/experimental provider adapters remain in the repository but are disabled by default.
 
 ## Local development
 
@@ -114,9 +151,7 @@ Requirements:
 - Node.js 20+
 - npm
 - modern browser with microphone permissions
-- FFmpeg only required for a real provider generation outside Docker
-
-Install:
+- FFmpeg for real video generation outside Docker
 
 ```bash
 cp .env.example .env
@@ -129,56 +164,43 @@ Frontend: `http://localhost:5173`
 
 Backend: `http://localhost:10000`
 
-Vite proxies `/api` requests to the backend.
-
-### Local real-generation test
-
-Put valid ElevenLabs and D-ID credentials in `.env`, set:
-
-```env
-DEMO_MODE=false
-```
-
-and ensure `ffmpeg` is available on your PATH. D-ID media is uploaded directly through its resource APIs, so your local laptop does not need to expose the participant image or generated audio publicly.
-
 ## Docker
-
-Build:
 
 ```bash
 docker build -t innvikta-deepfake-awareness .
-```
-
-Run:
-
-```bash
 docker run --rm -p 10000:10000 --env-file .env innvikta-deepfake-awareness
 ```
 
-Open `http://localhost:10000`.
-
-The Docker image includes FFmpeg and DejaVu fonts so the permanent watermark step works consistently.
+The production image includes FFmpeg and the font used by the permanent disclosure watermark.
 
 ## Render deployment
 
-The repository includes `render.yaml` and a Dockerfile.
+The repository includes `render.yaml`.
 
-### Blueprint deployment
+For the existing Render service:
 
-1. In Render, create a new Blueprint.
-2. Connect this GitHub repository.
-3. Use `main` after this feature branch is merged, or select `feature/consent-aware-simulator` for a temporary live test.
-4. Render reads `render.yaml`.
-5. Provide the two `sync: false` secrets when prompted:
-   - `ELEVENLABS_API_KEY`
-   - `DID_API_KEY`
-6. Deploy.
-7. Check `/api/health`.
-8. Confirm the health payload reports both configured providers as `true`.
+1. Deploy branch `main`.
+2. Add a freshly rotated `REPLICATE_API_TOKEN` secret directly in Render.
+3. Confirm these environment values:
 
-The application listens on `0.0.0.0:$PORT` and defaults to port `10000`.
+```env
+VOICE_PROVIDER=qwen
+QWEN_MODEL=qwen/qwen3-tts
+QWEN_LANGUAGE=auto
+FLUX_ENABLED=true
+FLUX_MODEL=black-forest-labs/flux-2-pro
+FLUX_GRID_IMAGES=4
+VIDEO_PROVIDER_PREFERENCE=pruna
+PRUNA_RESOLUTION=720p
+DID_ADAPTER_ENABLED=false
+HEYGEN_ADAPTER_ENABLED=false
+DEMO_MODE=false
+```
 
-Do **not** add a persistent disk for the MVP. Participant uploads are intentionally temporary. Render's local filesystem is treated only as short-lived processing space.
+4. Use **Clear build cache & deploy** after changing the provider stack.
+5. Check `/api/health` before spending on a simulation.
+
+Do not paste live provider secrets into source control, issue threads or chat messages.
 
 ## Health endpoint
 
@@ -186,29 +208,36 @@ Do **not** add a persistent disk for the MVP. Participant uploads are intentiona
 GET /api/health
 ```
 
-Example:
+Expected active stack fields include:
 
 ```json
 {
   "ok": true,
-  "service": "deepfake-awareness-simulation",
   "demoMode": false,
+  "stack": {
+    "voice": "qwen",
+    "images": "flux-2-pro",
+    "video": ["pruna"]
+  },
   "providers": {
-    "elevenLabs": true,
-    "did": true
-  }
+    "replicate": true,
+    "qwen": true,
+    "flux": true,
+    "pruna": true
+  },
+  "fluxGridImages": 4,
+  "videoProviderPreference": ["pruna"]
 }
 ```
 
-No key values are returned.
+No secret values are returned.
 
 ## API flow
 
-### Create consented session
+### Create a consented session
 
 ```http
 POST /api/simulation/session
-Content-Type: application/json
 ```
 
 ```json
@@ -221,11 +250,7 @@ Content-Type: application/json
 }
 ```
 
-The response includes a random session ID and client token. All subsequent API requests require:
-
-```http
-x-simulation-token: <token>
-```
+The response contains a random session ID and token. Subsequent requests require `x-simulation-token` or the token query parameter for media elements.
 
 ### Upload face
 
@@ -234,7 +259,7 @@ POST /api/simulation/:id/face
 Content-Type: multipart/form-data
 ```
 
-Form field: `face`
+Form field: `face`.
 
 ### Upload voice
 
@@ -243,29 +268,42 @@ POST /api/simulation/:id/voice
 Content-Type: multipart/form-data
 ```
 
-Form field: `voice`
+Form fields:
 
-### Start generation
+- `voice` — audio file;
+- `referenceText` — optional transcript. The browser recorder automatically sends the known sample transcript so Qwen can use it for stronger cloning.
+
+### Generate deepfake awareness video
 
 ```http
 POST /api/simulation/:id/generate
 ```
 
-This starts the provider pipeline and immediately returns a generation status. The frontend polls the status endpoint.
-
-### Poll
+The frontend polls:
 
 ```http
 GET /api/simulation/:id/status
 ```
 
-### Stream final watermarked MP4
+and streams the final watermarked result from:
 
 ```http
 GET /api/simulation/:id/video?token=<session-token>
 ```
 
-The response is marked `private, no-store`.
+### Generate synthetic profile after learning checkpoint
+
+```http
+POST /api/simulation/:id/profile/generate
+```
+
+The same status endpoint exposes `profileStatus`, `profileDetail`, `profileError` and `variantCount`.
+
+Synthetic lesson images are served privately from:
+
+```http
+GET /api/simulation/:id/variant/:index?token=<session-token>
+```
 
 ### Delete immediately
 
@@ -273,99 +311,50 @@ The response is marked `private, no-store`.
 DELETE /api/simulation/:id
 ```
 
-The final UI calls this when the participant completes the lesson.
+The completion action calls this endpoint before showing the final completion screen.
 
 ## Data lifecycle
 
-Local temporary directory:
+During the first stage the local session directory may temporarily contain the uploaded face and voice, generated speech, raw video and watermarked result. After the watermarked video is ready, the voice sample, synthetic speech and raw video are removed. The original portrait is retained only until the learner starts the FLUX profile exercise.
 
-```text
-uploads/<random-session-id>/
-```
+After FLUX finishes, the original server-side portrait is removed and only the watermarked training video plus the four synthetic lesson images remain. At module completion those remaining files are deleted immediately. Abandoned sessions are removed by the expiry timer.
 
-During a real generation it can temporarily contain:
+## Security controls
 
-```text
-face.jpg / face.png
-voice.webm / voice.wav / voice.mp3 / voice.m4a
-speech.mp3
-raw.mp4
-simulation.mp4
-```
-
-After successful generation, only `simulation.mp4` remains until the session expires or the participant completes the simulation. On failure, local media is removed. The cleanup timer removes expired session directories.
-
-Provider cleanup is attempted whether generation succeeds or fails:
-
-- ElevenLabs temporary voice: DELETE
-- D-ID uploaded image: DELETE
-- D-ID uploaded audio: DELETE
-
-## Security controls included
-
-- explicit consent gate
-- fixed server-side generated text
-- no arbitrary text-generation route
-- no public uploads directory
-- random 256-bit session token
-- token required on participant-session endpoints
-- upload size limits
-- binary magic-byte validation rather than trusting filename/MIME alone
-- local image-dimension validation
-- JPEG/PNG only for images
-- WAV/MP3/WebM/M4A only for audio
-- rate limiting for new simulation sessions
-- Helmet security headers / CSP
-- no API keys in client JavaScript
-- no provider key values in health output
-- final-video `no-store` response
-- permanent MP4 watermark plus an additional UI disclosure overlay
-- provider cleanup in `finally`
-- automatic local expiry
+- explicit informed-consent gate;
+- participant ownership assertions for face and voice media;
+- fixed benign server-side generated text;
+- no arbitrary impersonation-script route;
+- local JPEG/PNG signature, dimension and size validation;
+- restricted audio types and upload sizes;
+- random 256-bit session token;
+- no public uploads directory;
+- session-token protection for video and image responses;
+- `private, no-store` media responses;
+- server-side provider credentials only;
+- session creation rate limiting;
+- Helmet/CSP security headers;
+- permanent MP4 AI disclosure plus UI disclosures;
+- FLUX profile clearly marked as simulated and never posted externally;
+- sequential Replicate calls with 429 retry handling;
+- staged media deletion and automatic expiry;
+- no biometric identity recognition or demographic inference.
 
 ## CI
 
-`.github/workflows/ci.yml` checks:
+`.github/workflows/ci.yml` validates:
 
-- dependency installation
-- media validation unit tests
-- Node syntax for backend files
-- Vite production build
-- complete Docker image build
+- server and client dependencies;
+- media validation tests;
+- Node syntax for Qwen, FLUX, Pruna and the rest of the backend;
+- Vite production build;
+- Docker image build;
+- FFmpeg watermark smoke test inside the production image.
 
-## Integration with the main security-awareness platform
+## Production scaling notes
 
-For the MVP this is a standalone simulator. The next production integration should add a **signed launch token** from the parent platform rather than allowing anonymous public session creation.
-
-Recommended parent-platform claims:
-
-```json
-{
-  "userId": "EMP1048",
-  "campaignId": "CAM2026",
-  "module": "deepfake-awareness",
-  "tenantId": "TENANT001",
-  "exp": 1786600000
-}
-```
-
-After the awareness lesson, the simulator can call an authenticated completion callback on the parent platform. Do not put employee PII into D-ID `user_data` or provider resource names.
-
-## MVP limitations before enterprise production
-
-The current implementation is intentionally suitable for a single-instance Render proof of concept. Before large-scale tenant deployment, add:
-
-- Redis or a database for session state if horizontally scaling;
-- encrypted object storage with short TTLs if jobs can outlive a web instance;
-- signed launch tokens from the main awareness platform;
-- authenticated completion callbacks;
-- tenant-aware quotas and rate limits;
-- central audit events that store consent metadata but **not** biometric media;
-- provider DPA/privacy review for your target jurisdictions;
-- organisation-specific retention policy;
-- monitoring and alerting for provider failures;
-- queue/worker separation for high concurrency.
+The current session store is in memory and local files are intentionally ephemeral. Before horizontally scaling, add a queue plus shared short-TTL state/object storage, signed launch tokens from the parent awareness platform, authenticated completion callbacks, tenant-aware quotas and audit events that record consent metadata without storing biometric media.
 
 ## Safety boundary
 
-This project is for authorised participant-facing awareness training. Do not remove the consent gate, fixed-script restriction, cleanup logic or AI-generated disclosure in downstream deployments.
+This project is for authorised participant-facing security awareness. Do not remove the ownership/consent checks, fixed-script restriction, temporary-media cleanup, synthetic-profile disclosure or permanent AI watermark in downstream deployments.
