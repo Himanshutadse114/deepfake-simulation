@@ -4,13 +4,14 @@ const Replicate = require('replicate');
 const config = require('../config');
 const { runWithReplicateRetry } = require('./replicate-retry');
 
+// These prompts are intentionally restricted to benign, consented awareness
+// imagery. They create plausible social-photo variety without adding claims,
+// documents, uniforms, brands, money, credentials or other deceptive props.
 const VARIANT_PROMPTS = [
-  'Preserve the exact identity and facial features of the person in image 1. Create a realistic three-quarter left portrait of the same person, eye-level camera, natural expression, clean modern office background, soft daylight, realistic smartphone photo. Do not change age, hairstyle, skin tone, facial structure, or distinctive features.',
-  'Preserve the exact identity and facial features of the person in image 1. Create a realistic three-quarter right portrait of the same person, eye-level camera, natural expression, neutral indoor background, soft window light, realistic smartphone photo. Do not change age, hairstyle, skin tone, facial structure, or distinctive features.',
-  'Preserve the exact identity and facial features of the person in image 1. Create a realistic front-facing casual social-media portrait of the same person in a bright cafe or coworking space, natural expression, realistic smartphone camera look. Do not change age, hairstyle, skin tone, facial structure, or distinctive features.',
-  'Preserve the exact identity and facial features of the person in image 1. Create a realistic front-facing outdoor social-media portrait of the same person, subtle city or park background, natural daylight, natural expression, realistic smartphone camera look. Do not change age, hairstyle, skin tone, facial structure, or distinctive features.',
-  'Preserve the exact identity and facial features of the person in image 1. Create a realistic slightly closer portrait of the same person, eye-level camera, simple professional background, soft balanced lighting, natural expression. Do not change age, hairstyle, skin tone, facial structure, or distinctive features.',
-  'Preserve the exact identity and facial features of the person in image 1. Create a realistic waist-up social-media photograph of the same person, relaxed posture, neutral contemporary indoor background, natural light. Do not change age, hairstyle, skin tone, facial structure, or distinctive features.'
+  'Using image 1 as the identity reference, preserve the same person and distinctive facial features. Create a realistic square social-media photo of the same person in a modern office or coworking space, three-quarter left camera angle, natural expression, soft daylight, casual-professional clothing, realistic smartphone photography. Keep identity, approximate age, skin tone, hairstyle and facial structure consistent. No text, logos, badges, documents or other people.',
+  'Using image 1 as the identity reference, preserve the same person and distinctive facial features. Create a realistic square social-media photo of the same person in a bright cafe setting, three-quarter right camera angle, natural expression, warm window light, everyday clothing, realistic smartphone photography. Keep identity, approximate age, skin tone, hairstyle and facial structure consistent. No text, logos, badges, documents or other people.',
+  'Using image 1 as the identity reference, preserve the same person and distinctive facial features. Create a realistic square travel-style social photo of the same person outdoors in a generic city promenade or public plaza, front-facing to slight angle, natural daylight, relaxed expression, realistic smartphone photography. Keep identity, approximate age, skin tone, hairstyle and facial structure consistent. Do not depict a specific landmark. No text, logos, documents or other people.',
+  'Using image 1 as the identity reference, preserve the same person and distinctive facial features. Create a realistic square lifestyle social photo of the same person in a green park or neutral outdoor setting, slightly wider waist-up framing, natural expression, soft late-afternoon light, realistic smartphone photography. Keep identity, approximate age, skin tone, hairstyle and facial structure consistent. No text, logos, badges, documents or other people.'
 ];
 
 function requireReplicate() {
@@ -67,7 +68,7 @@ async function generateIdentityVariants(faceFile, sessionId) {
           prompt_upsampling: false
         }
       }),
-      { label: `FLUX identity variant ${index + 1}/${count}` }
+      { label: `FLUX profile image ${index + 1}/${count}` }
     );
 
     const targetPath = path.join(directory, `variant-${index + 1}.jpg`);
@@ -75,7 +76,7 @@ async function generateIdentityVariants(faceFile, sessionId) {
     results.push(targetPath);
   }
 
-  console.log(`Generated ${results.length} consented FLUX image variants for session ${sessionId.slice(0, 8)}.`);
+  console.log(`Generated ${results.length} consented FLUX profile images for session ${sessionId.slice(0, 8)}.`);
   return results;
 }
 
