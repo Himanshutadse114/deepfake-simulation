@@ -12,16 +12,26 @@ services:
         value: 10000
       - key: DEMO_MODE
         value: "false"
-      - key: CHATTERBOX_LANGUAGE
-        value: en
-      - key: DID_ADAPTER_ENABLED
-        value: "false"
-      - key: HEYGEN_ADAPTER_ENABLED
-        value: "false"
+      - key: VOICE_PROVIDER
+        value: qwen
+      - key: QWEN_MODEL
+        value: qwen/qwen3-tts
+      - key: QWEN_LANGUAGE
+        value: auto
+      - key: FLUX_ENABLED
+        value: "true"
+      - key: FLUX_MODEL
+        value: black-forest-labs/flux-2-pro
+      - key: FLUX_GRID_IMAGES
+        value: 4
       - key: VIDEO_PROVIDER_PREFERENCE
         value: pruna
       - key: PRUNA_RESOLUTION
         value: 720p
+      - key: DID_ADAPTER_ENABLED
+        value: "false"
+      - key: HEYGEN_ADAPTER_ENABLED
+        value: "false"
       - key: MAX_IMAGE_SIZE_MB
         value: 8
       - key: MAX_AUDIO_SIZE_MB
