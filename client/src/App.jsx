@@ -233,14 +233,28 @@ function DeepfakeLearningPanel() {
 function SocialProfile({ session, facePreview, variantCount }) {
   const token = encodeURIComponent(session.token);
   const variantUrl = (index) => `/api/simulation/${session.id}/variant/${index}?token=${token}`;
-  const avatar = facePreview || (variantCount ? variantUrl(0) : '');
+  const fallbackAvatar = variantCount ? variantUrl(0) : '';
+  const avatar = facePreview || fallbackAvatar;
 
   return (
     <div className="social-device" aria-label="Simulated social-media impersonation profile">
       <div className="social-safety-banner">SIMULATED PROFILE · AI-GENERATED AWARENESS DEMO</div>
       <div className="social-toolbar"><span>‹</span><strong>yourname.ai_demo</strong><span>•••</span></div>
       <div className="social-profile-head">
-        <div className="avatar-ring">{avatar ? <img src={avatar} alt="Consented participant profile preview" /> : <span>AI</span>}</div>
+        <div className="avatar-ring">
+          {avatar ? (
+            <img
+              src={avatar}
+              alt="Consented participant profile preview"
+              onError={(event) => {
+                if (fallbackAvatar && !event.currentTarget.dataset.fallback) {
+                  event.currentTarget.dataset.fallback = '1';
+                  event.currentTarget.src = fallbackAvatar;
+                }
+              }}
+            />
+          ) : <span>AI</span>}
+        </div>
         <div className="social-stat"><b>{variantCount}</b><small>posts</small></div>
         <div className="social-stat"><b>12.8K</b><small>followers</small></div>
         <div className="social-stat"><b>642</b><small>following</small></div>
@@ -340,9 +354,15 @@ export default function App() {
 
   useEffect(() => () => {
     if (facePreview) URL.revokeObjectURL(facePreview);
+  }, [facePreview]);
+
+  useEffect(() => () => {
     if (voicePreview) URL.revokeObjectURL(voicePreview);
+  }, [voicePreview]);
+
+  useEffect(() => () => {
     streamRef.current?.getTracks().forEach((track) => track.stop());
-  }, [facePreview, voicePreview]);
+  }, []);
 
   useEffect(() => {
     if (!session) return undefined;
