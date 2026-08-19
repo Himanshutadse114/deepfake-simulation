@@ -86,7 +86,8 @@ router.get('/:id/status', loadAuthorisedSession, (req, res) => {
     provider,
     profileStatus,
     profileDetail,
-    profileError
+    profileError,
+    audioOutput
   } = req.simulation;
   res.json({
     status,
@@ -96,8 +97,22 @@ router.get('/:id/status', loadAuthorisedSession, (req, res) => {
     profileStatus,
     profileDetail,
     profileError,
+    audioReady: status === 'completed' && Boolean(audioOutput),
     variantCount: variants.length
   });
+});
+
+router.get('/:id/audio', loadAuthorisedSession, async (req, res, next) => {
+  try {
+    if (req.simulation.status !== 'completed' || !req.simulation.audioOutput) {
+      return res.status(409).json({ error: 'The generated voice-deepfake awareness audio is not ready.' });
+    }
+    await fs.access(req.simulation.audioOutput);
+    res.setHeader('cache-control', 'private, no-store');
+    res.setHeader('content-type', 'audio/wav');
+    res.setHeader('content-disposition', 'inline; filename="ai-awareness-voice-clone.wav"');
+    res.sendFile(req.simulation.audioOutput);
+  } catch (error) { next(error); }
 });
 
 router.get('/:id/video', loadAuthorisedSession, async (req, res, next) => {
