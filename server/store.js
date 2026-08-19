@@ -18,6 +18,7 @@ function createSession(consents) {
     detail: 'Waiting for participant media.',
     face: null,
     voice: null,
+    audioOutput: null,
     output: null,
     variants: [],
     provider: {},
@@ -47,9 +48,14 @@ function updateProfileStatus(session, status, detail = '') {
   session.profileDetail = detail;
 }
 
-async function removeLocalSessionFiles(session, { keepOutput = false, keepFace = false, keepVariants = false } = {}) {
+async function removeLocalSessionFiles(session, {
+  keepOutput = false,
+  keepFace = false,
+  keepVariants = false,
+  keepAudio = false
+} = {}) {
   const directory = path.join(config.uploadRoot, session.id);
-  if (!keepOutput && !keepFace && !keepVariants) {
+  if (!keepOutput && !keepFace && !keepVariants && !keepAudio) {
     await fs.rm(directory, { recursive: true, force: true });
     return;
   }
@@ -57,6 +63,7 @@ async function removeLocalSessionFiles(session, { keepOutput = false, keepFace =
   const keep = new Set();
   if (keepOutput && session.output) keep.add(path.basename(session.output));
   if (keepFace && session.face?.path) keep.add(path.basename(session.face.path));
+  if (keepAudio && session.audioOutput) keep.add(path.basename(session.audioOutput));
   if (keepVariants) {
     for (const variant of session.variants || []) keep.add(path.basename(variant));
   }
