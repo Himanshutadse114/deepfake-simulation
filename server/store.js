@@ -20,8 +20,10 @@ function createSession(consents) {
     voice: null,
     output: null,
     variants: [],
-    variantError: null,
-    provider: {}
+    provider: {},
+    profileStatus: 'idle',
+    profileDetail: 'Profile impersonation demo has not started.',
+    profileError: null
   };
   sessions.set(id, session);
   return session;
@@ -40,16 +42,24 @@ function updateStatus(session, status, detail = '') {
   session.detail = detail;
 }
 
-async function removeLocalSessionFiles(session, { keepOutput = false } = {}) {
+function updateProfileStatus(session, status, detail = '') {
+  session.profileStatus = status;
+  session.profileDetail = detail;
+}
+
+async function removeLocalSessionFiles(session, { keepOutput = false, keepFace = false, keepVariants = false } = {}) {
   const directory = path.join(config.uploadRoot, session.id);
-  if (!keepOutput) {
+  if (!keepOutput && !keepFace && !keepVariants) {
     await fs.rm(directory, { recursive: true, force: true });
     return;
   }
 
   const keep = new Set();
-  if (session.output) keep.add(path.basename(session.output));
-  for (const variant of session.variants || []) keep.add(path.basename(variant));
+  if (keepOutput && session.output) keep.add(path.basename(session.output));
+  if (keepFace && session.face?.path) keep.add(path.basename(session.face.path));
+  if (keepVariants) {
+    for (const variant of session.variants || []) keep.add(path.basename(variant));
+  }
 
   let files = [];
   try { files = await fs.readdir(directory); } catch { return; }
@@ -73,4 +83,13 @@ function startExpiryCleanup() {
   timer.unref();
 }
 
-module.exports = { createSession, getSession, publicSession, updateStatus, removeLocalSessionFiles, deleteSession, startExpiryCleanup };
+module.exports = {
+  createSession,
+  getSession,
+  publicSession,
+  updateStatus,
+  updateProfileStatus,
+  removeLocalSessionFiles,
+  deleteSession,
+  startExpiryCleanup
+};
