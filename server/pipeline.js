@@ -1,6 +1,7 @@
 const path = require('node:path');
 const config = require('./config');
-const { updateStatus, removeLocalSessionFiles } = require('./store');
+const { updateStatus, updateProfileStatus, removeLocalSessionFiles } = require('./store');
+const { synthesizeFixedScript: synthesizeQwen } = require('./services/qwen');
 const { synthesizeFixedScript: synthesizeChatterbox } = require('./services/chatterbox');
 const { synthesizeFixedScript: synthesizeElevenLabs } = require('./services/elevenlabs');
 const { generateIdentityVariants } = require('./services/flux');
@@ -20,6 +21,14 @@ function heygenConfigured() {
 async function generateVoice(session, speechPath) {
   const provider = config.providers.voiceProvider;
 
+  if (provider === 'qwen') {
+    if (!config.providers.replicateToken) throw new Error('REPLICATE_API_TOKEN is required when VOICE_PROVIDER=qwen.');
+    updateStatus(session, 'cloning_voice', 'Qwen3-TTS is cloning the participant-provided reference voice for the fixed awareness sentence.');
+    await synthesizeQwen(session.voice, speechPath, session.voice?.referenceText || '');
+    session.provider.voice = 'qwen3-tts';
+    return;
+  }
+
   if (provider === 'elevenlabs') {
     if (!config.providers.elevenLabsApiKey) throw new Error('ELEVENLABS_API_KEY is required when VOICE_PROVIDER=elevenlabs.');
     updateStatus(session, 'cloning_voice', 'ElevenLabs is creating a temporary consented voice clone for this session.');
@@ -30,7 +39,7 @@ async function generateVoice(session, speechPath) {
 
   if (provider === 'chatterbox') {
     if (!config.providers.replicateToken) throw new Error('REPLICATE_API_TOKEN is required when VOICE_PROVIDER=chatterbox.');
-    updateStatus(session, 'generating_audio', 'Chatterbox Multilingual is generating the fixed awareness message from the participant-provided reference voice.');
+    updateStatus(session, 'cloning_voice', 'Chatterbox is cloning the participant-provided reference voice for the fixed awareness sentence.');
     await synthesizeChatterbox(session.voice, speechPath);
     session.provider.voice = 'chatterbox';
     return;
@@ -64,7 +73,7 @@ async function generateVideoWithFallback(session, speechPath) {
           failures.push('pruna: REPLICATE_API_TOKEN is not configured');
           continue;
         }
-        updateStatus(session, 'generating_video', 'Pruna is animating the original consented portrait with the fixed awareness audio.');
+        updateStatus(session, 'generating_video', 'Pruna is animating the original consented portrait with the cloned fixed awareness audio.');
         return await generatePrunaVideo(session.face, speechPath);
       }
       failures.push(`${provider}: unsupported video provider`);
@@ -94,22 +103,6 @@ async function generateSimulation(session) {
     }
 
     await generateVoice(session, speechPath);
-
-    // FLUX variants are optional awareness assets. A variant failure should not
-    // discard an otherwise valid paid voice/video generation.
-    if (config.providers.fluxEnabled) {
-      try {
-        if (!config.providers.replicateToken) throw new Error('REPLICATE_API_TOKEN is required when FLUX_ENABLED=true.');
-        updateStatus(session, 'generating_variants', 'FLUX.2 Pro is creating consented identity-preserving angle and background variants for the awareness grid.');
-        session.variants = await generateIdentityVariants(session.face, session.id);
-        session.provider.images = 'flux-2-pro';
-      } catch (error) {
-        session.variantError = error.message || 'FLUX image variants could not be generated.';
-        session.variants = [];
-        console.warn(`FLUX variants skipped for session ${session.id.slice(0, 8)}: ${session.variantError}`);
-      }
-    }
-
     const video = await generateVideoWithFallback(session, speechPath);
     session.provider.video = video.provider;
 
@@ -117,13 +110,42 @@ async function generateSimulation(session) {
     await createWatermarkedVideo(video.url, rawVideoPath, outputPath);
     session.output = outputPath;
 
-    const variantNote = session.variants?.length ? ` + ${session.variants.length} synthetic awareness images` : '';
-    updateStatus(session, 'completed', `The restricted awareness simulation is ready (${video.provider}${variantNote}).`);
-    await removeLocalSessionFiles(session, { keepOutput: true });
+    updateStatus(session, 'completed', `Your restricted deepfake-awareness video is ready (${video.provider}).`);
+
+    // Remove the voice sample, cloned speech and raw video now. Keep only the
+    // watermarked result and the original portrait until the learner reaches
+    // the FLUX impersonation-profile exercise.
+    await removeLocalSessionFiles(session, { keepOutput: true, keepFace: config.providers.fluxEnabled });
   } catch (error) {
     updateStatus(session, 'failed', error.message || 'Generation failed.');
     await removeLocalSessionFiles(session).catch(() => {});
   }
 }
 
-module.exports = { generateSimulation, generateVideoWithFallback, generateVoice };
+async function generateProfileVariants(session) {
+  if (session.status !== 'completed' || !session.output) throw new Error('Complete the deepfake video stage before generating the profile demo.');
+  if (!config.providers.fluxEnabled) throw new Error('FLUX profile generation is disabled. Set FLUX_ENABLED=true.');
+  if (!config.providers.replicateToken) throw new Error('REPLICATE_API_TOKEN is required for FLUX image generation.');
+  if (!session.face?.path) throw new Error('The temporary participant portrait is no longer available for this session.');
+
+  updateProfileStatus(session, 'generating', 'FLUX.2 Pro is turning the single consented portrait into four synthetic social-profile photos with different settings.');
+  session.profileError = null;
+
+  try {
+    session.variants = await generateIdentityVariants(session.face, session.id);
+    session.provider.images = 'flux-2-pro';
+    updateProfileStatus(session, 'completed', `${session.variants.length} synthetic profile images are ready for the impersonation lesson.`);
+
+    // The original server-side portrait is no longer needed once FLUX has
+    // produced the awareness variants. Keep only the watermarked video and
+    // synthetic lesson images until module completion/expiry.
+    await removeLocalSessionFiles(session, { keepOutput: true, keepVariants: true });
+  } catch (error) {
+    session.profileError = error.message || 'FLUX profile generation failed.';
+    updateProfileStatus(session, 'failed', session.profileError);
+    await removeLocalSessionFiles(session, { keepOutput: true, keepFace: true }).catch(() => {});
+    throw error;
+  }
+}
+
+module.exports = { generateSimulation, generateProfileVariants, generateVideoWithFallback, generateVoice };
