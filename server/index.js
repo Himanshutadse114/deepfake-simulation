@@ -10,7 +10,7 @@ const rateLimit = require('express-rate-limit');
 const multer = require('multer');
 const config = require('./config');
 const simulationRoutes = require('./routes');
-const { router: adminRoutes, renderAdminPage } = require('./admin');
+const { router: adminRouter, renderAdminPage } = require('./admin');
 const { startExpiryCleanup } = require('./store');
 
 const app = express();
@@ -58,9 +58,15 @@ app.get('/api/health', (_req, res) => {
     service: 'deepfake-awareness-simulation',
     demoMode: config.demoMode,
     sessionDemoMode: true,
-    adminManagedScripts: true,
-    adminConfigured: Boolean(config.adminKey),
+    customAwarenessScripts: true,
     audioTracks: ['whatsapp', 'video'],
+    scriptPolicy: {
+      minChars: config.scriptPolicy.minChars,
+      maxChars: config.scriptPolicy.maxChars,
+      blockUrls: config.scriptPolicy.blockUrls,
+      requireAwarenessContext: config.scriptPolicy.requireAwarenessContext,
+      sensitiveRequestProtection: true
+    },
     stack: {
       voice: config.providers.voiceProvider,
       images: config.providers.fluxEnabled ? 'flux-2-pro' : 'disabled',
@@ -84,17 +90,14 @@ app.get('/api/health', (_req, res) => {
   });
 });
 
-app.get('/admin', (_req, res) => {
-  res.setHeader('cache-control', 'no-store');
-  res.type('html').send(renderAdminPage());
-});
-app.use('/api/admin', adminRoutes);
+app.use('/api/admin', adminRouter);
+app.get('/admin', (_req, res) => res.type('html').send(renderAdminPage()));
 app.use('/api/simulation', simulationRoutes);
 
 if (fs.existsSync(config.clientDist)) {
   app.use(express.static(config.clientDist, { maxAge: '1h', etag: true }));
   app.use((req, res, next) => {
-    if (req.method !== 'GET' || req.path.startsWith('/api/')) return next();
+    if (req.method !== 'GET' || req.path.startsWith('/api/') || req.path === '/admin') return next();
     res.sendFile(path.join(config.clientDist, 'index.html'));
   });
 }
