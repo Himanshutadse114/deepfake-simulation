@@ -5,6 +5,12 @@ const numberEnv = (name, fallback) => {
   return Number.isFinite(value) && value > 0 ? value : fallback;
 };
 
+const booleanEnv = (name, fallback) => {
+  const raw = process.env[name];
+  if (raw === undefined || raw === null || raw === '') return fallback;
+  return String(raw).toLowerCase() === 'true';
+};
+
 const ROOT = path.resolve(__dirname, '..');
 
 module.exports = {
@@ -17,6 +23,12 @@ module.exports = {
   retentionMs: numberEnv('MEDIA_RETENTION_MINUTES', 30) * 60 * 1000,
   demoMode: String(process.env.DEMO_MODE || 'false').toLowerCase() === 'true',
   adminKey: String(process.env.ADMIN_KEY || '').trim(),
+  scriptPolicy: {
+    minChars: numberEnv('SCRIPT_MIN_CHARS', 20),
+    maxChars: numberEnv('SCRIPT_MAX_CHARS', 180),
+    blockUrls: booleanEnv('SCRIPT_BLOCK_URLS', true),
+    requireAwarenessContext: booleanEnv('SCRIPT_REQUIRE_AWARENESS_CONTEXT', false)
+  },
   // Legacy benign fallback retained for older provider adapters.
   awarenessScript: 'This is an AI-generated security awareness simulation. A familiar face or voice can be faked. Verify unusual requests through a trusted channel before acting.',
   providers: {
