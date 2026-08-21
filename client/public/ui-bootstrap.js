@@ -74,6 +74,7 @@
     await loadScript('/editorial-newspaper.js?v=2');
     await loadScript('/responsive-polish.js?v=1');
     await loadScript('/qr-polish.js?v=1');
+    await loadScript('/wa-flow-fix.js?v=1');
     document.querySelector('.intro-actions .demo-action')?.remove();
 
     const enforceScreenVisibility=(name)=>{
