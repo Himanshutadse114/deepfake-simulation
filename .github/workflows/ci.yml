@@ -47,6 +47,7 @@ jobs:
           node --check client/public/ui-bootstrap.js
           node --check client/public/admin-ui.js
           node --check client/public/wa-polish.js
+          node --check client/public/experience-polish.js
       - name: Build client
         run: npm --prefix client run build
       - name: Build Docker image
