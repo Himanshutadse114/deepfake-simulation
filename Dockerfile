@@ -14,6 +14,7 @@ COPY package.json ./package.json
 RUN npm install --omit=dev
 COPY server ./server
 COPY --from=client-builder /app/client/dist ./client/dist
+COPY Deepfake.png ./client/dist/Deepfake.png
 RUN mkdir -p /app/uploads && chown -R node:node /app
 USER node
 ENV NODE_ENV=production
