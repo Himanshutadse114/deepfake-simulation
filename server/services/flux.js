@@ -46,15 +46,25 @@ async function saveOutput(output, targetPath) {
   throw new Error('FLUX returned an unsupported image output shape.');
 }
 
+async function collectVariantResults(count, runVariant, onFailure = () => {}) {
+  const results = [];
+  for (let index = 0; index < count; index += 1) {
+    try {
+      results.push(await runVariant(index));
+    } catch (error) {
+      onFailure({ index, error });
+    }
+  }
+  return results;
+}
+
 async function generateIdentityVariants(faceFile, sessionId, options = {}) {
   if (!config.providers.fluxEnabled) return [];
   const replicate = requireReplicate();
   const reference = await fs.readFile(faceFile.path);
   const directory = path.dirname(faceFile.path);
   const count = VARIANT_PROMPTS.length;
-  const results = [];
-
-  for (let index = 0; index < count; index += 1) {
+  const results = await collectVariantResults(count, async (index) => {
     const output = await runWithReplicateRetry(
       () => replicate.run(config.providers.fluxModel, {
         input: {
@@ -73,11 +83,13 @@ async function generateIdentityVariants(faceFile, sessionId, options = {}) {
 
     const targetPath = path.join(directory, `variant-${index + 1}.jpg`);
     await saveOutput(output, targetPath);
-    results.push(targetPath);
-  }
+    return targetPath;
+  }, ({ index, error }) => {
+    console.warn(`Profile image ${index + 1}/${count} failed and will be replaced in the learner grid: ${error.message || error}`);
+  });
 
   console.log(`Generated ${results.length} consented FLUX profile images for session ${sessionId.slice(0, 8)}.`);
   return results;
 }
 
-module.exports = { generateIdentityVariants, VARIANT_PROMPTS };
+module.exports = { generateIdentityVariants, collectVariantResults, VARIANT_PROMPTS };

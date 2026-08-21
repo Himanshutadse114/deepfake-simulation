@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const config = require('../server/config');
-const { VARIANT_PROMPTS } = require('../server/services/flux');
+const { VARIANT_PROMPTS, collectVariantResults } = require('../server/services/flux');
 const { runInitialGeneration } = require('../server/pipeline');
 
 test('starts profile images with the audio and video pipeline', async () => {
@@ -24,4 +24,15 @@ test('starts profile images with the audio and video pipeline', async () => {
 test('profile generation is fixed to exactly four images', () => {
   assert.equal(config.providers.fluxGridImages, 4);
   assert.equal(VARIANT_PROMPTS.length, 4);
+});
+
+test('keeps successful profile images when other image predictions fail', async () => {
+  const failures = [];
+  const results = await collectVariantResults(4, async (index) => {
+    if (index !== 2) throw new Error(`image ${index + 1} interrupted`);
+    return 'variant-3.jpg';
+  }, ({ index }) => failures.push(index));
+
+  assert.deepEqual(results, ['variant-3.jpg']);
+  assert.deepEqual(failures, [0, 1, 3]);
 });

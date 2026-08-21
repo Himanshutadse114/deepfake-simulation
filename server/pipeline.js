@@ -181,7 +181,7 @@ async function generateSimulation(session) {
       () => generateProfileVariants(session)
     );
 
-    updateStatus(session, 'completed', 'Your voice, video and four profile images are ready.');
+    updateStatus(session, 'completed', 'Your voice, video and profile experience are ready.');
 
     // Delete original participant voice and portrait after all provider work.
     // Keep only generated outputs required by the learner flow until completion/expiry.
@@ -220,9 +220,11 @@ async function generateProfileVariants(session) {
     session.variants = await generateIdentityVariants(session.face, session.id, {
       onRateLimit: rateLimitStatus(session)
     });
-    if (session.variants.length !== 4) throw new Error('Four profile images could not be prepared.');
-    session.provider.images = 'flux-2-pro';
-    updateProfileStatus(session, 'completed', 'Four profile images are ready.');
+    if (!session.variants.length) throw new Error('No profile image could be prepared. Please try the simulation again.');
+    session.provider.images = session.variants.length === 4 ? 'flux-2-pro' : 'flux-2-pro-partial';
+    updateProfileStatus(session, 'completed', session.variants.length === 4
+      ? 'Four profile images are ready.'
+      : `${session.variants.length} profile image${session.variants.length === 1 ? ' is' : 's are'} ready. Available images will fill the four-post profile.`);
     return session.variants;
   } catch (error) {
     session.profileError = error.message || 'Profile images could not be prepared.';

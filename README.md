@@ -112,6 +112,8 @@ One uninterrupted generation run creates the two Qwen audio tracks, the Pruna vi
 
 If Replicate temporarily reduces the account to one prediction start every ten seconds, the server automatically waits, spaces subsequent starts, and retries only creation requests that were rejected before billing. The learner sees a short waiting message instead of the raw provider response.
 
+The four FLUX image attempts are isolated from one another. If at least one succeeds, the simulation continues and the successful image set is reused to fill all four Instagram-style grid positions. A profile-image failure stops the simulation only when all four attempts fail.
+
 Optional legacy/fallback providers remain in the codebase but are disabled by default.
 
 ## API flow

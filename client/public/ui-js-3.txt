@@ -225,9 +225,10 @@ function buildInstagramGrid(src) {
   const mini = document.getElementById('igMiniGrid');
   if (!grid) return;
   const labels = ['Office day', 'Coffee stop', 'Weekend city', 'Outdoor moment'];
-  const photos = Array.isArray(variantUrls) && variantUrls.length
-    ? variantUrls.slice(0, 4)
-    : [src, src, src, src];
+  const availablePhotos = Array.isArray(variantUrls) ? variantUrls.slice(0, 4).filter(Boolean) : [];
+  const photos = Array.from({ length: 4 }, (_, index) => availablePhotos.length
+    ? availablePhotos[index % availablePhotos.length]
+    : src);
   grid.innerHTML = labels.map((label, index) => {
     const asset = photos[index] || src;
     const safeAsset = String(asset || '').replace(/'/g, '%27');
