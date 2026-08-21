@@ -1,6 +1,6 @@
 function renderDemoPage() {
   return `<!doctype html>
-<html lang="en" data-theme="dark">
+<html lang="en" data-theme="dark" data-demo-instance="true">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
@@ -11,10 +11,15 @@ function renderDemoPage() {
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Fraunces:ital,wght@0,600;0,700;0,900;1,600&display=swap" rel="stylesheet" />
+<style>
+  html[data-demo-instance="true"] .intro-actions .demo-action{display:none!important}
+  html[data-demo-instance="true"] .intro-actions{justify-content:center!important}
+  html[data-demo-instance="true"] .intro-actions .primary{width:min(620px,100%)!important;margin-inline:auto!important}
+</style>
 </head>
 <body data-demo-instance="true">
 <div id="uiBoot" style="min-height:100vh;background:#06080d"></div>
-<script src="/ui-bootstrap.js" defer></script>
+<script src="/ui-bootstrap.js?v=demo-20260821-1" defer></script>
 </body>
 </html>`;
 }
