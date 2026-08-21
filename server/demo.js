@@ -19,7 +19,7 @@ function renderDemoPage() {
 </head>
 <body data-demo-instance="true">
 <div id="uiBoot" style="min-height:100vh;background:#06080d"></div>
-<script src="/ui-bootstrap.js?v=editorial-20260821-1" defer></script>
+<script src="/ui-bootstrap.js?v=responsive-20260821-1" defer></script>
 </body>
 </html>`;
 }
