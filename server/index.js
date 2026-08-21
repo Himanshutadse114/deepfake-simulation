@@ -10,6 +10,7 @@ const rateLimit = require('express-rate-limit');
 const multer = require('multer');
 const config = require('./config');
 const simulationRoutes = require('./routes');
+const { router: adminRoutes, renderAdminPage } = require('./admin');
 const { startExpiryCleanup } = require('./store');
 
 const app = express();
@@ -33,7 +34,7 @@ app.use(helmet({
 }));
 
 const allowedOrigin = process.env.CORS_ORIGIN?.trim();
-if (allowedOrigin) app.use(cors({ origin: allowedOrigin, methods: ['GET', 'POST', 'DELETE'], allowedHeaders: ['content-type', 'x-simulation-token'] }));
+if (allowedOrigin) app.use(cors({ origin: allowedOrigin, methods: ['GET', 'POST', 'PUT', 'DELETE'], allowedHeaders: ['content-type', 'x-simulation-token', 'x-admin-key'] }));
 
 app.use(express.json({ limit: '1mb' }));
 
@@ -57,7 +58,8 @@ app.get('/api/health', (_req, res) => {
     service: 'deepfake-awareness-simulation',
     demoMode: config.demoMode,
     sessionDemoMode: true,
-    customAwarenessScripts: true,
+    adminManagedScripts: true,
+    adminConfigured: Boolean(config.adminKey),
     audioTracks: ['whatsapp', 'video'],
     stack: {
       voice: config.providers.voiceProvider,
@@ -82,6 +84,11 @@ app.get('/api/health', (_req, res) => {
   });
 });
 
+app.get('/admin', (_req, res) => {
+  res.setHeader('cache-control', 'no-store');
+  res.type('html').send(renderAdminPage());
+});
+app.use('/api/admin', adminRoutes);
 app.use('/api/simulation', simulationRoutes);
 
 if (fs.existsSync(config.clientDist)) {
