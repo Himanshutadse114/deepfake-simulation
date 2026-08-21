@@ -132,10 +132,25 @@ async function apiRequest(path, options = {}, token = '') {
   if (options.body && !(options.body instanceof FormData) && !headers.has('content-type')) {
     headers.set('content-type', 'application/json');
   }
-  const response = await fetch(path, { ...options, headers });
+  let response;
+  try {
+    response = await fetch(path, { ...options, headers });
+  } catch (error) {
+    if (error instanceof TypeError || /failed to fetch|networkerror|load failed|network request failed/i.test(String(error?.message || error))) {
+      const networkError = new Error('Connection to the simulation server was interrupted.');
+      networkError.isNetworkError = true;
+      networkError.cause = error;
+      throw networkError;
+    }
+    throw error;
+  }
   const contentType = response.headers.get('content-type') || '';
   const payload = contentType.includes('application/json') ? await response.json().catch(() => ({})) : {};
-  if (!response.ok) throw new Error(payload.error || payload.message || `Request failed (${response.status}).`);
+  if (!response.ok) {
+    const responseError = new Error(payload.error || payload.message || `Request failed (${response.status}).`);
+    responseError.isNetworkError = [408, 425, 429, 502, 503, 504].includes(response.status);
+    throw responseError;
+  }
   return payload;
 }
 
@@ -166,7 +181,7 @@ function checkMediaReady() {
 [firstNameInput, lastNameInput].forEach((input) => input?.addEventListener('input', checkMediaReady));
 
 function generationPercentForStatus(status) {
-  if (status === 'rate_limited') return currentGenerationPercent;
+  if (status === 'rate_limited' || status === 'reconnecting') return currentGenerationPercent;
   return ({
     queued: 5,
     validating: 12,

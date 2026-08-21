@@ -66,6 +66,7 @@
       case 'cloning_video': return 'Cloning your voice for the video…';
       case 'generating_video': return 'Decoding facial structure and synchronising movement…';
       case 'generating_profile': return 'Preparing four profile variations…';
+      case 'reconnecting': return 'Connection interrupted. Your outputs are still processing; reconnecting automatically…';
       case 'watermarking': return 'Finalising the simulation…';
       case 'completed': return 'Your simulation is ready.';
       case 'demo_preparing': return 'Loading your demo media…';

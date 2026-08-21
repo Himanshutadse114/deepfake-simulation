@@ -72,8 +72,29 @@ async function startGeneration() {
 
 async function pollGenerationUntilReady() {
   if (!liveSession) throw new Error('Simulation session is unavailable.');
+  let disconnectedAt = 0;
+  let reconnectAttempts = 0;
   for (;;) {
-    const payload = await apiRequest(`/api/simulation/${liveSession.id}/status`, {}, liveSession.token);
+    let payload;
+    try {
+      payload = await apiRequest(`/api/simulation/${liveSession.id}/status`, {}, liveSession.token);
+      disconnectedAt = 0;
+      reconnectAttempts = 0;
+    } catch (error) {
+      if (!error.isNetworkError) throw error;
+      if (!disconnectedAt) disconnectedAt = Date.now();
+      reconnectAttempts += 1;
+      if (Date.now() - disconnectedAt > 15 * 60 * 1000) {
+        throw new Error('The simulation server could not be reached for 15 minutes. Please try again.');
+      }
+      updateGenerationFromServer({
+        status: 'reconnecting',
+        detail: 'Connection interrupted. Your outputs are still processing; reconnecting automatically…'
+      });
+      const reconnectDelay = Math.min(15_000, 2_000 + (reconnectAttempts * 1_500));
+      await new Promise((resolve) => { generationPollTimer = setTimeout(resolve, reconnectDelay); });
+      continue;
+    }
     updateGenerationFromServer(payload);
     if (payload.status === 'failed') throw new Error(payload.detail || 'Generation failed.');
     if (payload.status === 'completed') {

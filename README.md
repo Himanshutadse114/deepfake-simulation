@@ -114,6 +114,8 @@ If Replicate temporarily reduces the account to one prediction start every ten s
 
 The four FLUX image attempts are isolated from one another. If at least one succeeds, the simulation continues and the successful image set is reused to fill all four Instagram-style grid positions. A profile-image failure stops the simulation only when all four attempts fail.
 
+During generation, temporary browser-to-Render network interruptions do not discard the active session. Status polling reconnects automatically for up to 15 minutes while server-side provider work continues, and the learner sees a reconnection message instead of the browser's raw `Failed to fetch` error.
+
 Optional legacy/fallback providers remain in the codebase but are disabled by default.
 
 ## API flow
