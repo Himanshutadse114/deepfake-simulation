@@ -92,6 +92,7 @@ var recordedInApp = false;
 var recordingCancelled = false;
 var generationPollTimer = null;
 var currentGenerationStatus = 'queued';
+var currentGenerationPercent = 5;
 var generationInProgress = false;
 var profileGenerationInProgress = false;
 var RECORDING_REFERENCE_TEXT = 'Hello, this is my voice sample for an authorised security awareness simulation. Today I am speaking clearly and naturally at my normal pace. A familiar voice can be imitated by AI, so unusual requests should always be verified through a trusted channel.';
@@ -183,7 +184,8 @@ function generationPercentForStatus(status) {
 
 function updateGenerationFromServer(payload) {
   currentGenerationStatus = payload.status || currentGenerationStatus;
-  const p = generationPercentForStatus(currentGenerationStatus);
+  const p = currentGenerationStatus === 'failed' ? currentGenerationPercent : generationPercentForStatus(currentGenerationStatus);
+  if (currentGenerationStatus !== 'failed') currentGenerationPercent = p;
   updateGeneration(p);
   const eta = document.getElementById('genEta');
   const scan = document.getElementById('scanState');

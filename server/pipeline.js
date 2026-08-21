@@ -161,6 +161,7 @@ async function generateSimulation(session) {
       keepFace: config.providers.fluxEnabled
     });
   } catch (error) {
+    console.warn(`[generation:${session.id}] ${error.stack || error.message || error}`);
     updateStatus(session, 'failed', error.message || 'Generation failed.');
     session.profileStatus = 'failed';
     session.profileError = error.message || 'Generation failed.';
