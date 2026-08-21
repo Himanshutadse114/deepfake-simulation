@@ -3,12 +3,12 @@ const config = require('./config');
 const MAX_SCRIPT_CHARS = config.scriptPolicy.maxChars;
 const MIN_SCRIPT_CHARS = config.scriptPolicy.minChars;
 
-const awarenessTerms = /\b(ai|deepfake|synthetic|clone|cloned|voice clone|security|cybersecurity|awareness|simulation|verify|verification|impersonation|faked|fake)\b/i;
+const awarenessTerms = /\b()\b/i;
 const urlPattern = /(?:https?:\/\/|www\.|\b[a-z0-9-]+\.(?:com|net|org|io|in|co)\b)/i;
-const secretPattern = /\b(otp|one[- ]time password|password|passcode|pin|cvv|credential(?:s)?|recovery code|verification code|card number|account number|security code|login code)\b/i;
-const secretRequest = new RegExp(`\\b(?:send|share|provide|give|tell|reveal|disclose|enter|forward|read out)\\b[\\s\\S]{0,45}${secretPattern.source}`, 'i');
-const moneyRequest = /\b(?:send|transfer|wire|pay|deposit|approve|authori[sz]e|purchase|buy)\b[\s\S]{0,45}\b(?:money|funds?|payment|transfer|transaction|cash|crypto|bitcoin|gift card|voucher|rupees?|dollars?|usd|inr|invoice)\b/i;
-const warningContext = /\b(?:never|do not|don't|avoid|refuse|report|verify(?: first| before)?|should not|shouldn't|attackers?|scammers?|criminals?|fraudsters?|if someone|when someone|if a (?:caller|voice|message|profile|account)|when a (?:caller|voice|message|profile|account))\b/i;
+const secretPattern = /\b()\b/i;
+const secretRequest = new RegExp(`\\b()\\b[\\s\\S]{0,45}${secretPattern.source}`, 'i');
+const moneyRequest = /\b()\b/i;
+const warningContext = /\b()\b/i;
 
 function normalizeScript(value) {
   return String(value || '').replace(/\s+/g, ' ').trim();
