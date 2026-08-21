@@ -61,10 +61,11 @@ app.get('/api/health', (_req, res) => {
     sessionDemoMode: true,
     demoInstancePath: '/demo',
     customAwarenessScripts: true,
-    audioTracks: config.providers.separateVideoAudio ? ['whatsapp', 'video'] : ['shared'],
+    audioTracks: ['whatsapp', 'video'],
     durationLimits: {
       referenceAudioSeconds: config.maxReferenceAudioSeconds,
-      generatedAudioSeconds: config.maxGeneratedAudioSeconds
+      generatedAudioSeconds: config.maxGeneratedAudioSeconds,
+      videoSeconds: config.maxVideoSeconds
     },
     scriptPolicy: {
       minChars: config.scriptPolicy.minChars,
@@ -75,7 +76,6 @@ app.get('/api/health', (_req, res) => {
     },
     stack: {
       voice: config.providers.voiceProvider,
-      separateVideoAudio: config.providers.separateVideoAudio,
       images: config.providers.fluxEnabled ? 'flux-2-pro' : 'disabled',
       video: config.providers.videoProviderPreference
     },

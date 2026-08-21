@@ -1,6 +1,6 @@
 const { execFile } = require('node:child_process');
 
-function validateDuration(duration, { label = 'Audio', minSeconds = 0.5, maxSeconds = 30 } = {}) {
+function validateDuration(duration, { label = 'Audio', minSeconds = 0.5, maxSeconds = 10 } = {}) {
   const seconds = Number(duration);
   if (!Number.isFinite(seconds) || seconds <= 0) throw new Error(`${label} duration could not be verified.`);
   if (seconds < minSeconds) throw new Error(`${label} is too short. It must be at least ${minSeconds} seconds.`);

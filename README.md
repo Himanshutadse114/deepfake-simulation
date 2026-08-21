@@ -13,7 +13,7 @@ This project is intentionally restricted to authorised participant-facing awaren
 - administrator-configured scripts are accepted only when they pass the awareness and sensitive-request policy;
 - server-side policy rejects direct instructions to send/approve money or disclose passwords, OTPs, credentials, security codes, payment approvals, etc.;
 - scripts are capped at 180 characters so generated clips remain short;
-- reference audio is capped at 45 seconds and generated audio is verified at 30 seconds or less before a video provider can be called;
+- reference audio is capped at 45 seconds; the separate WhatsApp and video audio tracks must each be 10 seconds or less or generation stops before Pruna is called; the delivered video is hard-capped at 10 seconds;
 - paid predictions are not automatically retried;
 - generated video carries a permanent `AI-GENERATED SECURITY AWARENESS SIMULATION` disclosure;
 - generated social images remain inside the module and are not published to a real social network;
@@ -32,9 +32,8 @@ This project is intentionally restricted to authorised participant-facing awaren
    - **WhatsApp audio script**
    - **Deepfake video audio script**
 4. Generation
-   - Qwen creates one checked voice-clone track by default
-   - the WhatsApp lesson and Pruna video share that track, preventing an unnecessary second TTS prediction
-   - a separate video track remains available only through the explicit `SEPARATE_VIDEO_AUDIO=true` setting
+   - Qwen creates two checked voice-clone tracks: one from the admin WhatsApp script and one from the admin video script
+   - each track is verified at 10 seconds or less before Pruna can be called
    - FFmpeg burns the permanent AI disclosure
    - FLUX.2 Pro is not called during initial generation
 5. WhatsApp-style voice impersonation experience
@@ -56,19 +55,13 @@ It uses the same UI and backend session lifecycle but does **not** call Qwen, Pr
 ## Active AI stack
 
 ```text
-Participant-owned voice
-        │
-                Qwen3-TTS voice_clone
-                         │
-              checked shared awareness audio
-                         │
-              ┌──────────┴──────────┐
-              ↓                     ↓
-      WhatsApp voice note     Deepfake-video audio
-                                      │
-Participant-owned portrait ───────────┤
-                                      ↓
-                              Pruna p-video-avatar
+Admin WhatsApp script ──→ Qwen3-TTS ──→ checked WhatsApp audio (≤10 s)
+
+Admin video script ─────→ Qwen3-TTS ──→ checked video audio (≤10 s)
+                                                │
+Participant-owned portrait ─────────────────────┤
+                                                ↓
+                                        Pruna p-video-avatar
                                       ↓
                               FFmpeg disclosure
                                       ↓
@@ -104,9 +97,9 @@ REPLICATE_API_TOKEN=your_fresh_replicate_token
 VOICE_PROVIDER=qwen
 QWEN_MODEL=qwen/qwen3-tts
 QWEN_LANGUAGE=auto
-SEPARATE_VIDEO_AUDIO=false
 MAX_REFERENCE_AUDIO_SECONDS=45
-MAX_GENERATED_AUDIO_SECONDS=30
+MAX_GENERATED_AUDIO_SECONDS=10
+MAX_VIDEO_SECONDS=10
 
 VIDEO_PROVIDER_PREFERENCE=pruna
 PRUNA_MODEL=prunaai/p-video-avatar
@@ -117,7 +110,7 @@ FLUX_MODEL=black-forest-labs/flux-2-pro
 FLUX_GRID_IMAGES=4
 ```
 
-The initial AI confirmation covers one Qwen prediction and one Pruna prediction. The four FLUX calls have their own confirmation later in the learner flow; declining continues with the original portrait at no additional provider cost.
+The initial AI confirmation covers two Qwen predictions and one Pruna prediction. Pruna is not called if either generated audio track exceeds 10 seconds. The four FLUX calls have their own confirmation later in the learner flow; declining continues with the original portrait at no additional provider cost.
 
 Optional legacy/fallback providers remain in the codebase but are disabled by default.
 
@@ -215,7 +208,7 @@ A real session can temporarily contain:
 face.jpg / face.png
 voice.webm / voice.wav / voice.mp3 / voice.m4a
 whatsapp-speech.wav
-video-speech.wav (only when SEPARATE_VIDEO_AUDIO=true)
+video-speech.wav
 raw.mp4
 simulation.mp4
 variant-1.jpg ... variant-4.jpg
