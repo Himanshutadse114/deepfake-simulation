@@ -16,7 +16,8 @@ module.exports = {
   maxAudioBytes: numberEnv('MAX_AUDIO_SIZE_MB', 20) * 1024 * 1024,
   retentionMs: numberEnv('MEDIA_RETENTION_MINUTES', 30) * 60 * 1000,
   demoMode: String(process.env.DEMO_MODE || 'false').toLowerCase() === 'true',
-  // Restricted, benign script only. Learners cannot supply arbitrary generated speech.
+  adminKey: String(process.env.ADMIN_KEY || '').trim(),
+  // Legacy benign fallback retained for older provider adapters.
   awarenessScript: 'This is an AI-generated security awareness simulation. A familiar face or voice can be faked. Verify unusual requests through a trusted channel before acting.',
   providers: {
     replicateToken: process.env.REPLICATE_API_TOKEN || '',
