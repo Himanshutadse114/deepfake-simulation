@@ -10,9 +10,11 @@ This project is intentionally restricted to authorised participant-facing awaren
 
 - all consent confirmations are required before media upload;
 - the participant confirms the photograph and voice sample are their own;
-- two participant-authored scripts are accepted only when they are clearly framed as awareness/verification content;
+- administrator-configured scripts are accepted only when they pass the awareness and sensitive-request policy;
 - server-side policy rejects direct instructions to send/approve money or disclose passwords, OTPs, credentials, security codes, payment approvals, etc.;
 - scripts are capped at 180 characters so generated clips remain short;
+- reference audio is capped at 45 seconds and generated audio is verified at 30 seconds or less before a video provider can be called;
+- paid predictions are not automatically retried;
 - generated video carries a permanent `AI-GENERATED SECURITY AWARENESS SIMULATION` disclosure;
 - generated social images remain inside the module and are not published to a real social network;
 - provider secrets stay server-side;
@@ -30,15 +32,15 @@ This project is intentionally restricted to authorised participant-facing awaren
    - **WhatsApp audio script**
    - **Deepfake video audio script**
 4. Generation
-   - Qwen voice clone #1 → WhatsApp voice-note track
-   - Qwen voice clone #2 → separate deepfake-video track
-   - Pruna uses the **video-specific** audio track
+   - Qwen creates one checked voice-clone track by default
+   - the WhatsApp lesson and Pruna video share that track, preventing an unnecessary second TTS prediction
+   - a separate video track remains available only through the explicit `SEPARATE_VIDEO_AUDIO=true` setting
    - FFmpeg burns the permanent AI disclosure
-   - FLUX.2 Pro generates four profile images
+   - FLUX.2 Pro is not called during initial generation
 5. WhatsApp-style voice impersonation experience
 6. Incoming WhatsApp video-call experience using the Pruna MP4
 7. Follow-on social-engineering chat context
-8. Instagram-style synthetic profile using the four FLUX images
+8. Optional, separately confirmed FLUX profile generation, or a no-cost profile lesson using the uploaded portrait
 9. Unified learning/analysis screen
 10. Nine-question knowledge check (video, voice, profile)
 11. Completion score and cleanup
@@ -56,9 +58,13 @@ It uses the same UI and backend session lifecycle but does **not** call Qwen, Pr
 ```text
 Participant-owned voice
         │
-        ├── Qwen3-TTS voice_clone → WhatsApp awareness audio
-        │
-        └── Qwen3-TTS voice_clone → Deepfake-video awareness audio
+                Qwen3-TTS voice_clone
+                         │
+              checked shared awareness audio
+                         │
+              ┌──────────┴──────────┐
+              ↓                     ↓
+      WhatsApp voice note     Deepfake-video audio
                                       │
 Participant-owned portrait ───────────┤
                                       ↓
@@ -68,6 +74,8 @@ Participant-owned portrait ───────────┤
                                       ↓
                                Deepfake video
 
+Participant separately approves optional paid profile generation
+        ↓
 Participant-owned portrait
         ↓
 FLUX.2 Pro (4 sequential images)
@@ -96,6 +104,9 @@ REPLICATE_API_TOKEN=your_fresh_replicate_token
 VOICE_PROVIDER=qwen
 QWEN_MODEL=qwen/qwen3-tts
 QWEN_LANGUAGE=auto
+SEPARATE_VIDEO_AUDIO=false
+MAX_REFERENCE_AUDIO_SECONDS=45
+MAX_GENERATED_AUDIO_SECONDS=30
 
 VIDEO_PROVIDER_PREFERENCE=pruna
 PRUNA_MODEL=prunaai/p-video-avatar
@@ -105,6 +116,8 @@ FLUX_ENABLED=true
 FLUX_MODEL=black-forest-labs/flux-2-pro
 FLUX_GRID_IMAGES=4
 ```
+
+The initial AI confirmation covers one Qwen prediction and one Pruna prediction. The four FLUX calls have their own confirmation later in the learner flow; declining continues with the original portrait at no additional provider cost.
 
 Optional legacy/fallback providers remain in the codebase but are disabled by default.
 
@@ -202,7 +215,7 @@ A real session can temporarily contain:
 face.jpg / face.png
 voice.webm / voice.wav / voice.mp3 / voice.m4a
 whatsapp-speech.wav
-video-speech.wav
+video-speech.wav (only when SEPARATE_VIDEO_AUDIO=true)
 raw.mp4
 simulation.mp4
 variant-1.jpg ... variant-4.jpg

@@ -22,7 +22,10 @@ function retryDelayMs(error, attempt) {
   return Math.min(30_000, 3000 * (attempt + 1));
 }
 
-async function runWithReplicateRetry(operation, { label = 'Replicate prediction', maxAttempts = 5 } = {}) {
+// Paid predictions are never retried automatically by default. A failure while
+// Replicate is polling an already-created prediction must not create a second
+// billable prediction behind the learner's back.
+async function runWithReplicateRetry(operation, { label = 'Replicate prediction', maxAttempts = 1 } = {}) {
   let lastError;
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
     try {

@@ -20,6 +20,8 @@ module.exports = {
   clientDist: path.join(ROOT, 'client', 'dist'),
   maxImageBytes: numberEnv('MAX_IMAGE_SIZE_MB', 8) * 1024 * 1024,
   maxAudioBytes: numberEnv('MAX_AUDIO_SIZE_MB', 20) * 1024 * 1024,
+  maxReferenceAudioSeconds: numberEnv('MAX_REFERENCE_AUDIO_SECONDS', 45),
+  maxGeneratedAudioSeconds: numberEnv('MAX_GENERATED_AUDIO_SECONDS', 30),
   retentionMs: numberEnv('MEDIA_RETENTION_MINUTES', 30) * 60 * 1000,
   demoMode: String(process.env.DEMO_MODE || 'false').toLowerCase() === 'true',
   adminKey: String(process.env.ADMIN_KEY || '').trim(),
@@ -38,6 +40,7 @@ module.exports = {
     voiceProvider: String(process.env.VOICE_PROVIDER || 'qwen').trim().toLowerCase(),
     qwenModel: process.env.QWEN_MODEL || 'qwen/qwen3-tts',
     qwenLanguage: process.env.QWEN_LANGUAGE || 'auto',
+    separateVideoAudio: booleanEnv('SEPARATE_VIDEO_AUDIO', false),
 
     // Optional fallback/experimentation providers kept available but not active by default.
     chatterboxModel: process.env.CHATTERBOX_MODEL || 'resemble-ai/chatterbox-multilingual:9cfba4c265e685f840612be835424f8c33bdee685d7466ece7684b0d9d4c0b1c',

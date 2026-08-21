@@ -24,6 +24,10 @@ async function uploadSessionMedia(session) {
 }
 
 async function startGeneration() {
+  if (generationInProgress) return;
+  generationInProgress = true;
+  const generateButton = document.getElementById('generateBtn');
+  if (generateButton) generateButton.disabled = true;
   if (liveSession) await cleanupLiveSession();
   try {
     const whatsappScript = safeScriptClientCheck(whatsappScriptInput?.value, 'WhatsApp audio script');
@@ -58,6 +62,8 @@ async function startGeneration() {
     if (eta) eta.textContent = error.message;
     toast(error.message);
     await cleanupLiveSession();
+    generationInProgress = false;
+    checkMediaReady();
     setTimeout(() => go('media'), 1700);
   }
 }
@@ -230,11 +236,46 @@ function buildInstagramGrid(src) {
   if (mini) mini.innerHTML = photos.map((asset, index) => `<img src="${asset || src}" alt="Profile image ${index + 1}">`).join('');
 }
 
+async function openProfileExperience() {
+  if (!liveSession || runMode === 'demo' || variantUrls.length) {
+    go('profileExperience');
+    return;
+  }
+  if (profileGenerationInProgress) return;
+  const approved = window.confirm('Optional paid step: generate four FLUX profile images? Choose Cancel to continue with your original portrait at no additional AI cost.');
+  if (!approved) {
+    go('profileExperience');
+    return;
+  }
+
+  profileGenerationInProgress = true;
+  toast('Generating four optional profile images…');
+  try {
+    await apiRequest(`/api/simulation/${liveSession.id}/profile/generate`, { method: 'POST', body: JSON.stringify({}) }, liveSession.token);
+    for (;;) {
+      const payload = await apiRequest(`/api/simulation/${liveSession.id}/status`, {}, liveSession.token);
+      if (payload.profileStatus === 'failed') throw new Error(payload.profileError || 'Profile generation failed.');
+      if (payload.profileStatus === 'completed') {
+        prepareGeneratedAssets(payload);
+        go('profileExperience');
+        return;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 1800));
+    }
+  } catch (error) {
+    toast(`${error.message} Continuing without generated profile images.`);
+    go('profileExperience');
+  } finally {
+    profileGenerationInProgress = false;
+  }
+}
+
 function finishSimulation() {
   const total = scores.video + scores.voice + scores.profile;
   document.getElementById('finalScore').textContent = `${total}/9`;
   document.getElementById('scoreRing').style.setProperty('--scorepct', Math.round(total / 9 * 100));
   go('complete');
+  generationInProgress = false;
   cleanupLiveSession();
 }
 
@@ -264,6 +305,8 @@ async function resetSimulation() {
   updateScriptCounter(videoScriptInput, videoScriptCount);
   setIdentity('Alex', 'Morgan');
   runMode = 'ai';
+  generationInProgress = false;
+  profileGenerationInProgress = false;
   go('intro');
   checkMediaReady();
 }
