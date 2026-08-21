@@ -13,7 +13,7 @@ This project is intentionally restricted to authorised participant-facing awaren
 - administrator-configured scripts are accepted only when they pass the awareness and sensitive-request policy;
 - server-side policy rejects direct instructions to send/approve money or disclose passwords, OTPs, credentials, security codes, payment approvals, etc.;
 - scripts are capped at 180 characters so generated clips remain short;
-- reference audio is capped at 45 seconds; the separate WhatsApp and video audio tracks must each be 10 seconds or less or generation stops before Pruna is called; the delivered video is hard-capped at 10 seconds;
+- the uploaded participant voice is passed directly to Qwen as a reference without a duration check; the separate WhatsApp and video outputs must each be 12 seconds or less or generation stops before Pruna is called; the delivered video is hard-capped at 10 seconds;
 - paid predictions are not automatically retried;
 - generated video carries a permanent `AI-GENERATED SECURITY AWARENESS SIMULATION` disclosure;
 - generated social images remain inside the module and are not published to a real social network;
@@ -33,31 +33,31 @@ This project is intentionally restricted to authorised participant-facing awaren
    - **Deepfake video audio script**
 4. Generation
    - Qwen creates two checked voice-clone tracks: one from the admin WhatsApp script and one from the admin video script
-   - each track is verified at 10 seconds or less before Pruna can be called
+   - each track is verified at 12 seconds or less before Pruna can be called
    - FFmpeg burns the permanent AI disclosure
-   - FLUX.2 Pro is not called during initial generation
+   - four FLUX.2 Pro profile images begin during the same initial generation run
 5. WhatsApp-style voice impersonation experience
 6. Incoming WhatsApp video-call experience using the Pruna MP4
 7. Follow-on social-engineering chat context
-8. Optional, separately confirmed FLUX profile generation, or a no-cost profile lesson using the uploaded portrait
+8. Four-image Instagram-style profile lesson using the assets prepared during initial generation
 9. Unified learning/analysis screen
 10. Nine-question knowledge check (video, voice, profile)
 11. Completion score and cleanup
 
 ## Internal demo mode
 
-The first screen includes **Internal demo mode · no AI**.
+The main learner screen exposes only the full simulation. A dedicated `/demo` route remains available for provider-free internal review.
 
 It uses the same UI and backend session lifecycle but does **not** call Qwen, Pruna, FLUX, D-ID, HeyGen, ElevenLabs or any other AI provider. The uploaded participant photo is used as the visual placeholder, the uploaded voice sample is played in the audio positions, and the profile grid reuses the uploaded portrait. This makes it possible to review the complete production flow without spending provider credits.
 
-`DEMO_MODE=true` still exists as a global server-side override and forces every session into no-AI mode. The UI button is a per-session demo mode and works even when the server is normally configured for real generation.
+`DEMO_MODE=true` still exists as a global server-side override and forces every session into no-AI mode.
 
 ## Active AI stack
 
 ```text
-Admin WhatsApp script ──→ Qwen3-TTS ──→ checked WhatsApp audio (≤10 s)
+Admin WhatsApp script ──→ Qwen3-TTS ──→ checked WhatsApp audio (≤12 s)
 
-Admin video script ─────→ Qwen3-TTS ──→ checked video audio (≤10 s)
+Admin video script ─────→ Qwen3-TTS ──→ checked video audio (≤12 s)
                                                 │
 Participant-owned portrait ─────────────────────┤
                                                 ↓
@@ -67,13 +67,14 @@ Participant-owned portrait ─────────────────�
                                       ↓
                                Deepfake video
 
-Participant separately approves optional paid profile generation
-        ↓
-Participant-owned portrait
-        ↓
-FLUX.2 Pro (4 sequential images)
-        ↓
-Synthetic Instagram-style profile
+Participant-owned portrait ───────────────┐
+                                          ↓
+                                  FLUX.2 Pro
+                                (4 profile images)
+                                          ↓
+                             Instagram-style profile
+
+The profile-image path starts with the audio/video path during the same run.
 ```
 
 ### Models
@@ -97,8 +98,6 @@ REPLICATE_API_TOKEN=your_fresh_replicate_token
 VOICE_PROVIDER=qwen
 QWEN_MODEL=qwen/qwen3-tts
 QWEN_LANGUAGE=auto
-MAX_REFERENCE_AUDIO_SECONDS=45
-MAX_GENERATED_AUDIO_SECONDS=10
 MAX_VIDEO_SECONDS=10
 
 VIDEO_PROVIDER_PREFERENCE=pruna
@@ -107,10 +106,9 @@ PRUNA_RESOLUTION=720p
 
 FLUX_ENABLED=true
 FLUX_MODEL=black-forest-labs/flux-2-pro
-FLUX_GRID_IMAGES=4
 ```
 
-The initial AI confirmation covers two Qwen predictions and one Pruna prediction. Pruna is not called if either generated audio track exceeds 10 seconds. The four FLUX calls have their own confirmation later in the learner flow; declining continues with the original portrait at no additional provider cost.
+One uninterrupted generation run creates the two Qwen audio tracks, the Pruna video and exactly four FLUX images. Pruna is not called if either generated audio track exceeds 12 seconds. There is no later profile-generation request or browser confirmation.
 
 Optional legacy/fallback providers remain in the codebase but are disabled by default.
 
@@ -189,7 +187,7 @@ npm run dev
 
 Backend defaults to `http://localhost:10000`; Vite handles the client development server.
 
-For provider-free review, click **Internal demo mode · no AI** in the UI, or set `DEMO_MODE=true` globally.
+For provider-free review, open `/demo`, or set `DEMO_MODE=true` globally.
 
 ## Build and test
 
@@ -218,4 +216,4 @@ After successful real generation, the original participant photo/voice and raw v
 
 ## Deployment
 
-Render should deploy the `main` branch. No new secret is required for the UI or per-session demo mode. Real Qwen + Pruna + FLUX generation requires a valid Replicate token.
+Render deploys the `feature/consent-aware-simulator` branch. No new secret is required for the UI or demo route. Real Qwen + Pruna + FLUX generation requires a valid Replicate token.

@@ -51,7 +51,7 @@ async function generateIdentityVariants(faceFile, sessionId) {
   const replicate = requireReplicate();
   const reference = await fs.readFile(faceFile.path);
   const directory = path.dirname(faceFile.path);
-  const count = Math.min(Math.max(Number(config.providers.fluxGridImages) || 4, 1), VARIANT_PROMPTS.length);
+  const count = VARIANT_PROMPTS.length;
   const results = [];
 
   for (let index = 0; index < count; index += 1) {
