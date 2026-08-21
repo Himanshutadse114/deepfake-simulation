@@ -14,6 +14,14 @@ services:
         value: "false"
       - key: ADMIN_KEY
         sync: false
+      - key: SCRIPT_MIN_CHARS
+        value: 20
+      - key: SCRIPT_MAX_CHARS
+        value: 180
+      - key: SCRIPT_BLOCK_URLS
+        value: "true"
+      - key: SCRIPT_REQUIRE_AWARENESS_CONTEXT
+        value: "false"
       - key: VOICE_PROVIDER
         value: qwen
       - key: QWEN_MODEL
