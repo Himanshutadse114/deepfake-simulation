@@ -76,6 +76,7 @@
     await loadScript('/qr-polish.js?v=1');
     await loadScript('/wa-flow-fix.js?v=2');
     await loadScript('/wa-replay-reset.js?v=1');
+    await loadScript('/editorial-cta-fix.js?v=1');
     document.querySelector('.intro-actions .demo-action')?.remove();
 
     const enforceScreenVisibility=(name)=>{
