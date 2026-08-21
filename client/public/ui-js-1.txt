@@ -1,0 +1,243 @@
+const SCREENS=['intro','consent','media','generate','waVideoCall','videoExperience','voiceExperience','profileExperience','unifiedLearn','quiz','complete'];
+const progressMap={intro:0,consent:5,media:10,generate:15,waVideoCall:20,videoExperience:32,voiceExperience:44,profileExperience:56,unifiedLearn:74,quiz:86,complete:100};
+const awarenessText='This is an AI-generated security awareness simulation. A familiar face or voice can be faked. Verify unusual requests through a trusted channel before acting.';
+let currentScreen='intro', generationTimer=null, speechTimer=null, uploadedPhotoUrl='', uploadedAudioUrl='';
+const scores={video:0,voice:0,profile:0};
+const quizData={
+  video:[
+    {q:'A video call looks and sounds exactly like your manager and asks for an urgent transfer. What should you do first?',a:['Act quickly because the face and voice match','Verify through a known independent channel','Ask the caller to blink twice'],c:1,why:'Sensitive requests should be independently verified outside the call.'},
+    {q:'Which signal gives the strongest confidence that a sensitive video request is genuine?',a:['Perfect lip-sync','A familiar speaking style','A trusted verification process outside the video'],c:2,why:'Media quality is not identity proof; an independent process is stronger.'},
+    {q:'A familiar-looking video asks for an OTP or password. What is the safest response?',a:['Share only part of it','Do not share it; verify and report the unusual request','Share it if the video quality is high'],c:1,why:'Passwords and OTPs should not be shared because someone looks or sounds familiar.'}
+  ],
+  voice:[
+    {q:'A voice note sounds exactly like a colleague and asks for a payment approval code. What should you do?',a:['Send it because the voice matches','Verify the request through a trusted independent channel','Ask for another voice note'],c:1,why:'A second voice message is not independent verification.'},
+    {q:'Which detail is strongest evidence that a voice request is genuine?',a:['The accent sounds correct','The person uses familiar phrases','Your normal verification process confirms the request'],c:2,why:'Context and voice style can be cloned; an established process is stronger.'},
+    {q:'What should you do if a voice message asks for an OTP?',a:['Never share it; verify and report the request','Share only the last digits','Send it if the voice sounds natural'],c:0,why:'An OTP is a security secret and should not be disclosed based on voice identity.'}
+  ],
+  profile:[
+    {q:'Why can a synthetic social profile become convincing from one real photograph?',a:['AI can create a consistent-looking set of new images and context','Follower counts automatically prove identity','A profile photo is verified by default'],c:0,why:'Generated images plus copied context can manufacture a believable history.'},
+    {q:'A new account using a colleague\'s face asks for confidential information. What is safest?',a:['Reply because the photos look authentic','Verify with the colleague through a known channel and report the account','Trust it if it has many followers'],c:1,why:'Unexpected accounts should be verified outside the account itself.'},
+    {q:'Which habit best reduces impersonation risk?',a:['Trust professional-looking profiles','Publish more personal details so people recognise you','Limit unnecessary public data and verify unusual requests independently'],c:2,why:'Less exposed data gives impersonators less context, and independent verification breaks the trust trick.'}
+  ]
+};
+let quizState={modules:['video','voice','profile'],moduleIndex:0,index:0,selected:null,answered:[]};
+
+function svgAvatar(){const svg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 900"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#f15a24"/><stop offset=".48" stop-color="#273454"/><stop offset="1" stop-color="#111827"/></linearGradient><radialGradient id="r"><stop stop-color="#ffd8c2"/><stop offset="1" stop-color="#dfa889"/></radialGradient></defs><rect width="800" height="900" fill="url(#g)"/><circle cx="400" cy="324" r="164" fill="url(#r)"/><path d="M250 285c25-170 295-177 319 0-60-72-245-95-319 0Z" fill="#24202a"/><ellipse cx="338" cy="330" rx="15" ry="12" fill="#332b2c"/><ellipse cx="462" cy="330" rx="15" ry="12" fill="#332b2c"/><path d="M348 424q52 34 104 0" stroke="#9b5b59" stroke-width="10" stroke-linecap="round" fill="none"/><path d="M172 900q36-302 228-302t228 302" fill="#151d2a"/><path d="M185 898q50-240 215-240t215 240" fill="#29364c" opacity=".72"/><circle cx="675" cy="120" r="110" fill="#ff9d55" opacity=".15"/><text x="400" y="790" text-anchor="middle" font-family="Arial" fill="white" font-size="30" font-weight="700">YOUR CONSENTED PORTRAIT</text><text x="400" y="828" text-anchor="middle" font-family="Arial" fill="#e8edf5" font-size="18">Awareness simulation preview</text></svg>`;return 'data:image/svg+xml;charset=UTF-8,'+encodeURIComponent(svg)}
+const defaultFace=svgAvatar();
+function setSharedFace(src){document.querySelectorAll('.shared-face').forEach(img=>img.src=src);document.querySelectorAll('.shared-face-bg').forEach(el=>el.style.backgroundImage=`url(${src})`);buildInstagramGrid(src)}
+function legacy_buildInstagramGrid(src){const grid=document.getElementById('igGrid'),mini=document.getElementById('igMiniGrid');if(!grid||!mini)return;const labels=['Office day','Coffee stop','Weekend city','Outdoor moment','Deepfake reel'];grid.innerHTML=labels.map((label,i)=>`<div class="ig-tile" onclick="openIgPost('${label}', '${src}')"><img src="${src}" alt="Synthetic ${label}">${i===4?'<svg class="ig-reel" viewBox="0 0 24 24"><path fill="currentColor" d="M8 5v14l11-7z"/></svg><span class="ig-ai">AI VIDEO</span>':''}</div>`).join('');mini.innerHTML=labels.slice(0,4).map(label=>`<img src="${src}" alt="${label}">`).join('')}
+setSharedFace(defaultFace);
+
+function setIdentity(first,last){first=(first||'').trim()||'Alex';last=(last||'').trim()||'Morgan';const full=`${first} ${last}`;const slug=s=>s.toLowerCase().replace(/[^a-z0-9]/g,'');const handle=`${slug(first)}.${slug(last)}.life`;const link=`${slug(first)}${slug(last)}.example/profile`;document.querySelectorAll('.full-name').forEach(el=>el.textContent=full);document.querySelectorAll('.ig-handle').forEach(el=>el.textContent=handle);document.querySelectorAll('.ig-link').forEach(el=>el.textContent=link)}
+setIdentity('Alex','Morgan');
+const firstNameInput=document.getElementById('firstNameInput'),lastNameInput=document.getElementById('lastNameInput');
+[firstNameInput,lastNameInput].forEach(el=>el.addEventListener('input',()=>setIdentity(firstNameInput.value,lastNameInput.value)));
+
+function go(name){currentScreen=name;document.querySelectorAll('.screen').forEach(s=>s.classList.toggle('active',s.dataset.screen===name));let progress=progressMap[name]??0;if(name==='quiz'){const{total,overallIndex}=quizTotals();progress=80+Math.round(overallIndex/total*16)}document.getElementById('journeyProgress').style.width=progress+'%';const immersive=['videoExperience','voiceExperience','profileExperience'].includes(name);document.querySelector('.utility').style.display=immersive?'none':'flex';if(name!=='videoExperience'&&'speechSynthesis' in window)speechSynthesis.cancel()}
+
+const themeToggle=document.getElementById('themeToggle');
+themeToggle.addEventListener('click',()=>{const root=document.documentElement;const next=root.dataset.theme==='dark'?'light':'dark';root.dataset.theme=next;themeToggle.textContent=next==='dark'?'☾':'☀';localStorage.setItem('deepfake-ui-theme',next)});
+const savedTheme=localStorage.getItem('deepfake-ui-theme');if(savedTheme){document.documentElement.dataset.theme=savedTheme;themeToggle.textContent=savedTheme==='dark'?'☾':'☀'}
+
+const checks=[...document.querySelectorAll('.consent-check')];checks.forEach(c=>c.addEventListener('change',()=>{document.getElementById('consentContinue').disabled=!checks.every(x=>x.checked)}));
+
+const photoInput=document.getElementById('photoInput');photoInput.addEventListener('change',()=>{const f=photoInput.files?.[0];if(!f)return;if(uploadedPhotoUrl)URL.revokeObjectURL(uploadedPhotoUrl);uploadedPhotoUrl=URL.createObjectURL(f);document.getElementById('photoPreview').src=uploadedPhotoUrl;document.getElementById('photoPreview').classList.add('ready');document.getElementById('photoPrompt').style.display='none';document.getElementById('photoFileName').textContent=f.name;document.getElementById('photoStatus').textContent='Photo ready';document.getElementById('photoStatus').classList.add('ready');setSharedFace(uploadedPhotoUrl);checkMediaReady()});
+const audioInput=document.getElementById('audioInput');audioInput.addEventListener('change',()=>{const f=audioInput.files?.[0];if(!f)return;if(uploadedAudioUrl)URL.revokeObjectURL(uploadedAudioUrl);uploadedAudioUrl=URL.createObjectURL(f);document.getElementById('audioPreview').src=uploadedAudioUrl;document.getElementById('audioPrompt').style.display='none';document.getElementById('audioReady').classList.add('show');document.getElementById('audioFileName').textContent=f.name;document.getElementById('audioStatus').textContent='Voice ready';document.getElementById('audioStatus').classList.add('ready');checkMediaReady()});
+function legacy_checkMediaReady(){const ready=(!!photoInput.files?.[0]||!!uploadedPhotoUrl)&&(!!audioInput.files?.[0]||!!uploadedAudioUrl);const btn=document.getElementById('generateBtn');btn.disabled=!ready;btn.textContent=ready?'Generate awareness simulation →':'Upload photo & voice to continue'}
+function buildWaves(){['audioWave','waWave','waMiniWave'].forEach(id=>{const el=document.getElementById(id);if(el)el.innerHTML=Array.from({length:id==='waWave'?58:id==='waMiniWave'?38:46},()=>'<i></i>').join('')})}buildWaves();
+function playUploadedAudio(e){e?.preventDefault();e?.stopPropagation();const audio=document.getElementById('audioPreview');if(!audio.src){toast('Choose an audio sample first.');return}audio.currentTime=0;audio.play().catch(()=>toast('Audio preview is not available in this browser.'))}
+
+
+let callTimerInterval = null;
+let callDurationSec = 0;
+
+function legacy_startGeneration(){
+  go('generate');
+  let p=0;
+  clearInterval(generationTimer);
+  updateGeneration(0);
+  generationTimer=setInterval(()=>{
+    p+=Math.max(1,Math.round((100-p)/14));
+    if(p>100)p=100;
+    updateGeneration(p);
+    if(p>=100){
+      clearInterval(generationTimer);
+      setTimeout(()=>startWhatsAppSimulation(),650);
+    }
+  },180);
+}
+
+function startWhatsAppSimulation() {
+  go('voiceExperience');
+  const chatBody = document.getElementById('waChatBody');
+  chatBody.innerHTML = '<span class="wa-date">TODAY</span>';
+  showWaTyping(true);
+  
+  setTimeout(() => {
+    showWaTyping(false);
+    appendWaBubble('Hi — I need a quick favour. Can you listen to this voice note?', 'in');
+    
+    setTimeout(() => {
+      showWaTyping(true);
+      
+      setTimeout(() => {
+        showWaTyping(false);
+        appendAudioBubble();
+      }, 1500);
+    }, 1200);
+  }, 1500);
+}
+
+function showWaTyping(show) {
+  const chatBody = document.getElementById('waChatBody');
+  const existing = document.getElementById('waTypingBubble');
+  if (existing) existing.remove();
+  const status = document.getElementById('waStatus');
+  if(status) status.textContent = show ? 'typing...' : 'online';
+  
+  if (show) {
+    const bubble = document.createElement('div');
+    bubble.className = 'wa-bubble in';
+    bubble.id = 'waTypingBubble';
+    bubble.innerHTML = '<div class="wa-typing-dots"><span></span><span></span><span></span></div>';
+    chatBody.appendChild(bubble);
+    chatBody.scrollTop = chatBody.scrollHeight;
+  }
+}
+
+function appendWaBubble(text, direction) {
+  const chatBody = document.getElementById('waChatBody');
+  const bubble = document.createElement('div');
+  bubble.className = `wa-bubble ${direction}`;
+  const now = new Date();
+  const timeStr = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+  bubble.innerHTML = `${text}<span class="wa-time">${timeStr} ${direction==='out'?'✓✓':''}</span>`;
+  chatBody.appendChild(bubble);
+  chatBody.scrollTop = chatBody.scrollHeight;
+}
+
+function appendAudioBubble() {
+  const chatBody = document.getElementById('waChatBody');
+  const bubble = document.createElement('div');
+  bubble.className = 'wa-bubble in';
+  const now = new Date();
+  const timeStr = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
+  
+  const faceSrc = uploadedPhotoUrl || defaultFace;
+  bubble.innerHTML = `
+    <div class="voice-ui">
+      <button id="waVoiceBtn" class="voice-circle" onclick="playVoiceSimulation()">▶</button>
+      <div class="wa-wave" id="waWave"></div>
+      <span class="tiny" style="color:#8696a0">0:09</span>
+      <img src="${faceSrc}" class="shared-face" alt="Voice sender">
+    </div>
+    <span class="wa-time">${timeStr}</span>
+  `;
+  chatBody.appendChild(bubble);
+  buildWaves();
+  chatBody.scrollTop = chatBody.scrollHeight;
+}
+
+function onVoiceNoteCompleted() {
+  setTimeout(() => {
+    appendWaBubble('That sounds exactly like you.', 'out');
+    
+    setTimeout(() => {
+      showWaTyping(true);
+      
+      setTimeout(() => {
+        showWaTyping(false);
+        appendWaBubble('Please send the payment approval code now. It is urgent.', 'in');
+        
+        setTimeout(() => {
+          triggerIncomingVideoCall();
+        }, 2500);
+      }, 1800);
+    }, 1500);
+  }, 1000);
+}
+
+function triggerIncomingVideoCall() {
+  go('waVideoCall');
+}
+
+function declineVideoCall() {
+  toast('Alex is calling again...');
+}
+
+function legacy_acceptVideoCall() {
+  go('videoExperience');
+  
+  callDurationSec = 0;
+  document.getElementById('callDuration').textContent = '00:00';
+  clearInterval(callTimerInterval);
+  callTimerInterval = setInterval(() => {
+    callDurationSec++;
+    const m = String(Math.floor(callDurationSec/60)).padStart(2,'0');
+    const s = String(callDurationSec%60).padStart(2,'0');
+    document.getElementById('callDuration').textContent = m + ':' + s;
+  }, 1000);
+
+  // Auto-play the deepfake simulation immediately
+  setTimeout(() => {
+    playDeepfakeVideo();
+  }, 300);
+}
+
+function legacy_endVideoCall() {
+  clearInterval(callTimerInterval);
+  document.getElementById('videoExperience').classList.remove('video-playing');
+  document.getElementById('audioPreview').pause();
+  
+  /* No Pip camera */
+  
+  document.getElementById('callEndedOverlay').classList.add('show');
+  
+  // Auto-redirect to WhatsApp chat screen after 2.5 seconds
+  setTimeout(() => {
+    advanceFromVideoCall();
+  }, 2500);
+}
+
+function advanceFromVideoCall() {
+  document.getElementById('callEndedOverlay').classList.remove('show');
+  go('voiceExperience');
+  setTimeout(() => receiveQrCodePaymentRequest(), 1500);
+}
+
+
+let storyTimer = null;
+function openIgStory() {
+  document.getElementById('igStoryModal').style.display = 'flex';
+  const container = document.getElementById('igStoryContainer');
+  container.classList.add('active');
+  clearTimeout(storyTimer);
+  storyTimer = setTimeout(() => {
+    closeIgStory();
+  }, 5000);
+}
+function closeIgStory() {
+  clearTimeout(storyTimer);
+  document.getElementById('igStoryModal').style.display = 'none';
+  document.getElementById('igStoryContainer').classList.remove('active');
+}
+function openIgPost(label, src) {
+  document.getElementById('igPostModal').style.display = 'flex';
+  document.getElementById('igPostImg').src = src;
+  
+  const captions = {
+    'Office day': 'Productivity mode on! Big updates coming soon to the main workspace. 💻✨ #workspace #build',
+    'Coffee stop': 'Midday reboot. Fueling the build phase. ☕️🔋 #coffee #recharge',
+    'Weekend city': 'Exploring new corners. Getting inspired by everyday details. 🌆🚶‍♂️ #city #weekend',
+    'Outdoor moment': 'Off the grid. Back to nature for a quick recharge. 🌲⛰️ #nature #explore',
+    'Deepfake reel': 'Wait... is this video really me? Cloned my face and voice using generative AI pipelines! 🤯🚨 #deepfake #generativeai'
+  };
+  
+  const captionText = captions[label] || (label + " starting today! Working on something big. ✨");
+  document.getElementById('igPostDesc').textContent = captionText;
+}
+function closeIgPost() {
+  document.getElementById('igPostModal').style.display = 'none';
+}
+
+function updateGeneration(p){document.getElementById('genPercent').textContent=p;document.getElementById('genBar').style.width=p+'%';const remaining=Math.max(0,Math.ceil((100-p)/7));document.getElementById('genEta').textContent=p<100?`Estimated preview completion: ${remaining}s · ${generationMessage(p)}`:'Simulation ready. Opening deepfake video⬦';document.getElementById('scanState').textContent=p<100?'Scanning '+p+'%':'Ready';document.querySelectorAll('.gen-step').forEach(step=>{const at=+step.dataset.at;step.classList.toggle('done',p>=at+18);step.classList.toggle('active',p>=at&&p<at+18)})}

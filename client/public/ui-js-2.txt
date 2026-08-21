@@ -1,0 +1,185 @@
+function generationMessage(p){if(p<24)return'Analysing facial landmarks';if(p<49)return'Preparing consented voice';if(p<73)return'Synchronising speech and portrait';if(p<92)return'Building profile assets';return'Applying safety disclosure'}
+
+function legacy_speakAwareness(onEnd){if(uploadedAudioUrl){const audio=document.getElementById('audioPreview');audio.currentTime=0;audio.onended=()=>onEnd?.();audio.play().catch(()=>fallbackSpeech(onEnd));return}fallbackSpeech(onEnd)}
+function fallbackSpeech(onEnd){if(!('speechSynthesis' in window)){setTimeout(()=>onEnd?.(),8000);return}speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(awarenessText);u.rate=.92;u.pitch=1;u.onend=()=>onEnd?.();speechSynthesis.speak(u)}
+function legacy_playDeepfakeVideo(){
+  const exp=document.getElementById('videoExperience');
+  const btn=document.getElementById('videoPlayBtn');
+  exp.classList.add('video-playing');
+  if(btn) {
+    btn.textContent='Ⅱ';
+    btn.onclick=()=>{
+      if('speechSynthesis' in window)speechSynthesis.cancel();
+      document.getElementById('audioPreview').pause();
+      exp.classList.remove('video-playing');
+      btn.textContent='▶';
+      btn.onclick=playDeepfakeVideo
+    };
+  }
+  speakAwareness(()=>{endVideoCall()});
+  clearTimeout(speechTimer);
+  speechTimer=setTimeout(()=>{if(currentScreen==='videoExperience'){endVideoCall()}},10500);
+}
+function advanceFromVideo(){clearTimeout(speechTimer);document.getElementById('videoExperience').classList.remove('video-playing');document.getElementById('audioPreview').pause();if('speechSynthesis' in window)speechSynthesis.cancel();go('waVideoCall')}
+function playMiniVideo(){const sim=document.getElementById('miniSim');const btn=document.getElementById('miniPlayBtn');if(sim.classList.contains('mini-playing')){document.getElementById('audioPreview').pause();if('speechSynthesis' in window)speechSynthesis.cancel();sim.classList.remove('mini-playing');btn.textContent='▶';return}sim.classList.add('mini-playing');btn.textContent='Ⅱ';speakAwareness(()=>{sim.classList.remove('mini-playing');btn.textContent='▶'})}
+
+function legacy_playVoiceSimulation(btnId,waveId){btnId=btnId||'waVoiceBtn';waveId=waveId||'waWave';const btn=document.getElementById(btnId),wave=document.getElementById(waveId);btn.textContent='Ⅱ';wave.classList.add('playing');speakAwareness(()=>{btn.textContent='▶';wave.classList.remove('playing');if (btnId === 'waVoiceBtn') { onVoiceNoteCompleted(); } else { setTimeout(()=>{if(currentScreen==='voiceExperience'||currentScreen==='voiceLearn')toast('The voice sounded familiar. Now verify the request, not the voice.')},250); }})}
+
+function receiveQrCodePaymentRequest() {
+  showWaTyping(true);
+  setTimeout(() => {
+    showWaTyping(false);
+    appendWaBubble('We are facing a server timeout. Please scan this QR code to complete the processing payment of $5 urgently.', 'in');
+    const contactLastMsg = document.getElementById('waContactLastMsg');
+    if(contactLastMsg) contactLastMsg.textContent = 'Please scan this QR code...';
+
+    setTimeout(() => {
+      showWaTyping(true);
+      setTimeout(() => {
+        showWaTyping(false);
+        appendQrBubble();
+        
+        // Show proceed to analysis button
+        const proceedDock = document.getElementById('waProceedDock');
+        if(proceedDock) proceedDock.style.display = 'block';
+      }, 1500);
+    }, 1500);
+  }, 1800);
+}
+
+function appendQrBubble() {
+  const chatBody = document.getElementById('waChatBody');
+  const bubble = document.createElement('div');
+  bubble.className = 'wa-bubble in';
+  const now = new Date();
+  const timeStr = `${String(now.getHours()).padStart(2,'0')}:&nbsp;${String(now.getMinutes()).padStart(2,'0')}`;
+
+  bubble.innerHTML = `
+    <div style="font-weight:600; margin-bottom: 4px; color: var(--orange2);">Simulation payment request</div>
+    <div class="wa-qr-code">
+      <!-- Clean SVG QR Code vector -->
+      <svg width="150" height="150" viewBox="0 0 29 29" style="display:block; margin:auto;"><path d="M0 0h7v7H0zm1 1v5h5V1zm2 2v1h1V3zm21-3h7v7h-7zm1 1v5h5V1zm2 2v1h1V3zM0 22h7v7H0zm1 1v5h5v-5zm2 2v1h1v-1zm13-14h1v1h-1zm1 1h1v1h-1zm0-3h1v1h-1zm3 3h1v1h-1zm-2 1h1v1h-1zm3 1h1v1h-1zm-2 1h1v1h-1zm3 1h1v1h-1zm-2 1h1v1h-1zm1 1h1v1h-1zm-4-9h1v1h-1zm3 0h1v1h-1zm-3 2h1v1h-1zm2 1h1v1h-1zm-3-1h1v1h-1zm5 5h1v1h-1zm-2 2h1v1h-1zm-3-4h1v1h-1zm0 3h1v1h-1zm3 1h1v1h-1zm-10-8h1v1h-1zm0 3h1v1h-1zm1 1h1v1h-1zm-2-2h1v1h-1zm3 1h1v1h-1zm-2 2h1v1h-1zm1 1h1v1h-1zm8-8h1v1h-1zm1 2h1v1h-1zm-1-1h1v1h-1zm3 2h1v1h-1zm-2 1h1v1h-1zm1 1h1v1h-1zm-3-2h1v1h-1zm0 3h1v1h-1zm3 1h1v1h-1zm-10-8h1v1h-1zm0 3h1v1h-1zm1 1h1v1h-1zm-2-2h1v1h-1zm3 1h1v1h-1zm-2 2h1v1h-1zm1 1h1v1h-1" fill="#000"/></svg>
+    </div>
+    <span class="wa-time">${timeStr}</span>
+  `;
+  chatBody.appendChild(bubble);
+  chatBody.scrollTop = chatBody.scrollHeight;
+}
+
+function advanceFromVoice(){document.getElementById('audioPreview').pause();if('speechSynthesis' in window)speechSynthesis.cancel();triggerIncomingVideoCall()}
+
+function startQuiz(){quizState={modules:['video','voice','profile'],moduleIndex:0,index:0,selected:null,answered:[]};go('quiz');renderQuiz()}
+function quizTotals(){const total=quizState.modules.reduce((s,m)=>s+quizData[m].length,0);const before=quizState.modules.slice(0,quizState.moduleIndex).reduce((s,m)=>s+quizData[m].length,0);return{total,overallIndex:before+quizState.index}}
+function renderQuiz(){const module=quizState.modules[quizState.moduleIndex];const data=quizData[module],q=data[quizState.index];const{total,overallIndex}=quizTotals();document.getElementById('quizLabel').textContent=`Question ${overallIndex+1} of ${total}`;document.getElementById('quizModuleLabel').textContent=module==='video'?'Deepfake video':module==='voice'?'Voice cloning':'Synthetic profile';document.getElementById('quizBar').style.width=((overallIndex+1)/total*100)+'%';document.getElementById('quizQuestion').textContent=q.q;document.getElementById('quizFeedback').textContent='Choose the safest response.';const letters=['A','B','C','D'];document.getElementById('quizOptions').innerHTML=q.a.map((a,i)=>`<button class="quiz-option" onclick="selectQuizOption(${i},this)"><span class="letter">${letters[i]}</span><span>${a}</span></button>`).join('');document.getElementById('quizNext').disabled=true;const isLast=quizState.moduleIndex===quizState.modules.length-1&&quizState.index===data.length-1;document.getElementById('quizNext').textContent=isLast?'Finish quiz →':'Next question →';quizState.selected=null}
+function selectQuizOption(index,el){if(quizState.selected!==null)return;quizState.selected=index;const module=quizState.modules[quizState.moduleIndex];const q=quizData[module][quizState.index];document.querySelectorAll('.quiz-option').forEach((x,i)=>{x.classList.remove('selected');if(i===q.c){x.classList.add('correct')}else if(i===index){x.classList.add('incorrect')}});document.getElementById('quizNext').disabled=false;document.getElementById('quizFeedback').textContent=index===q.c?'Good choice. '+q.why:'Think about independent verification. '+q.why}
+function nextQuizQuestion(){if(quizState.selected===null)return;const module=quizState.modules[quizState.moduleIndex];const data=quizData[module];const q=data[quizState.index];quizState.answered.push(quizState.selected);if(quizState.selected===q.c)scores[module]++;if(quizState.index<data.length-1){quizState.index++;renderQuiz();return}if(quizState.moduleIndex<quizState.modules.length-1){quizState.moduleIndex++;quizState.index=0;renderQuiz();return}finishSimulation()}
+function legacy_finishSimulation(){const total=scores.video+scores.voice+scores.profile;document.getElementById('finalScore').textContent=`${total}/9`;document.getElementById('scoreRing').style.setProperty('--scorepct',Math.round(total/9*100));go('complete')}
+function legacy_resetSimulation(){scores.video=scores.voice=scores.profile=0;checks.forEach(c=>c.checked=false);document.getElementById('consentContinue').disabled=true;firstNameInput.value='';lastNameInput.value='';setIdentity('Alex','Morgan');go('intro')}
+function toast(message){const t=document.getElementById('toast');t.textContent=message;t.classList.add('show');clearTimeout(t._timer);t._timer=setTimeout(()=>t.classList.remove('show'),2600)}let cameraStream = null;function startCamera(e){e.preventDefault();e.stopPropagation();const container=document.getElementById('cameraContainer');const video=document.getElementById('cameraVideo');navigator.mediaDevices.getUserMedia({video:{facingMode:'user'}}).then(stream=>{cameraStream=stream;video.srcObject=stream;container.style.display='block'}).catch(err=>{toast('Camera access denied or unavailable.');console.error(err)})}function stopCamera(e){if(e){e.preventDefault();e.stopPropagation()}const container=document.getElementById('cameraContainer');const video=document.getElementById('cameraVideo');if(cameraStream){cameraStream.getTracks().forEach(track=>track.stop());cameraStream=null}video.srcObject=null;container.style.display='none'}function captureCamera(e){e.preventDefault();e.stopPropagation();const video=document.getElementById('cameraVideo');const canvas=document.createElement('canvas');canvas.width=video.videoWidth||640;canvas.height=video.videoHeight||480;const ctx=canvas.getContext('2d');ctx.drawImage(video,0,0,canvas.width,canvas.height);canvas.toBlob(blob=>{const file=new File([blob],'camera-capture.png',{type:'image/png'});const dt=new DataTransfer();dt.items.add(file);photoInput.files=dt.files;if(uploadedPhotoUrl)URL.revokeObjectURL(uploadedPhotoUrl);uploadedPhotoUrl=URL.createObjectURL(blob);const preview=document.getElementById('photoPreview');preview.src=uploadedPhotoUrl;preview.classList.add('ready');document.getElementById('photoPrompt').style.display='none';document.getElementById('photoFileName').textContent='camera-capture.png';const status=document.getElementById('photoStatus');status.textContent='Photo ready';status.classList.add('ready');setSharedFace(uploadedPhotoUrl);checkMediaReady();stopCamera()},'image/png')}let mediaRecorder=null;let audioChunks=[];let recordInterval=null;let recordSeconds=0;function legacy_startRecording(e){e.preventDefault();e.stopPropagation();navigator.mediaDevices.getUserMedia({audio:true}).then(stream=>{audioChunks=[];mediaRecorder=new MediaRecorder(stream);mediaRecorder.ondataavailable=event=>{audioChunks.push(event.data)};mediaRecorder.onstop=()=>{const audioBlob=new Blob(audioChunks,{type:'audio/wav'});const file=new File([audioBlob],'recorded-voice.wav',{type:'audio/wav'});const dt=new DataTransfer();dt.items.add(file);audioInput.files=dt.files;if(uploadedAudioUrl)URL.revokeObjectURL(uploadedAudioUrl);uploadedAudioUrl=URL.createObjectURL(audioBlob);document.getElementById('audioPreview').src=uploadedAudioUrl;document.getElementById('audioPrompt').style.display='none';document.getElementById('audioReady').classList.add('show');document.getElementById('audioFileName').textContent='recorded-voice.wav';const status=document.getElementById('audioStatus');status.textContent='Voice ready';status.classList.add('ready');checkMediaReady();stream.getTracks().forEach(track=>track.stop())};mediaRecorder.start();const container=document.getElementById('recordContainer');container.style.display='flex';recordSeconds=0;document.getElementById('recordTimer').textContent='00:00';clearInterval(recordInterval);recordInterval=setInterval(()=>{recordSeconds++;const mins=String(Math.floor(recordSeconds/60)).padStart(2,'0');const secs=String(recordSeconds%60).padStart(2,'0');document.getElementById('recordTimer').textContent=mins+':'+secs},1000)}).catch(err=>{toast('Microphone access denied or unavailable.');console.error(err)})}function legacy_stopRecording(e){if(e){e.preventDefault();e.stopPropagation()}clearInterval(recordInterval);if(mediaRecorder&&mediaRecorder.state!=='inactive'){mediaRecorder.stop()}document.getElementById('recordContainer').style.display='none'}function legacy_cancelRecording(e){if(e){e.preventDefault();e.stopPropagation()}clearInterval(recordInterval);if(mediaRecorder&&mediaRecorder.state!=='inactive'){mediaRecorder.stop()}setTimeout(()=>{audioChunks=[]},100);document.getElementById('recordContainer').style.display='none'}
+/* ========================================================================
+   Production integration layer
+   Preserves the supplied UI/flow while connecting it to the consent-gated
+   backend. Internal demo mode uses uploaded media only and never calls AI.
+   ======================================================================== */
+var runMode = 'ai';
+var liveSession = null;
+var whatsappAudioUrl = '';
+var videoAudioUrl = '';
+var generatedVideoUrl = '';
+var variantUrls = [];
+var activeGeneratedAudio = null;
+var recordedInApp = false;
+var recordingCancelled = false;
+var generationPollTimer = null;
+var currentGenerationStatus = 'queued';
+var RECORDING_REFERENCE_TEXT = 'My voice is being recorded for an authorised cybersecurity awareness simulation. I understand that AI can imitate voices and unexpected requests should be independently verified.';
+
+var whatsappScriptInput = document.getElementById('whatsappScriptInput');
+var videoScriptInput = document.getElementById('videoScriptInput');
+var whatsappScriptCount = document.getElementById('whatsappScriptCount');
+var videoScriptCount = document.getElementById('videoScriptCount');
+
+function selectRunMode(mode) {
+  runMode = mode === 'demo' ? 'demo' : 'ai';
+  toast(runMode === 'demo'
+    ? 'Internal demo mode selected. No Qwen, Pruna or FLUX calls will be made.'
+    : 'AI simulation mode selected.');
+  go('consent');
+}
+
+function updateScriptCounter(input, output) {
+  if (!input || !output) return;
+  output.textContent = String(input.value.length);
+}
+
+[whatsappScriptInput, videoScriptInput].forEach((input) => {
+  if (!input) return;
+  input.addEventListener('input', () => {
+    updateScriptCounter(whatsappScriptInput, whatsappScriptCount);
+    updateScriptCounter(videoScriptInput, videoScriptCount);
+    checkMediaReady();
+  });
+});
+updateScriptCounter(whatsappScriptInput, whatsappScriptCount);
+updateScriptCounter(videoScriptInput, videoScriptCount);
+
+async function apiRequest(path, options = {}, token = '') {
+  const headers = new Headers(options.headers || {});
+  if (token) headers.set('x-simulation-token', token);
+  if (options.body && !(options.body instanceof FormData) && !headers.has('content-type')) {
+    headers.set('content-type', 'application/json');
+  }
+  const response = await fetch(path, { ...options, headers });
+  const contentType = response.headers.get('content-type') || '';
+  const payload = contentType.includes('application/json') ? await response.json().catch(() => ({})) : {};
+  if (!response.ok) throw new Error(payload.error || payload.message || `Request failed (${response.status}).`);
+  return payload;
+}
+
+function safeScriptClientCheck(text, label) {
+  const value = String(text || '').replace(/\s+/g, ' ').trim();
+  if (value.length < 20) throw new Error(`${label} must be at least 20 characters.`);
+  if (value.length > 180) throw new Error(`${label} must be 180 characters or fewer.`);
+  if (!/\b(ai|deepfake|synthetic|clone|cloned|security|cybersecurity|awareness|simulation|verify|verification|impersonation|fake|faked)\b/i.test(value)) {
+    throw new Error(`${label} must clearly be framed as security-awareness or verification content.`);
+  }
+  return value;
+}
+
+function checkMediaReady() {
+  const hasPhoto = Boolean(photoInput?.files?.[0] || uploadedPhotoUrl);
+  const hasVoice = Boolean(audioInput?.files?.[0] || uploadedAudioUrl);
+  const hasName = Boolean(firstNameInput?.value.trim() && lastNameInput?.value.trim());
+  const hasScripts = Boolean(whatsappScriptInput?.value.trim().length >= 20 && videoScriptInput?.value.trim().length >= 20);
+  const ready = hasPhoto && hasVoice && hasName && hasScripts;
+  const btn = document.getElementById('generateBtn');
+  if (!btn) return;
+  btn.disabled = !ready;
+  if (!hasPhoto || !hasVoice) btn.textContent = 'Upload photo & voice to continue';
+  else if (!hasName) btn.textContent = 'Add your name to continue';
+  else if (!hasScripts) btn.textContent = 'Add both awareness scripts to continue';
+  else btn.textContent = runMode === 'demo' ? 'Run internal demo · no AI →' : 'Generate awareness simulation →';
+}
+[firstNameInput, lastNameInput].forEach((input) => input?.addEventListener('input', checkMediaReady));
+
+function generationPercentForStatus(status) {
+  return ({
+    queued: 5,
+    validating: 12,
+    cloning_whatsapp: 25,
+    cloning_video: 40,
+    generating_video: 58,
+    watermarking: 72,
+    generating_profile: 84,
+    demo_preparing: 82,
+    completed: 100,
+    failed: 100
+  })[status] ?? 8;
+}
+
+function updateGenerationFromServer(payload) {
+  currentGenerationStatus = payload.status || currentGenerationStatus;
+  const p = generationPercentForStatus(currentGenerationStatus);
+  updateGeneration(p);
+  const eta = document.getElementById('genEta');
+  const scan = document.getElementById('scanState');

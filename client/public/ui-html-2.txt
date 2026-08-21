@@ -1,0 +1,264 @@
+      <div class="generate-copy"><div class="kicker">AI generation in progress</div><h2>Building your <em>impersonation simulation.</em></h2><div class="progress-number"><b id="genPercent">0</b><span>%</span></div><div class="progress-bar"><i id="genBar"></i></div><p class="muted" id="genEta" style="margin-top:10px">Preparing secure simulation pipeline…</p><div class="gen-status" id="genStatus"><div class="gen-step active" data-at="0"><span class="dot"></span>Analysing facial landmarks</div><div class="gen-step" data-at="24"><span class="dot"></span>Creating WhatsApp voice note</div><div class="gen-step" data-at="49"><span class="dot"></span>Creating video voice + Pruna deepfake</div><div class="gen-step" data-at="73"><span class="dot"></span>Creating FLUX profile assets</div><div class="gen-step" data-at="92"><span class="dot"></span>Applying awareness disclosure and safety layer</div></div></div>
+    </div></div></div>
+  </section>
+
+  <section class="screen" data-screen="waVideoCall">
+    <div class="screen-inner">
+      <div class="wa-call-screen">
+        <div class="wa-call-bg shared-face-bg"></div>
+        <div class="wa-call-info">
+          <img class="wa-call-avatar shared-face" alt="Contact Avatar">
+          <div class="wa-call-name full-name">Alex Morgan</div>
+          <div class="wa-call-status">Incoming WhatsApp Video Call...</div>
+        </div>
+        <div class="wa-call-actions">
+          <button class="wa-call-btn decline" onclick="declineVideoCall()">
+            <svg viewBox="0 0 24 24" width="32" height="32" fill="currentColor"><path d="M20 15.5c-1.2 0-2.4-.2-3.6-.6-.3-.1-.7 0-1 .2l-2.2 2.2c-2.8-1.4-5.1-3.8-6.6-6.6l2.2-2.2c.3-.3.4-.7.2-1-.3-1.1-.5-2.3-.5-3.5 0-.6-.4-1-1-1H4c-.6 0-1 .4-1 1 0 9.4 7.6 17 17 17 .6 0 1-.4 1-1v-3.5c0-.6-.4-1-1-1z" transform="rotate(135 12 12)"/></svg>
+          </button>
+          <button class="wa-call-btn accept" onclick="acceptVideoCall()">
+            <svg viewBox="0 0 24 24" width="32" height="32" fill="currentColor"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="screen" data-screen="videoExperience">
+    <div class="screen-inner">
+      <div class="experience" id="videoExperience">
+        <div class="experience-bg"><img id="videoFaceBg" class="shared-face" alt="" aria-hidden="true"></div>
+        <div class="experience-vignette"></div>
+        <div class="experience-top"><span class="sim-badge"><i class="live-dot"></i>AI-generated awareness simulation</span></div>
+        <div class="experience-layout">
+          
+          <div class="video-frame">
+            <video id="generatedVideo" playsinline preload="metadata" aria-label="Generated deepfake awareness video" style="display:none"></video>
+            <img id="videoFace" class="shared-face" alt="Deepfake awareness portrait">
+            <!-- Auto playing -->
+            <div class="lip-indicator"></div>
+            <div class="ai-watermark">AI-GENERATED · AWARENESS ONLY</div>
+            
+            <!-- Video Call Overlay HUD -->
+            <div class="video-call-overlay">
+              <div class="video-call-header">
+                <div>
+                  <b class="full-name">Alex Morgan</b>
+                  <span id="callDuration">00:00</span>
+                </div>
+              </div>
+              <!-- No Pip -->
+            </div>
+            
+            <!-- Call Ended Overlay -->
+            <div class="call-ended-overlay" id="callEndedOverlay">
+              <div class="call-ended-dot"></div>
+              <div class="call-ended-title">Call Ended</div>
+              <div class="call-ended-text">WARNING: A face and voice you trust can be faked in real-time. Never treat visual realism as absolute proof of identity.</div>
+              <!-- Auto redirecting back to chat -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="screen" data-screen="unifiedLearn">
+    <div class="screen-inner" style="height: 100%; display: flex; flex-direction: column;">
+      <div class="viewport" style="padding: 0; flex: 1; overflow-y: auto;">
+        
+        <!-- Expanded Newspaper Container -->
+        <div class="info-container" style="max-width: 100%; border-radius: 0; border: 0; padding: clamp(16px, 3vw, 40px);">
+          
+          <!-- Newspaper Masthead -->
+          <div class="news-masthead">
+            <h1 class="news-masthead-title">The Simulation Daily</h1>
+            <div class="news-masthead-meta">
+              <span>Vol. I · No. 01</span>
+              <span>SPECIAL INVESTIGATIVE REPORT: DIGITAL IDENTITY THEFT</span>
+              <span>Price: 1 portrait + 1 voice note</span>
+            </div>
+          </div>
+
+          <!-- Main Banner Headline -->
+          <div class="news-banner-headline">
+            <h2>Identity Hijacked In 10 Seconds.</h2>
+            <p>YOU JUST CLONED YOURSELF. Using nothing but your consented portrait and voice clip, generative pipelines successfully simulated your presence, voice, and digital footprints.</p>
+          </div>
+
+          <!-- Newspaper Layout (3 Columns, full bleed grid) -->
+          <div class="news-layout" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 30px; margin-top: 30px;">
+            
+            <!-- Left Column: The Pipeline & Public Profile Exposure -->
+            <div class="news-col" style="border-right: 1px solid #111; padding-right: 24px;">
+              <div class="news-section-header">The Tech Pipeline</div>
+              
+              <h3 style="font-size: 20px; font-weight: 900; margin: 0 0 12px; line-height: 1.2; text-transform: uppercase;">The Danger of Public Profiles</h3>
+              <p style="font-size: 13px; line-height: 1.5; color: #222; margin-bottom: 18px;">
+                Having a public social profile with <b>more than 3 photos</b> and a <b>longer audio file</b> (like video voice-overs, podcasts, or reels) lets generative AI pipelines map your traits to absolute perfection. 
+              </p>
+
+              <div class="news-pipeline" style="margin-bottom: 20px;">
+                <div class="news-pipeline-step">
+                  <strong style="display:block; font-size:11px; font-family:'Courier New',monospace; color:#b30000; margin-bottom:8px;">PUBLIC FOOTPRINTS</strong>
+                  <div style="font-size: 11px; text-align: left; line-height: 1.4; color: #444;">
+                    <div>• <b>Multiple Angles:</b> Generates 3D mesh face wraps.</div>
+                    <div>• <b>Longer Voice (60s+):</b> Captures cadence, pitch, accent, and breathing patterns.</div>
+                  </div>
+                </div>
+                <div class="news-pipeline-arrow">▼</div>
+                <div class="news-pipeline-step" style="border-color:#b30000; background:#fff8f8;">
+                  <strong style="display:block; font-size:11px; font-family:'Courier New',monospace; color:#b30000; margin-bottom:6px;">THE PERFECT CLONE</strong>
+                  <p style="font-size: 11px; margin: 0; color: #111; line-height: 1.4;">
+                    Generates clones that escape standard biometric checks, leaving tech experts unable to distinguish real from synthetic.
+                  </p>
+                </div>
+              </div>
+
+              <div class="news-editorial-box" style="margin-top: 20px;">
+                <h4 style="margin: 0 0 6px; font-size: 13px; font-weight: 900; color: #b30000; font-family: 'Courier New', monospace;">FTC EMERGENCY WARNING</h4>
+                <p style="font-size: 12px; line-height: 1.4; margin: 0; color: #333;">
+                  "Scammers clone voices of family members using public social media reels. High-fidelity audio clones now require as little as three seconds of source data."
+                </p>
+              </div>
+            </div>
+
+            <!-- Middle Column: Real News Case Studies (Pictorial) -->
+            <div class="news-col" style="border-right: 1px solid #111; padding-right: 24px;">
+              <div class="news-section-header">Real News Cases</div>
+
+              <!-- Case Study 1: The $25 Million Heist -->
+              <div style="border-bottom: 1px dashed #777; padding-bottom: 16px; margin-bottom: 16px;">
+                <h3 style="font-size:16px; font-weight:900; text-transform:uppercase; margin:0 0 8px; color:#b30000; font-family:'Courier New',monospace;">$25M Deepfake Heist</h3>
+                <div style="background:#ddd; border:1px solid #111; padding:8px; text-align:center; margin-bottom:10px;">
+                  <!-- Mockup sketch image representing fake call -->
+                  <svg width="100%" height="80" viewBox="0 0 100 40" fill="none" stroke="#222" stroke-width="0.8" style="background:#f0eadd;"><rect x="10" y="5" width="30" height="30" rx="1"/><rect x="60" y="5" width="30" height="30" rx="1"/><circle cx="25" cy="17" r="5"/><circle cx="75" cy="17" r="5"/><path d="M20 28q5 3 10 0M70 28q5 3 10 0M45 20h10v2H45z" stroke-dasharray="2 1"/><text x="50" y="15" font-size="3" fill="#b30000" text-anchor="middle" font-family="monospace">FAKE CFO</text></svg>
+                </div>
+                <p style="font-size:12px; line-height:1.45; margin:0; color:#222;">
+                  An employee in Hong Kong transferred <b>$25 Million</b> after attending a video conference call where everyone else on the call was a multi-person deepfake clone of company executives.
+                </p>
+              </div>
+
+              <!-- Case Study 2: Voice Cloning Kidnappings -->
+              <div>
+                <h3 style="font-size:16px; font-weight:900; text-transform:uppercase; margin:0 0 8px; color:#b30000; font-family:'Courier New',monospace;">Voice Clone Extortions</h3>
+                <div style="background:#ddd; border:1px solid #111; padding:8px; text-align:center; margin-bottom:10px;">
+                  <svg width="100%" height="80" viewBox="0 0 100 40" fill="none" stroke="#222" stroke-width="0.8" style="background:#f0eadd;"><circle cx="50" cy="15" r="8"/><path d="M35 35c0-10 30-10 30 0" stroke-linecap="round"/><path d="M48 20l2 4 2-4" fill="none"/><rect x="8" y="22" width="22" height="12" rx="1"/><text x="19" y="30" font-size="4" fill="#222" text-anchor="middle">PHONE</text></svg>
+                </div>
+                <p style="font-size:12px; line-height:1.45; margin:0; color:#222;">
+                  Scammers clone children's voices from social media files to place distress calls to parents, demanding immediate ransoms for fake emergencies.
+                </p>
+              </div>
+
+            </div>
+
+            <!-- Right Column: More Stats & Defensive Actions -->
+            <div class="news-col">
+              <div class="news-section-header">Investigative Stats</div>
+              
+              <div class="news-stat-card">
+                <div class="num">3,000%</div>
+                <b>Rise in audio deepfakes</b>
+                <p>Increase in reported voice clones used in active telephone scams since late 2023.</p>
+              </div>
+
+              <div class="news-stat-card">
+                <div class="num">80M</div>
+                <b>Cloned files generated daily</b>
+                <p>Global daily estimate of synthetic face and voice files generated by open neural nets.</p>
+              </div>
+
+              <div class="news-stat-card" style="border-bottom: 0; padding-bottom: 0; margin-bottom: 0;">
+                <div class="num">90%</div>
+                <b>Vulnerable to voice bypass</b>
+                <p>Percentage of automated bank security voiceprints vulnerable to advanced synthetic speech injections.</p>
+              </div>
+
+              <h4 style="margin:20px 0 10px; font-size:14px; font-weight:900; text-transform:uppercase; font-family:'Courier New',monospace; border-top:1px solid #111; padding-top:16px;">Core Defenses</h4>
+              <ul style="margin:0; padding-left:15px; font-size:12px; line-height:1.5; color:#222; font-family:'Courier New',monospace; font-weight:bold;">
+                <li style="margin-bottom:8px;">THINK BEFORE YOU BELIEVE: Verify unusual requests.</li>
+                <li style="margin-bottom:8px;">VERIFY SENSE: Call back on a trusted, saved offline number.</li>
+                <li style="margin-bottom:8px;">RESTRICT DATA: Secure public voice logs and profiles.</li>
+              </ul>
+            </div>
+
+          </div>
+
+        </div>
+
+        <!-- Action dock next button -->
+        <div class="action-dock" style="margin-top: 24px; text-align: center; margin-bottom: 40px;">
+          <button class="primary wide-action" onclick="startQuiz()">Start knowledge check →</button>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <section class="screen" data-screen="quiz"><div class="screen-inner"><div class="viewport center"><div class="glass quiz-shell"><div class="quiz-progress"><span class="tiny" id="quizLabel">Question 1 of 3</span><div class="bar"><i id="quizBar"></i></div><span class="tiny" id="quizModuleLabel">Video</span></div><div class="kicker">Knowledge check</div><div class="quiz-q" id="quizQuestion"></div><div class="quiz-options" id="quizOptions"></div><div class="quiz-feedback" id="quizFeedback" style="margin-bottom: 16px;">Choose the safest response.</div><div class="action-dock"><button id="quizNext" class="primary wide-action" disabled onclick="nextQuizQuestion()">Next question →</button></div></div></div></div></section>
+
+    <section class="screen" data-screen="voiceExperience">
+    <div class="screen-inner"><div class="wa-sim-tag">Simulated WhatsApp · awareness only</div><div class="wa-stage">
+      <div class="whatsapp">
+        <!-- WhatsApp Web Navigation Rail -->
+        <aside class="wa-nav-rail">
+          <div class="wa-rail-top">
+            <div class="active" title="Chats">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
+            </div>
+            <div title="Status">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 6v6l4 2"/></svg>
+            </div>
+            <div title="Channels">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+            </div>
+          </div>
+          <div class="wa-rail-bottom">
+            <div title="Settings">⚙</div>
+          </div>
+        </aside>
+
+        <!-- Chats Sidebar -->
+        <aside class="wa-sidebar">
+          <div class="wa-sidehead">
+            <img class="wa-avatar-photo shared-face" alt="Profile">
+            <div style="flex:1"></div>
+            <span style="color:#aebac1; cursor:pointer;" title="New Chat">◌</span>
+            <span style="color:#aebac1; cursor:pointer; margin-left:14px;" title="Menu">⋮</span>
+          </div>
+          <div class="wa-side-search">
+            <div>⌕ &nbsp; Search or start new chat</div>
+          </div>
+          <div class="wa-filters">
+            <span class="active">All</span>
+            <span>Unread</span>
+            <span>Groups</span>
+          </div>
+          <div class="wa-contact">
+            <img class="wa-avatar-photo shared-face" alt="Alex">
+            <div>
+              <b class="full-name">Alex Morgan</b>
+              <small id="waContactLastMsg">Can you listen to this quickly?</small>
+            </div>
+            <small style="color:#00a884">now</small>
+          </div>
+        </aside>
+
+        <!-- Main Chat Area -->
+        <main class="wa-main">
+          <div class="wa-chathead">
+            <img class="wa-avatar-photo shared-face" alt="Alex">
+            <div>
+              <strong class="full-name">Alex Morgan</strong>
+              <small id="waStatus">online</small>
+            </div>
+            <div class="wa-actions">
+              <!-- Video Call Icon -->
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" onclick="triggerIncomingVideoCall()" style="cursor:pointer; vertical-align:middle; margin-right:12px;" title="Video Call"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>
+              ⌕ ⋮
+            </div>
+          </div>
+          <div class="wa-chatbody" id="waChatBody">
+            <span class="wa-date">TODAY</span>
+          </div>
+          <div class="wa-input">
+            <span>☺</span>

@@ -1,0 +1,350 @@
+  if (eta && payload.detail) eta.textContent = payload.detail;
+  if (scan) scan.textContent = currentGenerationStatus === 'completed' ? 'Ready' : runMode === 'demo' ? 'Demo' : `${p}%`;
+  document.querySelectorAll('.gen-step').forEach((step, index) => {
+    const stageThresholds = [12, 25, 50, 80, 92];
+    const at = stageThresholds[index] || 0;
+    step.classList.toggle('done', p >= at + 15 || p === 100);
+    step.classList.toggle('active', p >= at && p < at + 15);
+  });
+}
+
+async function uploadSessionMedia(session) {
+  const face = photoInput?.files?.[0];
+  const voice = audioInput?.files?.[0];
+  if (!face || !voice) throw new Error('Choose both a photo and a voice sample before continuing.');
+
+  const faceForm = new FormData();
+  faceForm.append('face', face, face.name || 'portrait.jpg');
+  await apiRequest(`/api/simulation/${session.id}/face`, { method: 'POST', body: faceForm }, session.token);
+
+  const voiceForm = new FormData();
+  voiceForm.append('voice', voice, voice.name || 'voice.webm');
+  if (recordedInApp) voiceForm.append('referenceText', RECORDING_REFERENCE_TEXT);
+  await apiRequest(`/api/simulation/${session.id}/voice`, { method: 'POST', body: voiceForm }, session.token);
+}
+
+async function startGeneration() {
+  if (liveSession) await cleanupLiveSession();
+  try {
+    const whatsappScript = safeScriptClientCheck(whatsappScriptInput?.value, 'WhatsApp audio script');
+    const videoScript = safeScriptClientCheck(videoScriptInput?.value, 'Deepfake video audio script');
+    if (!firstNameInput?.value.trim() || !lastNameInput?.value.trim()) throw new Error('Enter both first name and surname.');
+    if (!photoInput?.files?.[0] || !audioInput?.files?.[0]) throw new Error('Upload or capture both a photo and voice sample.');
+    if (!checks.every((item) => item.checked)) throw new Error('Accept every consent statement before generating.');
+
+    go('generate');
+    updateGenerationFromServer({ status: 'queued', detail: runMode === 'demo'
+      ? 'Internal demo mode: preparing uploaded media without AI.'
+      : 'Creating your secure simulation session…' });
+
+    liveSession = await apiRequest('/api/simulation/session', {
+      method: 'POST',
+      body: JSON.stringify({
+        mode: runMode,
+        consents: { faceOwnership: true, voiceOwnership: true, processing: true },
+        participant: { firstName: firstNameInput.value.trim(), lastName: lastNameInput.value.trim() },
+        scripts: { whatsapp: whatsappScript, video: videoScript }
+      })
+    });
+    runMode = liveSession.mode || runMode;
+
+    updateGenerationFromServer({ status: 'validating', detail: 'Uploading and validating your consented photo and voice sample…' });
+    await uploadSessionMedia(liveSession);
+    await apiRequest(`/api/simulation/${liveSession.id}/generate`, { method: 'POST', body: JSON.stringify({}) }, liveSession.token);
+    await pollGenerationUntilReady();
+  } catch (error) {
+    clearTimeout(generationPollTimer);
+    const eta = document.getElementById('genEta');
+    if (eta) eta.textContent = error.message;
+    toast(error.message);
+    await cleanupLiveSession();
+    setTimeout(() => go('media'), 1700);
+  }
+}
+
+async function pollGenerationUntilReady() {
+  if (!liveSession) throw new Error('Simulation session is unavailable.');
+  for (;;) {
+    const payload = await apiRequest(`/api/simulation/${liveSession.id}/status`, {}, liveSession.token);
+    updateGenerationFromServer(payload);
+    if (payload.status === 'failed') throw new Error(payload.detail || 'Generation failed.');
+    if (payload.status === 'completed') {
+      runMode = payload.mode || runMode;
+      prepareGeneratedAssets(payload);
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      startWhatsAppSimulation();
+      return;
+    }
+    await new Promise((resolve) => { generationPollTimer = setTimeout(resolve, 1800); });
+  }
+}
+
+function prepareGeneratedAssets(payload) {
+  if (!liveSession) return;
+  const token = encodeURIComponent(liveSession.token);
+  const root = `/api/simulation/${liveSession.id}`;
+  whatsappAudioUrl = `${root}/audio/whatsapp?token=${token}`;
+  videoAudioUrl = `${root}/audio/video?token=${token}`;
+  generatedVideoUrl = payload.videoReady && runMode !== 'demo' ? `${root}/video?token=${token}` : '';
+  const count = Math.min(Number(payload.variantCount || 0), 4);
+  variantUrls = Array.from({ length: count }, (_, index) => `${root}/variant/${index}?token=${token}`);
+  buildInstagramGrid(uploadedPhotoUrl || defaultFace);
+
+  const video = document.getElementById('generatedVideo');
+  if (video) {
+    video.pause();
+    video.removeAttribute('src');
+    video.load();
+    if (generatedVideoUrl) video.src = generatedVideoUrl;
+  }
+}
+
+function playGeneratedAudio(url, onEnd) {
+  stopGeneratedPlayback();
+  const source = url || uploadedAudioUrl;
+  if (!source) {
+    fallbackSpeech(onEnd);
+    return;
+  }
+  const audio = new Audio(source);
+  activeGeneratedAudio = audio;
+  audio.preload = 'auto';
+  audio.onended = () => {
+    if (activeGeneratedAudio === audio) activeGeneratedAudio = null;
+    onEnd?.();
+  };
+  audio.onerror = () => {
+    if (activeGeneratedAudio === audio) activeGeneratedAudio = null;
+    toast('Audio playback was unavailable.');
+    onEnd?.();
+  };
+  audio.play().catch(() => {
+    if (activeGeneratedAudio === audio) activeGeneratedAudio = null;
+    toast('Tap play again if your browser blocked audio playback.');
+  });
+}
+
+function stopGeneratedPlayback() {
+  if (activeGeneratedAudio) {
+    try { activeGeneratedAudio.pause(); activeGeneratedAudio.currentTime = 0; } catch (_) {}
+    activeGeneratedAudio = null;
+  }
+  const video = document.getElementById('generatedVideo');
+  if (video) {
+    try { video.pause(); } catch (_) {}
+  }
+}
+
+function speakAwareness(onEnd) {
+  playGeneratedAudio(whatsappAudioUrl || uploadedAudioUrl, onEnd);
+}
+
+function playVoiceSimulation(btnId, waveId) {
+  btnId = btnId || 'waVoiceBtn';
+  waveId = waveId || 'waWave';
+  const btn = document.getElementById(btnId);
+  const wave = document.getElementById(waveId);
+  if (!btn || !wave) return;
+  btn.textContent = 'Ⅱ';
+  wave.classList.add('playing');
+  playGeneratedAudio(whatsappAudioUrl || uploadedAudioUrl, () => {
+    btn.textContent = '▶';
+    wave.classList.remove('playing');
+    if (btnId === 'waVoiceBtn') onVoiceNoteCompleted();
+  });
+}
+
+function acceptVideoCall() {
+  go('videoExperience');
+  callDurationSec = 0;
+  document.getElementById('callDuration').textContent = '00:00';
+  clearInterval(callTimerInterval);
+  callTimerInterval = setInterval(() => {
+    callDurationSec++;
+    const m = String(Math.floor(callDurationSec / 60)).padStart(2, '0');
+    const s = String(callDurationSec % 60).padStart(2, '0');
+    document.getElementById('callDuration').textContent = `${m}:${s}`;
+  }, 1000);
+  playDeepfakeVideo();
+}
+
+function playDeepfakeVideo() {
+  clearTimeout(speechTimer);
+  const exp = document.getElementById('videoExperience');
+  const video = document.getElementById('generatedVideo');
+  const still = document.getElementById('videoFace');
+  exp?.classList.add('video-playing');
+  document.getElementById('callEndedOverlay')?.classList.remove('show');
+
+  if (runMode !== 'demo' && generatedVideoUrl && video) {
+    still.style.display = 'none';
+    video.style.display = 'block';
+    if (video.src !== generatedVideoUrl) video.src = generatedVideoUrl;
+    video.currentTime = 0;
+    video.onended = endVideoCall;
+    video.onerror = () => {
+      toast('Generated video playback failed.');
+      endVideoCall();
+    };
+    video.play().catch(() => {
+      toast('Tap the screen if your browser blocked video audio.');
+      video.controls = true;
+    });
+    return;
+  }
+
+  // Internal demo: no synthetic video is generated. The uploaded portrait and
+  // original voice sample exercise the exact UI flow without any AI call.
+  if (video) { video.pause(); video.style.display = 'none'; }
+  still.style.display = 'block';
+  playGeneratedAudio(videoAudioUrl || uploadedAudioUrl, endVideoCall);
+  speechTimer = setTimeout(() => {
+    if (currentScreen === 'videoExperience') endVideoCall();
+  }, 20000);
+}
+
+function endVideoCall() {
+  clearTimeout(speechTimer);
+  clearInterval(callTimerInterval);
+  stopGeneratedPlayback();
+  document.getElementById('videoExperience')?.classList.remove('video-playing');
+  document.getElementById('callEndedOverlay')?.classList.add('show');
+  setTimeout(() => advanceFromVideoCall(), 2500);
+}
+
+function buildInstagramGrid(src) {
+  const grid = document.getElementById('igGrid');
+  const mini = document.getElementById('igMiniGrid');
+  if (!grid) return;
+  const labels = ['Office day', 'Coffee stop', 'Weekend city', 'Outdoor moment', 'Deepfake reel'];
+  const photos = Array.isArray(variantUrls) && variantUrls.length
+    ? variantUrls.slice(0, 4)
+    : [src, src, src, src];
+  const deepfakeStill = photos[0] || src;
+  const assets = [...photos, deepfakeStill];
+  grid.innerHTML = labels.map((label, index) => {
+    const asset = assets[index] || src;
+    const safeAsset = String(asset || '').replace(/'/g, '%27');
+    return `<div class="ig-tile" onclick="openIgPost('${label}', '${safeAsset}')"><img src="${asset}" alt="${runMode === 'demo' ? 'Demo' : 'Synthetic'} ${label}">${index === 4 ? '<svg class="ig-reel" viewBox="0 0 24 24"><path fill="currentColor" d="M8 5v14l11-7z"/></svg><span class="ig-ai">AI VIDEO</span>' : '<span class="ig-ai">AI IMAGE</span>'}</div>`;
+  }).join('');
+  if (mini) mini.innerHTML = photos.map((asset, index) => `<img src="${asset || src}" alt="Profile image ${index + 1}">`).join('');
+}
+
+function finishSimulation() {
+  const total = scores.video + scores.voice + scores.profile;
+  document.getElementById('finalScore').textContent = `${total}/9`;
+  document.getElementById('scoreRing').style.setProperty('--scorepct', Math.round(total / 9 * 100));
+  go('complete');
+  cleanupLiveSession();
+}
+
+async function cleanupLiveSession() {
+  stopGeneratedPlayback();
+  clearTimeout(generationPollTimer);
+  if (!liveSession) return;
+  const session = liveSession;
+  liveSession = null;
+  await apiRequest(`/api/simulation/${session.id}`, { method: 'DELETE' }, session.token).catch(() => {});
+  whatsappAudioUrl = '';
+  videoAudioUrl = '';
+  generatedVideoUrl = '';
+  variantUrls = [];
+}
+
+async function resetSimulation() {
+  await cleanupLiveSession();
+  scores.video = scores.voice = scores.profile = 0;
+  checks.forEach((c) => { c.checked = false; });
+  document.getElementById('consentContinue').disabled = true;
+  firstNameInput.value = '';
+  lastNameInput.value = '';
+  if (whatsappScriptInput) whatsappScriptInput.value = '';
+  if (videoScriptInput) videoScriptInput.value = '';
+  updateScriptCounter(whatsappScriptInput, whatsappScriptCount);
+  updateScriptCounter(videoScriptInput, videoScriptCount);
+  setIdentity('Alex', 'Morgan');
+  runMode = 'ai';
+  go('intro');
+  checkMediaReady();
+}
+
+function startRecording(e) {
+  e.preventDefault();
+  e.stopPropagation();
+  navigator.mediaDevices.getUserMedia({ audio: true }).then((stream) => {
+    audioChunks = [];
+    recordingCancelled = false;
+    const preferred = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : '';
+    mediaRecorder = new MediaRecorder(stream, preferred ? { mimeType: preferred } : undefined);
+    mediaRecorder.ondataavailable = (event) => { if (event.data.size) audioChunks.push(event.data); };
+    mediaRecorder.onstop = () => {
+      if (!recordingCancelled && audioChunks.length) {
+        const mime = mediaRecorder.mimeType || 'audio/webm';
+        const audioBlob = new Blob(audioChunks, { type: mime });
+        const extension = mime.includes('webm') ? 'webm' : mime.includes('mpeg') ? 'mp3' : 'wav';
+        const file = new File([audioBlob], `recorded-voice.${extension}`, { type: mime });
+        const dt = new DataTransfer();
+        dt.items.add(file);
+        audioInput.files = dt.files;
+        if (uploadedAudioUrl) URL.revokeObjectURL(uploadedAudioUrl);
+        uploadedAudioUrl = URL.createObjectURL(audioBlob);
+        document.getElementById('audioPreview').src = uploadedAudioUrl;
+        document.getElementById('audioPrompt').style.display = 'none';
+        document.getElementById('audioReady').classList.add('show');
+        document.getElementById('audioFileName').textContent = file.name;
+        const status = document.getElementById('audioStatus');
+        status.textContent = 'Voice ready';
+        status.classList.add('ready');
+        recordedInApp = true;
+        checkMediaReady();
+      }
+      stream.getTracks().forEach((track) => track.stop());
+    };
+    mediaRecorder.start(500);
+    const container = document.getElementById('recordContainer');
+    container.style.display = 'flex';
+    recordSeconds = 0;
+    document.getElementById('recordTimer').textContent = '00:00';
+    clearInterval(recordInterval);
+    recordInterval = setInterval(() => {
+      recordSeconds++;
+      const mins = String(Math.floor(recordSeconds / 60)).padStart(2, '0');
+      const secs = String(recordSeconds % 60).padStart(2, '0');
+      document.getElementById('recordTimer').textContent = `${mins}:${secs}`;
+      if (recordSeconds >= 25) stopRecording();
+    }, 1000);
+  }).catch((err) => {
+    toast('Microphone access denied or unavailable.');
+    console.error(err);
+  });
+}
+
+function stopRecording(e) {
+  if (e) { e.preventDefault(); e.stopPropagation(); }
+  clearInterval(recordInterval);
+  recordingCancelled = false;
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+  document.getElementById('recordContainer').style.display = 'none';
+}
+
+function cancelRecording(e) {
+  if (e) { e.preventDefault(); e.stopPropagation(); }
+  clearInterval(recordInterval);
+  recordingCancelled = true;
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+  audioChunks = [];
+  document.getElementById('recordContainer').style.display = 'none';
+}
+
+// Uploaded voice files are not the known in-app prompt, so Qwen should not be
+// sent an inaccurate reference transcript for them.
+audioInput?.addEventListener('change', () => { recordedInApp = false; });
+
+window.addEventListener('pagehide', () => {
+  stopGeneratedPlayback();
+  if (cameraStream) cameraStream.getTracks().forEach((track) => track.stop());
+});
+
+checkMediaReady();
+
+buildInstagramGrid(uploadedPhotoUrl || defaultFace);

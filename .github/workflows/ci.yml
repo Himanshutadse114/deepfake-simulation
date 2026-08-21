@@ -21,8 +21,6 @@ jobs:
         run: npm --prefix client install
       - name: Unit tests
         run: npm test
-      - name: Prepare supplied UI assets
-        run: npm --prefix client run prepare-ui
       - name: Syntax check server and UI runtime
         run: |
           node --check server/index.js
@@ -41,7 +39,9 @@ jobs:
           node --check server/services/replicate-retry.js
           node --check server/services/watermark.js
           node --check server/scripts/watermark-smoke.js
-          node --check client/public/ui.js
+          cat client/public/ui-js-1.txt client/public/ui-js-2.txt client/public/ui-js-3.txt > /tmp/innvikta-ui.js
+          node --check /tmp/innvikta-ui.js
+          node --check client/public/ui-bootstrap.js
       - name: Build client
         run: npm --prefix client run build
       - name: Build Docker image

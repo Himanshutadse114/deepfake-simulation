@@ -1,0 +1,113 @@
+            <span>📎</span>
+            <div class="fake-input">Type a message</div>
+            <span>🎙️</span>
+          </div>
+        </main>
+      </div>
+      <div class="action-dock" id="waProceedDock" style="display:none; margin-top: 16px;"><button class="primary wide-action" onclick="go('profileExperience')">Proceed to Instagram profile →</button></div>
+    </div></div>
+  </section>
+
+  <section class="screen" data-screen="profileExperience">
+    <div class="screen-inner"><div class="insta-stage"><div class="instagram"><aside class="ig-side">
+          <div class="ig-wordmark">Instagram</div>
+          <div class="ig-nav">
+            <div class="active">⌂ &nbsp; Home</div>
+            <div>⌕ &nbsp; Search</div>
+            <div>▣ &nbsp; Explore</div>
+            <div>▶ &nbsp; Reels</div>
+            <div>✉ &nbsp; Messages</div>
+            <div>♡ &nbsp; Notifications</div>
+            <div>⊕ &nbsp; Create</div>
+            <div>◎ &nbsp; Profile</div>
+          </div>
+          <!-- Desktop Proceed Button (Saves screen height, no scrolling needed) -->
+          <div style="padding: 10px 0; margin-top: auto;">
+            <button class="primary wide-action" onclick="go('unifiedLearn')" style="width: 100%; padding: 11px 8px; font-size: 11px;">Proceed to analysis →</button>
+          </div>
+        </aside><main class="ig-main"><div class="ig-profile-top"><div class="ig-profile-avatar" onclick="openIgStory()" style="cursor:pointer;"><img class="shared-face" alt="Instagram profile"></div><div><div class="ig-name-row"><strong class="ig-handle">alex.morgan.life</strong><button class="ig-btn">Following</button><button class="ig-btn">Message</button><span>•••</span></div><div class="ig-stats"><span><b>5</b> posts</span><span><b>12.8K</b> followers</span><span><b>642</b> following</span></div><div class="ig-bio"><b class="full-name">Alex Morgan</b><br>Product · Travel · Everyday moments<br>Building, learning, exploring ✨<br><a class="ig-link">alexmorgan.example/profile</a></div></div></div><div class="ig-highlights"><div class="ig-highlight" onclick="openIgStory()" style="cursor:pointer;"><div><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" style="color:var(--orange); margin: auto; display: block;"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg></div>Work</div><div class="ig-highlight" onclick="openIgStory()" style="cursor:pointer;"><div><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" style="color:var(--orange); margin: auto; display: block;"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg></div>Travel</div><div class="ig-highlight" onclick="openIgStory()" style="cursor:pointer;"><div><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" style="color:var(--orange); margin: auto; display: block;"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg></div>Life</div></div><div class="ig-tabs"><b>▦ Posts</b><span>▶ Reels</span><span>▣ Tagged</span></div><div class="ig-grid" id="igGrid"></div></main><div class="ig-mobilebar">
+            <span>⌂</span>
+            <span>⌕</span>
+            <button class="primary" onclick="go('unifiedLearn')" style="padding: 6px 12px; font-size: 11px; font-weight:700; border-radius:6px; border:0;">Proceed →</button>
+            <span>▶</span>
+            <span>◎</span>
+          </div></div></div>
+  
+      <!-- Instagram Story Modal -->
+      <div class="ig-popup-overlay" id="igStoryModal" style="display:none;" onclick="closeIgStory()">
+        <div class="ig-story-container" id="igStoryContainer" onclick="event.stopPropagation()">
+          <div class="ig-story-bar"><div class="ig-story-progress"></div></div>
+          <div class="ig-story-header">
+            <img class="wa-avatar-photo shared-face" style="width:32px; height:32px; border-radius:50%;" alt="Profile">
+            <strong class="full-name" style="color:white; margin-left:8px;">Alex Morgan</strong>
+            <span style="color:#aaa; font-size:11px; margin-left:8px;">14h</span>
+            <span onclick="closeIgStory()" style="margin-left:auto; cursor:pointer; color:white; font-size:24px; line-height:1;">&times;</span>
+          </div>
+          <div class="ig-story-body">
+            <div class="hacked-stamp">PROFILE CLONED</div>
+            <p class="hacked-text">WARNING: This account has been hacked! A synthetic profile was cloned using only 1 portrait image and 1 voice sample.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Instagram Post Modal -->
+      <div class="ig-popup-overlay" id="igPostModal" style="display:none;" onclick="closeIgPost()">
+        <div class="ig-post-detail" onclick="event.stopPropagation()">
+          <span class="ig-close-post" onclick="closeIgPost()">&times;</span>
+          <div class="ig-post-img-side">
+            <img id="igPostImg" class="shared-face" alt="Instagram Post">
+          </div>
+          <div class="ig-post-info-side">
+            <div class="ig-post-header">
+              <img class="wa-avatar-photo shared-face" style="width:32px; height:32px; border-radius:50%;" alt="Profile">
+              <div>
+                <strong class="ig-handle">alex.morgan.life</strong>
+                <span style="color: #0095f6; font-weight:700; margin-left:6px; cursor:pointer; font-size:11px;">Follow</span>
+              </div>
+            </div>
+            <div class="ig-post-comments">
+              <div class="ig-comment">
+                <strong class="ig-handle">alex.morgan.life</strong>
+                <span id="igPostDesc">New journey starting today! Working on something big. ✨</span>
+              </div>
+              <div class="ig-comment">
+                <strong>sarah.k</strong>
+                <span>Congrats Alex! Looks amazing!</span>
+              </div>
+              <div class="ig-comment">
+                <strong>dev_guru</strong>
+                <span>Is this profile really you? Looks a bit generated.</span>
+              </div>
+            </div>
+            <div class="ig-post-footer">
+              <div class="ig-post-actions">♡ 💬 ➔</div>
+              <div class="ig-post-likes"><strong>1,428 likes</strong></div>
+              <div class="ig-post-time">2 DAYS AGO</div>
+            </div>
+          </div>
+        </div>
+      </div></div></section>
+
+  <section class="screen" data-screen="complete">
+    <div class="screen-inner">
+      <div class="viewport center">
+        <div class="glass final-score" style="max-width: 500px; width: 100%; margin: auto; text-align: center; display: flex; flex-direction: column; align-items: center; padding: 40px 24px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel2);">
+          <div class="kicker">Simulation complete</div>
+          <h2 style="margin-top: 10px;">Trust the <em>verification process.</em></h2>
+          <p class="muted" style="margin-bottom: 24px; font-size: 13px; line-height: 1.5;">You saw how one photo and one voice sample can be repackaged across video, messaging and social media.</p>
+          <div class="score-ring" id="scoreRing" style="margin: 0 auto 30px;">
+            <div>
+              <b id="finalScore">0/9</b>
+              <small>knowledge score</small>
+            </div>
+          </div>
+          <div class="action-dock" style="margin-top: 10px; width: 100%;">
+            <button class="secondary wide-action" onclick="resetSimulation()">Restart simulation</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="toast" id="toast"></div>
+</div>

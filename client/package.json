@@ -1,13 +1,10 @@
 {
   "name": "deepfake-awareness-client",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.2.1",
   "type": "module",
   "scripts": {
-    "prepare-ui": "node scripts/prepare-ui.js",
-    "predev": "npm run prepare-ui",
     "dev": "vite",
-    "prebuild": "npm run prepare-ui",
     "build": "vite build",
     "preview": "vite preview"
   },
