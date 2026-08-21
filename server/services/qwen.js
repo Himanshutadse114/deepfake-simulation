@@ -36,7 +36,7 @@ async function saveOutput(output, targetPath) {
   throw new Error('Qwen3-TTS returned an unsupported audio output shape.');
 }
 
-async function synthesizeScript(voiceFile, outputPath, referenceText = '', text = config.awarenessScript) {
+async function synthesizeScript(voiceFile, outputPath, referenceText = '', text = config.awarenessScript, options = {}) {
   const replicate = requireReplicate();
   const referenceAudio = await fs.readFile(voiceFile.path);
   const input = {
@@ -52,7 +52,7 @@ async function synthesizeScript(voiceFile, outputPath, referenceText = '', text 
 
   const output = await runWithReplicateRetry(
     () => replicate.run(config.providers.qwenModel, { input }),
-    { label: 'Qwen3-TTS voice clone' }
+    { label: 'Qwen3-TTS voice clone', onRateLimit: options.onRateLimit }
   );
 
   return saveOutput(output, outputPath);

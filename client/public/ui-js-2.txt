@@ -166,6 +166,7 @@ function checkMediaReady() {
 [firstNameInput, lastNameInput].forEach((input) => input?.addEventListener('input', checkMediaReady));
 
 function generationPercentForStatus(status) {
+  if (status === 'rate_limited') return currentGenerationPercent;
   return ({
     queued: 5,
     validating: 12,

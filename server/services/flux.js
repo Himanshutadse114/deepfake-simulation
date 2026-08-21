@@ -46,7 +46,7 @@ async function saveOutput(output, targetPath) {
   throw new Error('FLUX returned an unsupported image output shape.');
 }
 
-async function generateIdentityVariants(faceFile, sessionId) {
+async function generateIdentityVariants(faceFile, sessionId, options = {}) {
   if (!config.providers.fluxEnabled) return [];
   const replicate = requireReplicate();
   const reference = await fs.readFile(faceFile.path);
@@ -68,7 +68,7 @@ async function generateIdentityVariants(faceFile, sessionId) {
           prompt_upsampling: false
         }
       }),
-      { label: `FLUX profile image ${index + 1}/${count}` }
+      { label: `FLUX profile image ${index + 1}/${count}`, onRateLimit: options.onRateLimit }
     );
 
     const targetPath = path.join(directory, `variant-${index + 1}.jpg`);

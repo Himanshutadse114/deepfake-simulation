@@ -52,7 +52,7 @@ async function saveReplicateOutput(output, targetPath) {
   await fs.writeFile(targetPath, output, { mode: 0o600 });
 }
 
-async function synthesizeFixedScript(voiceFile, outputPath, text = config.awarenessScript) {
+async function synthesizeFixedScript(voiceFile, outputPath, text = config.awarenessScript, options = {}) {
   const replicate = requireReplicate();
   const directory = path.dirname(outputPath);
   const referencePath = path.join(directory, `reference-${path.basename(outputPath)}.wav`);
@@ -75,7 +75,7 @@ async function synthesizeFixedScript(voiceFile, outputPath, text = config.awaren
             seed: 0
           }
         }),
-        { label: `Chatterbox chunk ${index + 1}/${chunks.length}` }
+        { label: `Chatterbox chunk ${index + 1}/${chunks.length}`, onRateLimit: options.onRateLimit }
       );
       const partPath = path.join(directory, `${path.basename(outputPath, path.extname(outputPath))}-part-${index}.wav`);
       await saveReplicateOutput(output, partPath);

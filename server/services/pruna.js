@@ -8,7 +8,7 @@ function requireReplicate() {
   return new Replicate({ auth: config.providers.replicateToken, fileEncodingStrategy: 'upload' });
 }
 
-async function generateAvatarVideo(faceFile, speechPath) {
+async function generateAvatarVideo(faceFile, speechPath, options = {}) {
   const replicate = requireReplicate();
   const [image, audio] = await Promise.all([
     fs.readFile(faceFile.path),
@@ -24,7 +24,7 @@ async function generateAvatarVideo(faceFile, speechPath) {
         disable_safety_filter: false
       }
     }),
-    { label: 'Pruna avatar video' }
+    { label: 'Pruna avatar video', onRateLimit: options.onRateLimit }
   );
 
   const url = typeof output === 'string' ? output : typeof output?.url === 'function' ? output.url() : output?.url;

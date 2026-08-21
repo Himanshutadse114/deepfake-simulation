@@ -19,6 +19,12 @@ function heygenConfigured() {
   return config.providers.heygenEnabled && Boolean(config.providers.heygenAccessToken || config.providers.heygenApiKey);
 }
 
+function rateLimitStatus(session) {
+  return ({ waitSeconds }) => {
+    updateStatus(session, 'rate_limited', `Temporary service limit reached. Waiting about ${waitSeconds} seconds, then continuing automatically.`);
+  };
+}
+
 async function generateVoice(session, speechPath, text, stage = 'cloning_voice') {
   const provider = config.providers.voiceProvider;
   updateStatus(session, stage, stage === 'cloning_whatsapp'
@@ -27,7 +33,9 @@ async function generateVoice(session, speechPath, text, stage = 'cloning_voice')
 
   if (provider === 'qwen') {
     if (!config.providers.replicateToken) throw new Error('REPLICATE_API_TOKEN is required when VOICE_PROVIDER=qwen.');
-    await synthesizeQwen(session.voice, speechPath, session.voice?.referenceText || '', text);
+    await synthesizeQwen(session.voice, speechPath, session.voice?.referenceText || '', text, {
+      onRateLimit: rateLimitStatus(session)
+    });
     session.provider.voice = 'qwen3-tts';
     return;
   }
@@ -41,7 +49,9 @@ async function generateVoice(session, speechPath, text, stage = 'cloning_voice')
 
   if (provider === 'chatterbox') {
     if (!config.providers.replicateToken) throw new Error('REPLICATE_API_TOKEN is required when VOICE_PROVIDER=chatterbox.');
-    await synthesizeChatterbox(session.voice, speechPath, text);
+    await synthesizeChatterbox(session.voice, speechPath, text, {
+      onRateLimit: rateLimitStatus(session)
+    });
     session.provider.voice = 'chatterbox';
     return;
   }
@@ -94,7 +104,9 @@ async function generateVideoWithFallback(session, speechPath) {
           continue;
         }
         updateStatus(session, 'generating_video', 'Decoding facial structure and preparing the impersonation video.');
-        return await generatePrunaVideo(session.face, speechPath);
+        return await generatePrunaVideo(session.face, speechPath, {
+          onRateLimit: rateLimitStatus(session)
+        });
       }
       failures.push(`${provider}: unsupported video provider`);
     } catch (error) {
@@ -205,7 +217,9 @@ async function generateProfileVariants(session) {
     if (!config.providers.replicateToken) throw new Error('REPLICATE_API_TOKEN is required for FLUX image generation.');
     if (!session.face?.path) throw new Error('The temporary participant portrait is no longer available for this session.');
 
-    session.variants = await generateIdentityVariants(session.face, session.id);
+    session.variants = await generateIdentityVariants(session.face, session.id, {
+      onRateLimit: rateLimitStatus(session)
+    });
     if (session.variants.length !== 4) throw new Error('Four profile images could not be prepared.');
     session.provider.images = 'flux-2-pro';
     updateProfileStatus(session, 'completed', 'Four profile images are ready.');

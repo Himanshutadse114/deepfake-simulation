@@ -14,7 +14,7 @@ This project is intentionally restricted to authorised participant-facing awaren
 - server-side policy rejects direct instructions to send/approve money or disclose passwords, OTPs, credentials, security codes, payment approvals, etc.;
 - scripts are capped at 180 characters so generated clips remain short;
 - the uploaded participant voice is passed directly to Qwen as a reference without a duration check; the separate WhatsApp and video outputs must each be 12 seconds or less or generation stops before Pruna is called; the delivered video is hard-capped at 10 seconds;
-- paid predictions are not automatically retried;
+- rejected prediction-creation requests are automatically paced and retried after a 429 response; already-created predictions are never replayed;
 - generated video carries a permanent `AI-GENERATED SECURITY AWARENESS SIMULATION` disclosure;
 - generated social images remain inside the module and are not published to a real social network;
 - provider secrets stay server-side;
@@ -109,6 +109,8 @@ FLUX_MODEL=black-forest-labs/flux-2-pro
 ```
 
 One uninterrupted generation run creates the two Qwen audio tracks, the Pruna video and exactly four FLUX images. Pruna is not called if either generated audio track exceeds 12 seconds. There is no later profile-generation request or browser confirmation.
+
+If Replicate temporarily reduces the account to one prediction start every ten seconds, the server automatically waits, spaces subsequent starts, and retries only creation requests that were rejected before billing. The learner sees a short waiting message instead of the raw provider response.
 
 Optional legacy/fallback providers remain in the codebase but are disabled by default.
 
