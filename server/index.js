@@ -11,6 +11,7 @@ const multer = require('multer');
 const config = require('./config');
 const simulationRoutes = require('./routes');
 const { router: adminRouter, renderAdminPage } = require('./admin');
+const { renderDemoPage } = require('./demo');
 const { startExpiryCleanup } = require('./store');
 
 const app = express();
@@ -58,6 +59,7 @@ app.get('/api/health', (_req, res) => {
     service: 'deepfake-awareness-simulation',
     demoMode: config.demoMode,
     sessionDemoMode: true,
+    demoInstancePath: '/demo',
     customAwarenessScripts: true,
     audioTracks: ['whatsapp', 'video'],
     scriptPolicy: {
@@ -92,12 +94,13 @@ app.get('/api/health', (_req, res) => {
 
 app.use('/api/admin', adminRouter);
 app.get('/admin', (_req, res) => res.type('html').send(renderAdminPage()));
+app.get('/demo', (_req, res) => res.type('html').send(renderDemoPage()));
 app.use('/api/simulation', simulationRoutes);
 
 if (fs.existsSync(config.clientDist)) {
   app.use(express.static(config.clientDist, { maxAge: '1h', etag: true }));
   app.use((req, res, next) => {
-    if (req.method !== 'GET' || req.path.startsWith('/api/') || req.path === '/admin') return next();
+    if (req.method !== 'GET' || req.path.startsWith('/api/') || req.path === '/admin' || req.path === '/demo') return next();
     res.sendFile(path.join(config.clientDist, 'index.html'));
   });
 }
