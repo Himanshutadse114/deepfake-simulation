@@ -31,6 +31,7 @@ jobs:
           node --check server/script-policy.js
           node --check server/admin.js
           node --check server/admin-settings.js
+          node --check server/demo.js
           node --check server/services/qwen.js
           node --check server/services/chatterbox.js
           node --check server/services/elevenlabs.js
@@ -45,6 +46,7 @@ jobs:
           node --check /tmp/innvikta-ui.js
           node --check client/public/ui-bootstrap.js
           node --check client/public/admin-ui.js
+          node --check client/public/wa-polish.js
       - name: Build client
         run: npm --prefix client run build
       - name: Build Docker image
