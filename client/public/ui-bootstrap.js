@@ -31,12 +31,9 @@
     document.head.appendChild(style);
     mount.outerHTML=htmlParts.join('');
 
-    // The normal and dedicated demo entry points share the same hero artwork.
-    // The source fragment still contains the original inline SVG, so replace it
-    // after mounting the shared markup to avoid the two experiences drifting.
     const heroImage=document.querySelector('.hero-visual .face-card img');
     if(heroImage){
-      heroImage.src='/Deepfake.png?v=2';
+      heroImage.src='/Deepfake.png?v=3';
       heroImage.alt='Deepfake awareness illustration';
     }
 
@@ -45,15 +42,8 @@
     URL.revokeObjectURL(url);
     await loadScript('/wa-polish.js?v=2');
     await loadScript('/experience-polish.js?v=1');
-
-    // The dedicated /demo route owns demo mode. The production entry never
-    // exposes a demo switch, even though the supplied prototype still contains
-    // the legacy button in its static markup.
     document.querySelector('.intro-actions .demo-action')?.remove();
 
-    // The learner never controls generated speech. Keep the legacy hidden fields
-    // populated only so the supplied prototype runtime can continue unchanged;
-    // the server ignores these values and snapshots the admin-managed scripts.
     const applyInternalScriptPlaceholders=()=>{
       const wa=document.getElementById('whatsappScriptInput');
       const video=document.getElementById('videoScriptInput');
@@ -67,42 +57,25 @@
       document.documentElement.dataset.demoInstance='true';
       document.title='Deepfake Awareness Demo';
       window.runMode='demo';
-
       const badge=document.createElement('div');
       badge.className='demo-instance-badge';
       badge.innerHTML='<i></i>Internal demo · no AI calls';
       document.body.appendChild(badge);
-
       const introActions=document.querySelector('.intro-actions');
-      if(introActions){
-        introActions.innerHTML='<button class="primary wide-action" onclick="selectRunMode(\'demo\')">Start demo <span>→</span></button>';
-      }
-
+      if(introActions){introActions.innerHTML='<button class="primary wide-action" onclick="selectRunMode(\'demo\')">Start demo <span>→</span></button>'}
       if(typeof window.selectRunMode==='function'){
         const originalSelect=window.selectRunMode;
-        window.selectRunMode=function(){
-          window.runMode='demo';
-          return originalSelect.call(this,'demo');
-        };
+        window.selectRunMode=function(){window.runMode='demo';return originalSelect.call(this,'demo')};
       }
     }
 
     if(typeof window.startGeneration==='function'){
       const originalStart=window.startGeneration;
-      window.startGeneration=function(...args){
-        applyInternalScriptPlaceholders();
-        if(demoInstance)window.runMode='demo';
-        return originalStart.apply(this,args);
-      };
+      window.startGeneration=function(...args){applyInternalScriptPlaceholders();if(demoInstance)window.runMode='demo';return originalStart.apply(this,args)};
     }
     if(typeof window.resetSimulation==='function'){
       const originalReset=window.resetSimulation;
-      window.resetSimulation=async function(...args){
-        const result=await originalReset.apply(this,args);
-        applyInternalScriptPlaceholders();
-        if(demoInstance)window.runMode='demo';
-        return result;
-      };
+      window.resetSimulation=async function(...args){const result=await originalReset.apply(this,args);applyInternalScriptPlaceholders();if(demoInstance)window.runMode='demo';return result};
     }
   }catch(error){console.error(error);document.body.innerHTML='<main style="font-family:system-ui;background:#06080d;color:white;min-height:100vh;display:grid;place-items:center;padding:24px"><div><h1>UI could not load</h1><p>Please refresh the page.</p></div></main>'}
 })();
