@@ -33,6 +33,7 @@
     await new Promise((resolve,reject)=>{const s=document.createElement('script');s.src=url;s.onload=resolve;s.onerror=()=>reject(new Error('UI runtime failed to load'));document.body.appendChild(s)});
     URL.revokeObjectURL(url);
     await loadScript('/wa-polish.js');
+    await loadScript('/experience-polish.js?v=1');
 
     // The dedicated /demo route owns demo mode. The production entry never
     // exposes a demo switch, even though the supplied prototype still contains
