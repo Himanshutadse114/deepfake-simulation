@@ -2,8 +2,9 @@
   const chatBody = document.getElementById('waChatBody');
   if (!chatBody) return;
 
-  // The old flow placed the post-simulation actions outside the WhatsApp shell.
-  // Remove that dock completely: completion and navigation now live in chat history.
+  // Completion/navigation belongs inside the conversation itself. Remove the
+  // legacy dock so it can never cover the bottom of the chat or fall below a
+  // mobile viewport.
   document.getElementById('waProceedDock')?.remove();
 
   function scrollChatToBottom() {
@@ -34,14 +35,13 @@
     scrollChatToBottom();
   }
 
-  // The simulation marker is added asynchronously by wa-polish.js. Observe the
-  // conversation so the inline actions are installed immediately after it appears.
+  // The completion marker is created asynchronously by wa-polish.js.
   const observer = new MutationObserver(() => installInlineCompletionActions());
   observer.observe(chatBody, { childList: true });
   installInlineCompletionActions();
 
-  // Rebuild the header controls as real flex items. Previously the video SVG and
-  // the "⌕ ⋮" text shared one anonymous text node, which caused poor mobile alignment.
+  // Rebuild the header actions as independent controls so the identity stays on
+  // the left and all utility icons remain aligned on the right on narrow phones.
   const actions = document.querySelector('.wa-chathead .wa-actions');
   if (actions) {
     actions.innerHTML = `
@@ -57,8 +57,78 @@
     `;
   }
 
+  // Desktop wheel events can otherwise be consumed by the viewport while the
+  // chat itself is the element that owns overflow. Forward wheel movement to
+  // the conversation whenever it has scrollable content.
+  const waMain = chatBody.closest('.wa-main');
+  if (waMain) {
+    waMain.addEventListener('wheel', (event) => {
+      const max = Math.max(0, chatBody.scrollHeight - chatBody.clientHeight);
+      if (!max) return;
+      const before = chatBody.scrollTop;
+      chatBody.scrollTop = Math.max(0, Math.min(max, before + event.deltaY));
+      if (chatBody.scrollTop !== before) event.preventDefault();
+    }, { passive: false });
+  }
+
+  chatBody.setAttribute('tabindex', '0');
+
   const style = document.createElement('style');
   style.textContent = `
+    /* =========================================================
+       WHATSAPP VIEWPORT / SCROLL CHAIN
+       Keep header + composer fixed and make only chat history scroll.
+    ========================================================== */
+    .screen[data-screen="voiceExperience"] .screen-inner{
+      height:100dvh!important;
+      min-height:0!important;
+      overflow:hidden!important;
+    }
+    .screen[data-screen="voiceExperience"] .wa-stage{
+      box-sizing:border-box!important;
+      height:100%!important;
+      min-height:0!important;
+      overflow:hidden!important;
+      display:grid!important;
+      place-items:center!important;
+    }
+    .screen[data-screen="voiceExperience"] .whatsapp{
+      min-height:0!important;
+      height:100%!important;
+      max-height:790px!important;
+      overflow:hidden!important;
+    }
+    .screen[data-screen="voiceExperience"] .wa-main{
+      display:flex!important;
+      flex-direction:column!important;
+      height:100%!important;
+      min-height:0!important;
+      overflow:hidden!important;
+    }
+    .screen[data-screen="voiceExperience"] .wa-chathead,
+    .screen[data-screen="voiceExperience"] .wa-input{
+      flex:0 0 auto!important;
+    }
+    .screen[data-screen="voiceExperience"] .wa-chatbody{
+      flex:1 1 0!important;
+      height:auto!important;
+      min-height:0!important;
+      max-height:none!important;
+      overflow-y:auto!important;
+      overflow-x:hidden!important;
+      overscroll-behavior:contain!important;
+      -webkit-overflow-scrolling:touch!important;
+      touch-action:pan-y!important;
+      scroll-behavior:smooth!important;
+      scrollbar-gutter:stable!important;
+      padding-bottom:34px!important;
+      scroll-padding-bottom:34px!important;
+    }
+    .wa-chatbody::-webkit-scrollbar{width:8px}
+    .wa-chatbody::-webkit-scrollbar-track{background:rgba(255,255,255,.02)}
+    .wa-chatbody::-webkit-scrollbar-thumb{background:#37444b;border-radius:999px}
+    .wa-chatbody::-webkit-scrollbar-thumb:hover{background:#4a5a63}
+
     /* No external WhatsApp completion footer on any viewport. */
     #waProceedDock{display:none!important}
 
@@ -101,7 +171,7 @@
     button.wa-head-action{cursor:pointer}
     button.wa-head-action:hover{background:rgba(255,255,255,.06);color:#e9edef}
 
-    /* Completion becomes part of the conversation itself. */
+    /* Completion becomes part of the scrollable conversation itself. */
     .wa-simulation-complete{
       flex:none!important;
       width:min(620px,94%)!important;
@@ -141,11 +211,20 @@
     .wa-inline-actions button{min-height:46px;border-radius:10px}
     .wa-inline-replay{min-width:130px}
     .wa-inline-next{min-width:min(360px,100%);padding-inline:22px}
-    .wa-chatbody{padding-bottom:30px!important;scroll-padding-bottom:30px!important}
 
     @media(max-width:700px){
-      /* The fixed demo badge was covering the WhatsApp contact header on phones. */
+      /* The floating demo badge otherwise covers the contact header on phones. */
       body:has(.screen[data-screen="voiceExperience"].active) .demo-instance-badge{display:none!important}
+
+      .screen[data-screen="voiceExperience"] .wa-stage{padding:0!important;display:block!important}
+      .screen[data-screen="voiceExperience"] .whatsapp{
+        width:100%!important;
+        height:100%!important;
+        max-height:none!important;
+        border:0!important;
+        border-radius:0!important;
+      }
+      .screen[data-screen="voiceExperience"] .wa-main{width:100%!important}
 
       .wa-chathead{
         height:58px!important;
@@ -160,7 +239,7 @@
       .wa-head-action{width:32px;height:32px;flex-basis:32px}
       .wa-head-action svg{width:18px;height:18px}
 
-      .wa-chatbody{padding:14px 10px 24px!important}
+      .wa-chatbody{padding:14px 10px 26px!important}
       .wa-simulation-complete{width:94%!important;max-width:94%!important;margin-top:12px!important}
       .wa-inline-completion{width:94%;margin:4px auto 18px;padding:12px}
       .wa-inline-actions{flex-direction:column-reverse;gap:8px}
