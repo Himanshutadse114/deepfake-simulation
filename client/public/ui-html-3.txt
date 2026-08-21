@@ -4,7 +4,7 @@
           </div>
         </main>
       </div>
-      <div class="action-dock" id="waProceedDock" style="display:none; margin-top: 16px;"><button class="primary wide-action" onclick="go('profileExperience')">Proceed to Instagram profile →</button></div>
+      <div class="action-dock" id="waProceedDock" style="display:none; margin-top: 16px;"><button class="primary wide-action" onclick="openProfileExperience()">Proceed to Instagram profile →</button></div>
     </div></div>
   </section>
 

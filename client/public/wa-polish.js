@@ -115,7 +115,7 @@
       </div>
       <div class="wa-proceed-actions">
         <button class="secondary wa-replay-btn" type="button" onclick="replayWhatsAppSimulation()">↻ Replay</button>
-        <button class="primary wa-next-btn" type="button" onclick="go('profileExperience')">Convinced? Let’s move further →</button>
+        <button class="primary wa-next-btn" type="button" onclick="openProfileExperience()">Convinced? Let’s move further →</button>
       </div>
     `;
   }

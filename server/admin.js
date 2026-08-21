@@ -60,7 +60,7 @@ function renderAdminPage() {
 </head>
 <body>
 <main class="wrap">
-  <div class="top"><div class="kicker">Internal configuration</div><h1>Simulation script admin</h1><p class="muted">Set the two voice tracks used by every new simulation. Learners do not see or edit these scripts.</p></div>
+  <div class="top"><div class="kicker">Internal configuration</div><h1>Simulation script admin</h1><p class="muted">Set the approved awareness scripts. The cost-safe default shares the WhatsApp track with the video; a separate video track is used only when explicitly enabled.</p></div>
   <section class="card">
     <label for="adminKey">Admin key</label>
     <input id="adminKey" type="password" autocomplete="current-password" placeholder="Enter ADMIN_KEY">

@@ -28,7 +28,7 @@
       </div>
       <div class="wa-inline-actions">
         <button class="secondary wa-inline-replay" type="button" onclick="replayWhatsAppSimulation()">↻ Replay</button>
-        <button class="primary wa-inline-next" type="button" onclick="go('profileExperience')">Convinced? Let’s move further →</button>
+        <button class="primary wa-inline-next" type="button" onclick="openProfileExperience()">Convinced? Let’s move further →</button>
       </div>
     `;
     marker.insertAdjacentElement('afterend', block);

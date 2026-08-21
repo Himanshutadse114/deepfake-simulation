@@ -9,6 +9,7 @@ const { generateAvatarVideo: generateDidVideo } = require('./services/did');
 const { generateAvatarVideo: generateHeyGenVideo } = require('./services/heygen');
 const { generateAvatarVideo: generatePrunaVideo } = require('./services/pruna');
 const { createWatermarkedVideo } = require('./services/watermark');
+const { assertAudioDuration } = require('./services/audio-duration');
 
 function didConfigured() {
   return config.providers.didEnabled && Boolean(config.providers.didKey);
@@ -73,7 +74,7 @@ async function generateVideoWithFallback(session, speechPath) {
           failures.push('pruna: REPLICATE_API_TOKEN is not configured');
           continue;
         }
-        updateStatus(session, 'generating_video', 'Pruna is animating the original consented portrait with the separate deepfake-video audio track.');
+        updateStatus(session, 'generating_video', `Pruna is animating the original consented portrait with the ${config.providers.separateVideoAudio ? 'separate' : 'checked shared'} audio track.`);
         return await generatePrunaVideo(session.face, speechPath);
       }
       failures.push(`${provider}: unsupported video provider`);
@@ -117,40 +118,48 @@ async function generateSimulation(session) {
       return;
     }
 
+    await assertAudioDuration(session.voice.path, {
+      label: 'Reference voice sample',
+      minSeconds: 3,
+      maxSeconds: config.maxReferenceAudioSeconds
+    });
+
     await generateVoice(session, whatsappPath, session.scripts.whatsapp, 'cloning_whatsapp');
+    await assertAudioDuration(whatsappPath, {
+      label: 'Generated awareness audio',
+      maxSeconds: config.maxGeneratedAudioSeconds
+    });
     session.whatsappAudioOutput = whatsappPath;
 
-    await generateVoice(session, videoSpeechPath, session.scripts.video, 'cloning_video');
-    session.videoAudioOutput = videoSpeechPath;
+    if (config.providers.separateVideoAudio) {
+      await generateVoice(session, videoSpeechPath, session.scripts.video, 'cloning_video');
+      await assertAudioDuration(videoSpeechPath, {
+        label: 'Generated video audio',
+        maxSeconds: config.maxGeneratedAudioSeconds
+      });
+      session.videoAudioOutput = videoSpeechPath;
+    } else {
+      session.videoAudioOutput = whatsappPath;
+    }
 
-    const video = await generateVideoWithFallback(session, videoSpeechPath);
+    const video = await generateVideoWithFallback(session, session.videoAudioOutput);
     session.provider.video = video.provider;
 
     updateStatus(session, 'watermarking', 'Burning a permanent AI-generated awareness disclosure into the deepfake video.');
     await createWatermarkedVideo(video.url, rawVideoPath, outputPath);
     session.output = outputPath;
 
-    if (config.providers.fluxEnabled) {
-      updateProfileStatus(session, 'generating', 'FLUX.2 Pro is creating four consented synthetic profile images.');
-      updateStatus(session, 'generating_profile', 'Creating the four synthetic social-profile images for the final impersonation stage.');
-      session.variants = await generateIdentityVariants(session.face, session.id);
-      if (!session.variants.length) throw new Error('FLUX did not return any synthetic profile images.');
-      session.provider.images = 'flux-2-pro';
-      updateProfileStatus(session, 'completed', `${session.variants.length} synthetic profile images are ready.`);
-    } else {
-      updateProfileStatus(session, 'completed', 'FLUX is disabled; the profile stage will use the consented source portrait as a visual fallback.');
-      session.variants = [session.face.path, session.face.path, session.face.path, session.face.path];
-      session.provider.images = 'source-portrait-fallback';
-    }
-
-    updateStatus(session, 'completed', `Your two voice tracks, deepfake video and profile assets are ready (${video.provider}).`);
+    updateProfileStatus(session, 'idle', config.providers.fluxEnabled
+      ? 'Synthetic profile generation is optional and requires separate confirmation.'
+      : 'FLUX is disabled; the profile stage will use the consented source portrait.');
+    updateStatus(session, 'completed', `Your checked voice track and deepfake video are ready (${video.provider}).`);
 
     // Delete original participant voice and portrait after all provider work.
     // Keep only generated outputs required by the learner flow until completion/expiry.
     await removeLocalSessionFiles(session, {
       keepOutput: true,
       keepAudio: true,
-      keepVariants: true
+      keepFace: config.providers.fluxEnabled
     });
   } catch (error) {
     updateStatus(session, 'failed', error.message || 'Generation failed.');
@@ -183,6 +192,11 @@ async function generateProfileVariants(session) {
     if (!session.variants.length) throw new Error('FLUX did not return any synthetic profile images.');
     session.provider.images = 'flux-2-pro';
     updateProfileStatus(session, 'completed', `${session.variants.length} synthetic profile images are ready.`);
+    await removeLocalSessionFiles(session, {
+      keepOutput: true,
+      keepAudio: true,
+      keepVariants: true
+    });
     return session.variants;
   } catch (error) {
     session.profileError = error.message || 'FLUX profile generation failed.';

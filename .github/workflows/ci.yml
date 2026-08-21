@@ -40,6 +40,7 @@ jobs:
           node --check server/services/heygen.js
           node --check server/services/pruna.js
           node --check server/services/replicate-retry.js
+          node --check server/services/audio-duration.js
           node --check server/services/watermark.js
           node --check server/scripts/watermark-smoke.js
           cat client/public/ui-js-1.txt client/public/ui-js-2.txt client/public/ui-js-3.txt > /tmp/innvikta-ui.js
