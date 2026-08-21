@@ -63,7 +63,6 @@ app.get('/api/health', (_req, res) => {
     customAwarenessScripts: true,
     audioTracks: ['whatsapp', 'video'],
     durationLimits: {
-      referenceAudioSeconds: config.maxReferenceAudioSeconds,
       generatedAudioSeconds: config.maxGeneratedAudioSeconds,
       videoSeconds: config.maxVideoSeconds
     },

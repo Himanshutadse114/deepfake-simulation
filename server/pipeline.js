@@ -137,12 +137,6 @@ async function generateSimulation(session) {
       return;
     }
 
-    await assertAudioDuration(session.voice.path, {
-      label: 'Reference voice sample',
-      minSeconds: 3,
-      maxSeconds: config.maxReferenceAudioSeconds
-    });
-
     await generateCheckedAudioTracks(session, { whatsappPath, videoSpeechPath });
 
     const video = await generateVideoWithFallback(session, session.videoAudioOutput);
