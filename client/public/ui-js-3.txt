@@ -26,6 +26,8 @@ async function uploadSessionMedia(session) {
 async function startGeneration() {
   if (generationInProgress) return;
   generationInProgress = true;
+  const failureActions = document.getElementById('generationFailureActions');
+  if (failureActions) failureActions.style.display = 'none';
   const generateButton = document.getElementById('generateBtn');
   if (generateButton) generateButton.disabled = true;
   if (liveSession) await cleanupLiveSession();
@@ -64,7 +66,7 @@ async function startGeneration() {
     await cleanupLiveSession();
     generationInProgress = false;
     checkMediaReady();
-    setTimeout(() => go('media'), 1700);
+    if (failureActions) failureActions.style.display = 'block';
   }
 }
 
