@@ -36,15 +36,15 @@ async function saveOutput(output, targetPath) {
   throw new Error('Qwen3-TTS returned an unsupported audio output shape.');
 }
 
-async function synthesizeFixedScript(voiceFile, outputPath, referenceText = '') {
+async function synthesizeScript(voiceFile, outputPath, referenceText = '', text = config.awarenessScript) {
   const replicate = requireReplicate();
   const referenceAudio = await fs.readFile(voiceFile.path);
   const input = {
     mode: 'voice_clone',
-    text: config.awarenessScript,
+    text: String(text || config.awarenessScript),
     language: config.providers.qwenLanguage,
     reference_audio: referenceAudio,
-    style_instruction: 'Speak naturally, calmly and clearly. Keep the delivery suitable for a cybersecurity awareness demonstration.'
+    style_instruction: 'Speak naturally, calmly and clearly. Keep the delivery suitable for an authorised cybersecurity awareness demonstration.'
   };
 
   const transcript = String(referenceText || '').trim();
@@ -58,4 +58,7 @@ async function synthesizeFixedScript(voiceFile, outputPath, referenceText = '') 
   return saveOutput(output, outputPath);
 }
 
-module.exports = { synthesizeFixedScript };
+const synthesizeFixedScript = (voiceFile, outputPath, referenceText = '') =>
+  synthesizeScript(voiceFile, outputPath, referenceText, config.awarenessScript);
+
+module.exports = { synthesizeScript, synthesizeFixedScript };

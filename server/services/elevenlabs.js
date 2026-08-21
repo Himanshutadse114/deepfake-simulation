@@ -61,16 +61,16 @@ async function createTemporaryVoice(voiceFile, sessionId) {
   return payload.voice_id;
 }
 
-async function synthesizeWithVoice(voiceId, outputPath) {
+async function synthesizeWithVoice(voiceId, outputPath, text = config.awarenessScript) {
   const directory = path.dirname(outputPath);
-  const tempMp3 = path.join(directory, 'elevenlabs-speech.mp3');
+  const tempMp3 = path.join(directory, `${path.basename(outputPath, path.extname(outputPath))}-elevenlabs.mp3`);
   const model = config.providers.elevenLabsModel || 'eleven_multilingual_v2';
 
   const response = await elevenFetch(`/v1/text-to-speech/${encodeURIComponent(voiceId)}?output_format=mp3_44100_128`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', accept: 'audio/mpeg' },
     body: JSON.stringify({
-      text: config.awarenessScript,
+      text: String(text || config.awarenessScript),
       model_id: model,
       voice_settings: {
         stability: 0.55,
@@ -99,11 +99,11 @@ async function deleteVoice(voiceId) {
   await response.arrayBuffer().catch(() => {});
 }
 
-async function synthesizeFixedScript(voiceFile, outputPath, sessionId) {
+async function synthesizeFixedScript(voiceFile, outputPath, sessionId, text = config.awarenessScript) {
   let voiceId;
   try {
     voiceId = await createTemporaryVoice(voiceFile, sessionId);
-    await synthesizeWithVoice(voiceId, outputPath);
+    await synthesizeWithVoice(voiceId, outputPath, text);
     return outputPath;
   } finally {
     if (voiceId) await deleteVoice(voiceId).catch((error) => console.warn(`ElevenLabs temporary voice cleanup failed: ${error.message}`));

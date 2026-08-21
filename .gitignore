@@ -1,5 +1,8 @@
 node_modules/
 client/dist/
+client/public/ui.html
+client/public/ui.css
+client/public/ui.js
 .env
 uploads/*
 !uploads/.gitkeep

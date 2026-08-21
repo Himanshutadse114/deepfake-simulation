@@ -5,20 +5,24 @@ const config = require('./config');
 
 const sessions = new Map();
 
-function createSession(consents) {
+function createSession(consents, { mode = 'ai', participant = {}, scripts = {} } = {}) {
   const id = crypto.randomUUID();
   const now = Date.now();
   const session = {
     id,
     token: crypto.randomBytes(32).toString('hex'),
     consents,
+    mode: config.demoMode ? 'demo' : mode,
+    participant,
+    scripts,
     createdAt: now,
     expiresAt: now + config.retentionMs,
     status: 'collecting',
     detail: 'Waiting for participant media.',
     face: null,
     voice: null,
-    audioOutput: null,
+    whatsappAudioOutput: null,
+    videoAudioOutput: null,
     output: null,
     variants: [],
     provider: {},
@@ -35,7 +39,7 @@ function getSession(id) {
 }
 
 function publicSession(session) {
-  return { id: session.id, token: session.token, expiresAt: session.expiresAt };
+  return { id: session.id, token: session.token, expiresAt: session.expiresAt, mode: session.mode };
 }
 
 function updateStatus(session, status, detail = '') {
@@ -51,11 +55,12 @@ function updateProfileStatus(session, status, detail = '') {
 async function removeLocalSessionFiles(session, {
   keepOutput = false,
   keepFace = false,
+  keepVoice = false,
   keepVariants = false,
   keepAudio = false
 } = {}) {
   const directory = path.join(config.uploadRoot, session.id);
-  if (!keepOutput && !keepFace && !keepVariants && !keepAudio) {
+  if (!keepOutput && !keepFace && !keepVoice && !keepVariants && !keepAudio) {
     await fs.rm(directory, { recursive: true, force: true });
     return;
   }
@@ -63,7 +68,11 @@ async function removeLocalSessionFiles(session, {
   const keep = new Set();
   if (keepOutput && session.output) keep.add(path.basename(session.output));
   if (keepFace && session.face?.path) keep.add(path.basename(session.face.path));
-  if (keepAudio && session.audioOutput) keep.add(path.basename(session.audioOutput));
+  if (keepVoice && session.voice?.path) keep.add(path.basename(session.voice.path));
+  if (keepAudio) {
+    if (session.whatsappAudioOutput) keep.add(path.basename(session.whatsappAudioOutput));
+    if (session.videoAudioOutput) keep.add(path.basename(session.videoAudioOutput));
+  }
   if (keepVariants) {
     for (const variant of session.variants || []) keep.add(path.basename(variant));
   }

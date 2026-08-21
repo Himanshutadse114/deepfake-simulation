@@ -24,8 +24,10 @@ app.use(helmet({
       imgSrc: ["'self'", 'data:', 'blob:'],
       mediaSrc: ["'self'", 'blob:'],
       connectSrc: ["'self'"],
-      scriptSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'"]
+      scriptSrc: ["'self'", 'blob:'],
+      scriptSrcAttr: ["'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+      fontSrc: ["'self'", 'data:', 'https://fonts.gstatic.com']
     }
   }
 }));
@@ -54,6 +56,9 @@ app.get('/api/health', (_req, res) => {
     ok: true,
     service: 'deepfake-awareness-simulation',
     demoMode: config.demoMode,
+    sessionDemoMode: true,
+    customAwarenessScripts: true,
+    audioTracks: ['whatsapp', 'video'],
     stack: {
       voice: config.providers.voiceProvider,
       images: config.providers.fluxEnabled ? 'flux-2-pro' : 'disabled',
@@ -101,7 +106,7 @@ async function start() {
   await fsp.mkdir(config.uploadRoot, { recursive: true });
   startExpiryCleanup();
   app.listen(config.port, '0.0.0.0', () => {
-    console.log(`Deepfake awareness simulation listening on port ${config.port}${config.demoMode ? ' (DEMO_MODE)' : ''}`);
+    console.log(`Deepfake awareness simulation listening on port ${config.port}${config.demoMode ? ' (GLOBAL DEMO_MODE)' : ''}`);
   });
 }
 
