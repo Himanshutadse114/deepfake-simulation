@@ -33,10 +33,6 @@
     document.head.appendChild(style);
     mount.outerHTML=htmlParts.join('');
 
-    // The supplied HTML was split across files mid-generation-screen and the
-    // opening wrapper was lost. Repair that structure before the runtime loads.
-    // This keeps the generation UI inside the same screen router as every other
-    // stage instead of leaving it as a free-floating layer over the homepage.
     const app=document.getElementById('app');
     const orphanGenerateCopy=document.querySelector('.generate-copy:not(.generate-wrap .generate-copy)');
     if(app&&!app.querySelector('.screen[data-screen="generate"]')&&orphanGenerateCopy){
@@ -73,9 +69,11 @@
     const blob=new Blob([jsParts.join('')],{type:'text/javascript'});const url=URL.createObjectURL(blob);
     await new Promise((resolve,reject)=>{const s=document.createElement('script');s.src=url;s.onload=resolve;s.onerror=()=>reject(new Error('UI runtime failed to load'));document.body.appendChild(s)});
     URL.revokeObjectURL(url);
-    await loadScript('/wa-polish.js?v=2');
+    await loadScript('/wa-polish.js?v=3');
     await loadScript('/experience-polish.js?v=1');
-    await loadScript('/editorial-newspaper.js?v=1');
+    await loadScript('/editorial-newspaper.js?v=2');
+    await loadScript('/responsive-polish.js?v=1');
+    await loadScript('/qr-polish.js?v=1');
     document.querySelector('.intro-actions .demo-action')?.remove();
 
     const enforceScreenVisibility=(name)=>{
