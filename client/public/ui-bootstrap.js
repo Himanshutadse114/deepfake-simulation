@@ -75,6 +75,7 @@
     URL.revokeObjectURL(url);
     await loadScript('/wa-polish.js?v=2');
     await loadScript('/experience-polish.js?v=1');
+    await loadScript('/editorial-newspaper.js?v=1');
     document.querySelector('.intro-actions .demo-action')?.remove();
 
     const enforceScreenVisibility=(name)=>{
