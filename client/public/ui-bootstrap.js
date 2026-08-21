@@ -75,6 +75,7 @@
     await loadScript('/wa-replay-reset.js?v=1');
     await loadScript('/editorial-cta-fix.js?v=1');
     await loadScript('/final-flow-polish.js?v=1');
+    await loadScript('/voice-recording-prompt.js?v=2');
     const enforceScreenVisibility=(name)=>{
       document.querySelectorAll('.screen').forEach(screen=>{
         const active=screen.dataset.screen===name;
