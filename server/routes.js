@@ -3,7 +3,7 @@ const fs = require('node:fs/promises');
 const config = require('./config');
 const { createSession, getSession, publicSession, updateStatus, deleteSession } = require('./store');
 const { upload, persistParticipantFile } = require('./media');
-const { validateScriptPair } = require('./script-policy');
+const { getActiveScripts } = require('./admin-settings');
 const { generateSimulation, generateProfileVariants } = require('./pipeline');
 
 const router = express.Router();
@@ -26,13 +26,15 @@ function loadAuthorisedSession(req, res, next) {
   next();
 }
 
-router.post('/session', (req, res) => {
+router.post('/session', async (req, res) => {
   try {
     if (!allConsents(req.body?.consents)) return res.status(400).json({ error: 'All three informed-consent confirmations are required.' });
     const requestedMode = String(req.body?.mode || 'ai').toLowerCase();
     if (!['ai', 'demo'].includes(requestedMode)) return res.status(400).json({ error: 'Simulation mode must be ai or demo.' });
 
-    const scripts = validateScriptPair(req.body?.scripts || {});
+    // Learners never control generated speech. Every new session snapshots the
+    // two scripts currently configured by the protected admin page.
+    const { scripts } = await getActiveScripts();
     const participant = {
       firstName: cleanName(req.body?.participant?.firstName, 'Participant'),
       lastName: cleanName(req.body?.participant?.lastName, '')
@@ -144,7 +146,6 @@ async function sendAudio(req, res, next, kind) {
 
 router.get('/:id/audio/whatsapp', loadAuthorisedSession, (req, res, next) => sendAudio(req, res, next, 'whatsapp'));
 router.get('/:id/audio/video', loadAuthorisedSession, (req, res, next) => sendAudio(req, res, next, 'video'));
-// Backward-compatible alias for the original single-audio endpoint.
 router.get('/:id/audio', loadAuthorisedSession, (req, res, next) => sendAudio(req, res, next, 'whatsapp'));
 
 router.get('/:id/video', loadAuthorisedSession, async (req, res, next) => {
