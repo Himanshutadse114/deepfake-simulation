@@ -19,7 +19,8 @@ function renderDemoPage() {
 </head>
 <body data-demo-instance="true">
 <div id="uiBoot" style="min-height:100vh;background:#06080d"></div>
-<script src="/ui-bootstrap.js?v=editorial-cta-20260821-1" defer></script>
+<script src="/voice-recording-prompt.js?v=1" defer></script>
+<script src="/ui-bootstrap.js?v=voice-prompt-20260821-1" defer></script>
 </body>
 </html>`;
 }
