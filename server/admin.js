@@ -23,7 +23,15 @@ function requireAdmin(req, res, next) {
 
 router.get('/scripts', requireAdmin, async (_req, res, next) => {
   try {
-    res.json(await getActiveScripts());
+    res.json({
+      ...(await getActiveScripts()),
+      policy: {
+        minChars: config.scriptPolicy.minChars,
+        maxChars: config.scriptPolicy.maxChars,
+        blockUrls: config.scriptPolicy.blockUrls,
+        requireAwarenessContext: config.scriptPolicy.requireAwarenessContext
+      }
+    });
   } catch (error) { next(error); }
 });
 
@@ -37,6 +45,7 @@ router.put('/scripts', requireAdmin, async (req, res, next) => {
 });
 
 function renderAdminPage() {
+  const max = config.scriptPolicy.maxChars;
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -51,19 +60,19 @@ function renderAdminPage() {
 </head>
 <body>
 <main class="wrap">
-  <div class="top"><div class="kicker">Internal configuration</div><h1>Simulation script admin</h1><p class="muted">Set the two short voice tracks used by every new awareness simulation. Learners do not see or edit these scripts.</p></div>
+  <div class="top"><div class="kicker">Internal configuration</div><h1>Simulation script admin</h1><p class="muted">Set the two voice tracks used by every new simulation. Learners do not see or edit these scripts.</p></div>
   <section class="card">
     <label for="adminKey">Admin key</label>
     <input id="adminKey" type="password" autocomplete="current-password" placeholder="Enter ADMIN_KEY">
 
-    <div class="row"><label for="whatsappScript">WhatsApp audio script</label><span class="count"><b id="whatsappCount">0</b>/180</span></div>
-    <textarea id="whatsappScript" maxlength="180" placeholder="Short awareness voice-note script"></textarea>
+    <div class="row"><label for="whatsappScript">WhatsApp audio script</label><span class="count"><b id="whatsappCount">0</b>/${max}</span></div>
+    <textarea id="whatsappScript" maxlength="${max}" placeholder="WhatsApp voice-note script"></textarea>
 
-    <div class="row"><label for="videoScript">Deepfake video audio script</label><span class="count"><b id="videoCount">0</b>/180</span></div>
-    <textarea id="videoScript" maxlength="180" placeholder="Short awareness video script"></textarea>
+    <div class="row"><label for="videoScript">Deepfake video audio script</label><span class="count"><b id="videoCount">0</b>/${max}</span></div>
+    <textarea id="videoScript" maxlength="${max}" placeholder="Deepfake video script"></textarea>
 
     <div class="actions"><button class="btn secondary" id="loadScripts" type="button">Load current</button><button class="btn primary" id="saveScripts" type="button">Save scripts</button></div>
-    <div class="note">These values are applied server-side to new sessions. Safety validation remains enabled so the simulation cannot be turned into a direct payment, OTP, password or credential-request generator.</div>
+    <div class="note">Script length, URL handling and awareness-context requirements are controlled by server environment variables. Sensitive payment and credential requests remain blocked by the core simulation safeguard.</div>
     <div class="status" id="adminStatus"></div>
   </section>
 </main>
