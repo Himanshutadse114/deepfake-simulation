@@ -29,6 +29,8 @@ jobs:
           node --check server/media.js
           node --check server/store.js
           node --check server/script-policy.js
+          node --check server/admin.js
+          node --check server/admin-settings.js
           node --check server/services/qwen.js
           node --check server/services/chatterbox.js
           node --check server/services/elevenlabs.js
@@ -42,6 +44,7 @@ jobs:
           cat client/public/ui-js-1.txt client/public/ui-js-2.txt client/public/ui-js-3.txt > /tmp/innvikta-ui.js
           node --check /tmp/innvikta-ui.js
           node --check client/public/ui-bootstrap.js
+          node --check client/public/admin-ui.js
       - name: Build client
         run: npm --prefix client run build
       - name: Build Docker image
