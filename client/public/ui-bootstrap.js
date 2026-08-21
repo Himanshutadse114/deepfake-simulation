@@ -25,22 +25,14 @@
       .intro-actions{grid-template-columns:1fr!important;justify-items:center!important}
       .intro-actions .primary{width:min(620px,calc(100% - 32px))!important;margin-inline:auto!important}
       html[data-demo-instance="true"] .intro-actions .primary{width:min(520px,calc(100% - 32px))!important;margin-inline:auto!important}
-      .hero-visual .face-card img{width:100%!important;height:100%!important;object-fit:cover!important;object-position:center!important;display:block!important}
       @media(max-width:640px){.demo-instance-badge{left:12px;top:12px;font-size:9px;padding:8px 10px}.intro-actions .primary{width:calc(100% - 24px)!important}}
     `;
     document.head.appendChild(style);
     mount.outerHTML=htmlParts.join('');
-
-    const heroImage=document.querySelector('.hero-visual .face-card img');
-    if(heroImage){
-      heroImage.src='/Deepfake.png?v=1';
-      heroImage.alt='Deepfake awareness illustration';
-    }
-
     const blob=new Blob([jsParts.join('')],{type:'text/javascript'});const url=URL.createObjectURL(blob);
     await new Promise((resolve,reject)=>{const s=document.createElement('script');s.src=url;s.onload=resolve;s.onerror=()=>reject(new Error('UI runtime failed to load'));document.body.appendChild(s)});
     URL.revokeObjectURL(url);
-    await loadScript('/wa-polish.js');
+    await loadScript('/wa-polish.js?v=2');
     await loadScript('/experience-polish.js?v=1');
 
     // The dedicated /demo route owns demo mode. The production entry never
