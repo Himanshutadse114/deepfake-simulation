@@ -1,6 +1,14 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const config = require('../server/config');
 const { validateAwarenessScript, validateScriptPair } = require('../server/script-policy');
+
+test('uses env-backed script policy defaults', () => {
+  assert.equal(config.scriptPolicy.minChars, 20);
+  assert.equal(config.scriptPolicy.maxChars, 180);
+  assert.equal(config.scriptPolicy.blockUrls, true);
+  assert.equal(config.scriptPolicy.requireAwarenessContext, false);
+});
 
 test('accepts benign awareness scripts', () => {
   const result = validateScriptPair({
@@ -11,9 +19,9 @@ test('accepts benign awareness scripts', () => {
   assert.match(result.video, /deepfake/i);
 });
 
-test('accepts benign admin-defined dialogue without requiring awareness keywords', () => {
-  const text = validateAwarenessScript('Hello, I wanted to check in and ask you to call me back when you have a moment.', 'WhatsApp audio script');
-  assert.match(text, /call me back/i);
+test('accepts benign admin-defined dialogue when awareness-context requirement is disabled', () => {
+  const text = validateAwarenessScript('Hi, please call me back when you have a moment. I wanted to discuss the project update with you.');
+  assert.match(text, /project update/i);
 });
 
 test('allows warnings that mention sensitive scam requests', () => {
