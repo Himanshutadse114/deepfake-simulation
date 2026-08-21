@@ -33,9 +33,40 @@
     document.head.appendChild(style);
     mount.outerHTML=htmlParts.join('');
 
+    // The supplied HTML was split across files mid-generation-screen and the
+    // opening wrapper was lost. Repair that structure before the runtime loads.
+    // This keeps the generation UI inside the same screen router as every other
+    // stage instead of leaving it as a free-floating layer over the homepage.
+    const app=document.getElementById('app');
+    const orphanGenerateCopy=document.querySelector('.generate-copy:not(.generate-wrap .generate-copy)');
+    if(app&&!app.querySelector('.screen[data-screen="generate"]')&&orphanGenerateCopy){
+      const generationScreen=document.createElement('section');
+      generationScreen.className='screen';
+      generationScreen.dataset.screen='generate';
+      generationScreen.hidden=true;
+      generationScreen.setAttribute('aria-hidden','true');
+      generationScreen.innerHTML=`
+        <div class="screen-inner">
+          <div class="viewport center">
+            <div class="generate-wrap">
+              <div class="scan-stage" aria-label="Simulation preparation preview">
+                <img class="shared-face" src="/Deepfake.png?v=5" alt="Portrait being prepared for the awareness simulation">
+                <div class="scan-tint"></div>
+                <div class="scan-glow"></div>
+                <div class="scan-line"></div>
+                <div class="scan-label"><span>Secure awareness pipeline</span><strong id="scanState">0%</strong></div>
+              </div>
+            </div>
+          </div>
+        </div>`;
+      generationScreen.querySelector('.generate-wrap').appendChild(orphanGenerateCopy);
+      const mediaScreen=app.querySelector('.screen[data-screen="media"]');
+      if(mediaScreen)mediaScreen.after(generationScreen);else app.appendChild(generationScreen);
+    }
+
     const heroImage=document.querySelector('.hero-visual .face-card img');
     if(heroImage){
-      heroImage.src='/Deepfake.png?v=4';
+      heroImage.src='/Deepfake.png?v=5';
       heroImage.alt='Deepfake awareness illustration';
     }
 
@@ -57,6 +88,7 @@
     if(typeof window.go==='function'){
       const originalGo=window.go;
       window.go=function(name){
+        enforceScreenVisibility(name);
         const result=originalGo.call(this,name);
         enforceScreenVisibility(name);
         return result;
@@ -91,11 +123,18 @@
 
     if(typeof window.startGeneration==='function'){
       const originalStart=window.startGeneration;
-      window.startGeneration=function(...args){applyInternalScriptPlaceholders();if(demoInstance)window.runMode='demo';return originalStart.apply(this,args)};
+      window.startGeneration=function(...args){
+        applyInternalScriptPlaceholders();
+        if(demoInstance)window.runMode='demo';
+        enforceScreenVisibility('generate');
+        const result=originalStart.apply(this,args);
+        queueMicrotask(()=>enforceScreenVisibility('generate'));
+        return result;
+      };
     }
     if(typeof window.resetSimulation==='function'){
       const originalReset=window.resetSimulation;
-      window.resetSimulation=async function(...args){const result=await originalReset.apply(this,args);applyInternalScriptPlaceholders();if(demoInstance)window.runMode='demo';return result};
+      window.resetSimulation=async function(...args){const result=await originalReset.apply(this,args);applyInternalScriptPlaceholders();if(demoInstance)window.runMode='demo';enforceScreenVisibility('intro');return result};
     }
   }catch(error){console.error(error);document.body.innerHTML='<main style="font-family:system-ui;background:#06080d;color:white;min-height:100vh;display:grid;place-items:center;padding:24px"><div><h1>UI could not load</h1><p>Please refresh the page.</p></div></main>'}
 })();
