@@ -103,7 +103,7 @@ var videoScriptCount = document.getElementById('videoScriptCount');
 
 function selectRunMode(mode) {
   const selectedMode = mode === 'demo' ? 'demo' : 'ai';
-  if (selectedMode === 'ai' && !window.confirm('Paid AI mode will create one voice-clone prediction and one talking-head video prediction. Unexpectedly long audio will be stopped before video generation. Continue?')) return;
+  if (selectedMode === 'ai' && !window.confirm('Paid AI mode will create two voice-clone predictions (WhatsApp and video) and one talking-head video prediction. Both audio tracks must be 10 seconds or less before Pruna is called, and the final video is capped at 10 seconds. Continue?')) return;
   runMode = selectedMode;
   toast(runMode === 'demo'
     ? 'Internal demo mode selected. No Qwen, Pruna or FLUX calls will be made.'

@@ -25,28 +25,33 @@ function spawnFfmpeg(args) {
   });
 }
 
-async function runFfmpeg(inputPath, outputPath) {
+function buildFfmpegArgs(inputPath, outputPath, maxSeconds) {
+  return [
+    '-i', inputPath,
+    '-t', String(maxSeconds),
+    '-vf', buildWatermarkFilter(),
+    '-c:v', 'libx264',
+    '-preset', 'veryfast',
+    '-crf', '20',
+    '-c:a', 'aac',
+    '-movflags', '+faststart',
+    outputPath
+  ];
+}
+
+async function runFfmpeg(inputPath, outputPath, { maxSeconds = 10 } = {}) {
   try {
-    await spawnFfmpeg([
-      '-i', inputPath,
-      '-vf', buildWatermarkFilter(),
-      '-c:v', 'libx264',
-      '-preset', 'veryfast',
-      '-crf', '20',
-      '-c:a', 'aac',
-      '-movflags', '+faststart',
-      outputPath
-    ]);
+    await spawnFfmpeg(buildFfmpegArgs(inputPath, outputPath, maxSeconds));
     return outputPath;
   } catch (error) {
     throw new Error(`Watermarking failed: ${error.message}`);
   }
 }
 
-async function createWatermarkedVideo(sourceUrl, rawPath, outputPath) {
+async function createWatermarkedVideo(sourceUrl, rawPath, outputPath, options) {
   await downloadVideo(sourceUrl, rawPath);
-  await runFfmpeg(rawPath, outputPath);
+  await runFfmpeg(rawPath, outputPath, options);
   return outputPath;
 }
 
-module.exports = { createWatermarkedVideo, runFfmpeg, buildWatermarkFilter, WATERMARK_TEXT };
+module.exports = { createWatermarkedVideo, runFfmpeg, buildFfmpegArgs, buildWatermarkFilter, WATERMARK_TEXT };

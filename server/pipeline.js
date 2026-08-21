@@ -49,6 +49,25 @@ async function generateVoice(session, speechPath, text, stage = 'cloning_voice')
   throw new Error(`Unsupported VOICE_PROVIDER: ${provider}`);
 }
 
+async function generateCheckedAudioTracks(session, { whatsappPath, videoSpeechPath }, dependencies = {}) {
+  const generateVoiceTrack = dependencies.generateVoice || generateVoice;
+  const checkDuration = dependencies.assertAudioDuration || assertAudioDuration;
+
+  await generateVoiceTrack(session, whatsappPath, session.scripts.whatsapp, 'cloning_whatsapp');
+  await checkDuration(whatsappPath, {
+    label: 'Generated awareness audio',
+    maxSeconds: config.maxGeneratedAudioSeconds
+  });
+  session.whatsappAudioOutput = whatsappPath;
+
+  await generateVoiceTrack(session, videoSpeechPath, session.scripts.video, 'cloning_video');
+  await checkDuration(videoSpeechPath, {
+    label: 'Generated video audio',
+    maxSeconds: config.maxGeneratedAudioSeconds
+  });
+  session.videoAudioOutput = videoSpeechPath;
+}
+
 async function generateVideoWithFallback(session, speechPath) {
   const failures = [];
   for (const provider of config.providers.videoProviderPreference) {
@@ -74,7 +93,7 @@ async function generateVideoWithFallback(session, speechPath) {
           failures.push('pruna: REPLICATE_API_TOKEN is not configured');
           continue;
         }
-        updateStatus(session, 'generating_video', `Pruna is animating the original consented portrait with the ${config.providers.separateVideoAudio ? 'separate' : 'checked shared'} audio track.`);
+        updateStatus(session, 'generating_video', 'Pruna is animating the original consented portrait with the checked video audio track.');
         return await generatePrunaVideo(session.face, speechPath);
       }
       failures.push(`${provider}: unsupported video provider`);
@@ -124,35 +143,21 @@ async function generateSimulation(session) {
       maxSeconds: config.maxReferenceAudioSeconds
     });
 
-    await generateVoice(session, whatsappPath, session.scripts.whatsapp, 'cloning_whatsapp');
-    await assertAudioDuration(whatsappPath, {
-      label: 'Generated awareness audio',
-      maxSeconds: config.maxGeneratedAudioSeconds
-    });
-    session.whatsappAudioOutput = whatsappPath;
-
-    if (config.providers.separateVideoAudio) {
-      await generateVoice(session, videoSpeechPath, session.scripts.video, 'cloning_video');
-      await assertAudioDuration(videoSpeechPath, {
-        label: 'Generated video audio',
-        maxSeconds: config.maxGeneratedAudioSeconds
-      });
-      session.videoAudioOutput = videoSpeechPath;
-    } else {
-      session.videoAudioOutput = whatsappPath;
-    }
+    await generateCheckedAudioTracks(session, { whatsappPath, videoSpeechPath });
 
     const video = await generateVideoWithFallback(session, session.videoAudioOutput);
     session.provider.video = video.provider;
 
     updateStatus(session, 'watermarking', 'Burning a permanent AI-generated awareness disclosure into the deepfake video.');
-    await createWatermarkedVideo(video.url, rawVideoPath, outputPath);
+    await createWatermarkedVideo(video.url, rawVideoPath, outputPath, {
+      maxSeconds: config.maxVideoSeconds
+    });
     session.output = outputPath;
 
     updateProfileStatus(session, 'idle', config.providers.fluxEnabled
       ? 'Synthetic profile generation is optional and requires separate confirmation.'
       : 'FLUX is disabled; the profile stage will use the consented source portrait.');
-    updateStatus(session, 'completed', `Your checked voice track and deepfake video are ready (${video.provider}).`);
+    updateStatus(session, 'completed', `Your two checked audio tracks and 10-second deepfake video are ready (${video.provider}).`);
 
     // Delete original participant voice and portrait after all provider work.
     // Keep only generated outputs required by the learner flow until completion/expiry.
@@ -205,4 +210,11 @@ async function generateProfileVariants(session) {
   }
 }
 
-module.exports = { generateSimulation, generateProfileVariants, generateVideoWithFallback, generateVoice, completeDemoSession };
+module.exports = {
+  generateSimulation,
+  generateProfileVariants,
+  generateVideoWithFallback,
+  generateVoice,
+  generateCheckedAudioTracks,
+  completeDemoSession
+};
