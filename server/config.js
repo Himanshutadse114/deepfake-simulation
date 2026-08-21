@@ -46,10 +46,10 @@ module.exports = {
     elevenLabsApiKey: process.env.ELEVENLABS_API_KEY || '',
     elevenLabsModel: process.env.ELEVENLABS_MODEL || 'eleven_multilingual_v2',
 
-    // Social-profile awareness images are generated only after the first learning checkpoint.
+    // Four social-profile awareness images are generated with the initial media pipeline.
     fluxEnabled: String(process.env.FLUX_ENABLED || 'true').toLowerCase() !== 'false',
     fluxModel: process.env.FLUX_MODEL || 'black-forest-labs/flux-2-pro',
-    fluxGridImages: Math.min(numberEnv('FLUX_GRID_IMAGES', 4), 4),
+    fluxGridImages: 4,
 
     didKey: process.env.DID_API_KEY || '',
     didEnabled: String(process.env.DID_ADAPTER_ENABLED || 'false').toLowerCase() !== 'false',

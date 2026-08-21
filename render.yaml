@@ -34,8 +34,6 @@ services:
         value: "true"
       - key: FLUX_MODEL
         value: black-forest-labs/flux-2-pro
-      - key: FLUX_GRID_IMAGES
-        value: 4
       - key: VIDEO_PROVIDER_PREFERENCE
         value: pruna
       - key: PRUNA_RESOLUTION

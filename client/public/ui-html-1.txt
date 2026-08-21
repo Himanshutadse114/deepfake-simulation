@@ -8,7 +8,7 @@
     <div class="screen-inner"><div class="viewport center"><div class="hero">
       <div class="hero-copy"><div class="kicker">Interactive AI impersonation awareness</div><h1>One photo. One voice. <em>A believable fake identity.</em></h1><p class="muted">Experience how a face and voice can be transformed into a convincing video, a trusted voice note and a realistic social profile — then learn how to verify before you trust.</p><div class="flow-pills"><span>Deepfake video</span><span>Voice impersonation</span><span>Social profile cloning</span><span>Verification skills</span></div></div>
       <div class="hero-visual"><div class="orb o1"></div><div class="orb o2"></div><div class="face-card"><img src="/Deepfake.png?v=2" alt="Deepfake awareness illustration"></div><div class="trust-chips"><span>Face ✓</span><span>Voice ✓</span><span>Identity ?</span></div></div>
-    </div></div><div class="action-dock intro-actions"><button class="primary wide-action" onclick="selectRunMode('ai')">Start simulation <span>→</span></button><button class="secondary demo-action" onclick="selectRunMode('demo')">Internal demo mode · no AI</button></div></div>
+    </div></div><div class="action-dock intro-actions"><button class="primary wide-action" onclick="selectRunMode('ai')">Start simulation <span>→</span></button></div></div>
   </section>
 
   <section class="screen" data-screen="consent">

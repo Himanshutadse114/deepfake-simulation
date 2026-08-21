@@ -22,8 +22,8 @@ function heygenConfigured() {
 async function generateVoice(session, speechPath, text, stage = 'cloning_voice') {
   const provider = config.providers.voiceProvider;
   updateStatus(session, stage, stage === 'cloning_whatsapp'
-    ? 'Creating the consented WhatsApp awareness voice note.'
-    : 'Creating the separate consented voice track for the deepfake video.');
+    ? 'Cloning your voice for the WhatsApp experience.'
+    : 'Cloning your voice for the video experience.');
 
   if (provider === 'qwen') {
     if (!config.providers.replicateToken) throw new Error('REPLICATE_API_TOKEN is required when VOICE_PROVIDER=qwen.');
@@ -77,7 +77,7 @@ async function generateVideoWithFallback(session, speechPath) {
           failures.push('did: DID_API_KEY is not configured');
           continue;
         }
-        updateStatus(session, 'generating_video', 'D-ID is animating the consented portrait with the dedicated video audio.');
+        updateStatus(session, 'generating_video', 'Decoding facial structure and preparing the impersonation video.');
         return await generateDidVideo(session.face, speechPath, session.id);
       }
       if (provider === 'heygen') {
@@ -85,7 +85,7 @@ async function generateVideoWithFallback(session, speechPath) {
           failures.push('heygen: HeyGen authentication is not configured');
           continue;
         }
-        updateStatus(session, 'generating_video', 'HeyGen is animating the consented portrait with the dedicated video audio.');
+        updateStatus(session, 'generating_video', 'Decoding facial structure and preparing the impersonation video.');
         return await generateHeyGenVideo(session.face, speechPath, session.id);
       }
       if (provider === 'pruna') {
@@ -93,7 +93,7 @@ async function generateVideoWithFallback(session, speechPath) {
           failures.push('pruna: REPLICATE_API_TOKEN is not configured');
           continue;
         }
-        updateStatus(session, 'generating_video', 'Pruna is animating the original consented portrait with the checked video audio track.');
+        updateStatus(session, 'generating_video', 'Decoding facial structure and preparing the impersonation video.');
         return await generatePrunaVideo(session.face, speechPath);
       }
       failures.push(`${provider}: unsupported video provider`);
@@ -105,7 +105,7 @@ async function generateVideoWithFallback(session, speechPath) {
 }
 
 async function completeDemoSession(session) {
-  updateStatus(session, 'demo_preparing', 'Internal demo mode: using uploaded media directly. No AI provider is being called.');
+  updateStatus(session, 'demo_preparing', 'Internal demo mode: loading the uploaded media.');
   session.whatsappAudioOutput = session.voice.path;
   session.videoAudioOutput = session.voice.path;
   session.variants = [session.face.path, session.face.path, session.face.path, session.face.path];
@@ -115,7 +115,16 @@ async function completeDemoSession(session) {
     images: 'demo-original-photo'
   };
   updateProfileStatus(session, 'completed', 'Internal demo profile is ready using local participant media only.');
-  updateStatus(session, 'completed', 'Internal no-AI demo is ready. Uploaded media will be removed at completion or expiry.');
+  updateStatus(session, 'completed', 'Internal demo is ready. Uploaded media will be removed at completion or expiry.');
+}
+
+async function runInitialGeneration(mediaTask, profileTask) {
+  const results = await Promise.allSettled([
+    Promise.resolve().then(mediaTask),
+    Promise.resolve().then(profileTask)
+  ]);
+  const failure = results.find((result) => result.status === 'rejected');
+  if (failure) throw failure.reason;
 }
 
 async function generateSimulation(session) {
@@ -130,35 +139,44 @@ async function generateSimulation(session) {
     if (!Object.values(session.consents || {}).every(Boolean)) throw new Error('All participant consent confirmations are required.');
     if (!session.scripts?.whatsapp || !session.scripts?.video) throw new Error('Both awareness audio scripts are required.');
 
-    updateStatus(session, 'validating', 'Consent, scripts and uploaded media checks passed.');
+    updateStatus(session, 'validating', 'Loading consented media and facial structure.');
 
     if (session.mode === 'demo' || config.demoMode) {
       await completeDemoSession(session);
       return;
     }
 
-    await generateCheckedAudioTracks(session, { whatsappPath, videoSpeechPath });
+    const mediaWork = async () => {
+      await generateCheckedAudioTracks(session, { whatsappPath, videoSpeechPath });
 
-    const video = await generateVideoWithFallback(session, session.videoAudioOutput);
-    session.provider.video = video.provider;
+      const video = await generateVideoWithFallback(session, session.videoAudioOutput);
+      session.provider.video = video.provider;
 
-    updateStatus(session, 'watermarking', 'Burning a permanent AI-generated awareness disclosure into the deepfake video.');
-    await createWatermarkedVideo(video.url, rawVideoPath, outputPath, {
-      maxSeconds: config.maxVideoSeconds
-    });
-    session.output = outputPath;
+      updateStatus(session, 'watermarking', 'Finalizing facial motion and applying the awareness disclosure.');
+      await createWatermarkedVideo(video.url, rawVideoPath, outputPath, {
+        maxSeconds: config.maxVideoSeconds
+      });
+      session.output = outputPath;
+      if (session.profileStatus !== 'completed') {
+        updateStatus(session, 'generating_profile', 'Decoding facial structure into four profile variations.');
+      }
+    };
 
-    updateProfileStatus(session, 'idle', config.providers.fluxEnabled
-      ? 'Synthetic profile generation is optional and requires separate confirmation.'
-      : 'FLUX is disabled; the profile stage will use the consented source portrait.');
-    updateStatus(session, 'completed', `Your two checked audio tracks and 10-second deepfake video are ready (${video.provider}).`);
+    // Start the four profile images with the audio/video pipeline. Waiting for
+    // both tasks here keeps the learner on one uninterrupted loading screen.
+    await runInitialGeneration(
+      mediaWork,
+      () => generateProfileVariants(session)
+    );
+
+    updateStatus(session, 'completed', 'Your voice, video and four profile images are ready.');
 
     // Delete original participant voice and portrait after all provider work.
     // Keep only generated outputs required by the learner flow until completion/expiry.
     await removeLocalSessionFiles(session, {
       keepOutput: true,
       keepAudio: true,
-      keepFace: config.providers.fluxEnabled
+      keepVariants: true
     });
   } catch (error) {
     console.warn(`[generation:${session.id}] ${error.stack || error.message || error}`);
@@ -175,13 +193,12 @@ async function generateProfileVariants(session) {
     return session.variants;
   }
 
-  updateProfileStatus(session, 'generating', 'FLUX.2 Pro is turning the consented portrait into four synthetic social-profile photos.');
+  updateProfileStatus(session, 'generating', 'Decoding facial structure into four profile variations.');
   session.profileError = null;
 
   try {
-    if (session.status !== 'completed' || !session.output) throw new Error('Complete the deepfake video stage before generating the profile demo.');
     if (session.variants?.length) {
-      updateProfileStatus(session, 'completed', `${session.variants.length} synthetic profile images are already ready.`);
+      updateProfileStatus(session, 'completed', 'Four profile images are ready.');
       return session.variants;
     }
     if (!config.providers.fluxEnabled) throw new Error('FLUX profile generation is disabled. Set FLUX_ENABLED=true.');
@@ -189,17 +206,12 @@ async function generateProfileVariants(session) {
     if (!session.face?.path) throw new Error('The temporary participant portrait is no longer available for this session.');
 
     session.variants = await generateIdentityVariants(session.face, session.id);
-    if (!session.variants.length) throw new Error('FLUX did not return any synthetic profile images.');
+    if (session.variants.length !== 4) throw new Error('Four profile images could not be prepared.');
     session.provider.images = 'flux-2-pro';
-    updateProfileStatus(session, 'completed', `${session.variants.length} synthetic profile images are ready.`);
-    await removeLocalSessionFiles(session, {
-      keepOutput: true,
-      keepAudio: true,
-      keepVariants: true
-    });
+    updateProfileStatus(session, 'completed', 'Four profile images are ready.');
     return session.variants;
   } catch (error) {
-    session.profileError = error.message || 'FLUX profile generation failed.';
+    session.profileError = error.message || 'Profile images could not be prepared.';
     updateProfileStatus(session, 'failed', session.profileError);
     throw error;
   }
@@ -211,5 +223,6 @@ module.exports = {
   generateVideoWithFallback,
   generateVoice,
   generateCheckedAudioTracks,
-  completeDemoSession
+  completeDemoSession,
+  runInitialGeneration
 };

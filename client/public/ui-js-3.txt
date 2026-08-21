@@ -40,7 +40,7 @@ async function startGeneration() {
 
     go('generate');
     updateGenerationFromServer({ status: 'queued', detail: runMode === 'demo'
-      ? 'Internal demo mode: preparing uploaded media without AI.'
+      ? 'Internal demo mode: loading uploaded media.'
       : 'Creating your secure simulation session…' });
 
     liveSession = await apiRequest('/api/simulation/session', {
@@ -54,7 +54,7 @@ async function startGeneration() {
     });
     runMode = liveSession.mode || runMode;
 
-    updateGenerationFromServer({ status: 'validating', detail: 'Uploading and validating your consented photo and voice sample…' });
+    updateGenerationFromServer({ status: 'validating', detail: 'Loading your facial structure and voice sample…' });
     await uploadSessionMedia(liveSession);
     await apiRequest(`/api/simulation/${liveSession.id}/generate`, { method: 'POST', body: JSON.stringify({}) }, liveSession.token);
     await pollGenerationUntilReady();
@@ -224,52 +224,20 @@ function buildInstagramGrid(src) {
   const grid = document.getElementById('igGrid');
   const mini = document.getElementById('igMiniGrid');
   if (!grid) return;
-  const labels = ['Office day', 'Coffee stop', 'Weekend city', 'Outdoor moment', 'Deepfake reel'];
+  const labels = ['Office day', 'Coffee stop', 'Weekend city', 'Outdoor moment'];
   const photos = Array.isArray(variantUrls) && variantUrls.length
     ? variantUrls.slice(0, 4)
     : [src, src, src, src];
-  const deepfakeStill = photos[0] || src;
-  const assets = [...photos, deepfakeStill];
   grid.innerHTML = labels.map((label, index) => {
-    const asset = assets[index] || src;
+    const asset = photos[index] || src;
     const safeAsset = String(asset || '').replace(/'/g, '%27');
-    return `<div class="ig-tile" onclick="openIgPost('${label}', '${safeAsset}')"><img src="${asset}" alt="${runMode === 'demo' ? 'Demo' : 'Synthetic'} ${label}">${index === 4 ? '<svg class="ig-reel" viewBox="0 0 24 24"><path fill="currentColor" d="M8 5v14l11-7z"/></svg><span class="ig-ai">AI VIDEO</span>' : '<span class="ig-ai">AI IMAGE</span>'}</div>`;
+    return `<div class="ig-tile" onclick="openIgPost('${label}', '${safeAsset}')"><img src="${asset}" alt="${runMode === 'demo' ? 'Demo' : 'Synthetic'} ${label}"><span class="ig-ai">AI IMAGE</span></div>`;
   }).join('');
   if (mini) mini.innerHTML = photos.map((asset, index) => `<img src="${asset || src}" alt="Profile image ${index + 1}">`).join('');
 }
 
-async function openProfileExperience() {
-  if (!liveSession || runMode === 'demo' || variantUrls.length) {
-    go('profileExperience');
-    return;
-  }
-  if (profileGenerationInProgress) return;
-  const approved = window.confirm('Optional paid step: generate four FLUX profile images? Choose Cancel to continue with your original portrait at no additional AI cost.');
-  if (!approved) {
-    go('profileExperience');
-    return;
-  }
-
-  profileGenerationInProgress = true;
-  toast('Generating four optional profile images…');
-  try {
-    await apiRequest(`/api/simulation/${liveSession.id}/profile/generate`, { method: 'POST', body: JSON.stringify({}) }, liveSession.token);
-    for (;;) {
-      const payload = await apiRequest(`/api/simulation/${liveSession.id}/status`, {}, liveSession.token);
-      if (payload.profileStatus === 'failed') throw new Error(payload.profileError || 'Profile generation failed.');
-      if (payload.profileStatus === 'completed') {
-        prepareGeneratedAssets(payload);
-        go('profileExperience');
-        return;
-      }
-      await new Promise((resolve) => setTimeout(resolve, 1800));
-    }
-  } catch (error) {
-    toast(`${error.message} Continuing without generated profile images.`);
-    go('profileExperience');
-  } finally {
-    profileGenerationInProgress = false;
-  }
+function openProfileExperience() {
+  go('profileExperience');
 }
 
 function finishSimulation() {
@@ -308,7 +276,6 @@ async function resetSimulation() {
   setIdentity('Alex', 'Morgan');
   runMode = 'ai';
   generationInProgress = false;
-  profileGenerationInProgress = false;
   go('intro');
   checkMediaReady();
 }
