@@ -10,19 +10,54 @@ function validateDuration(duration, { label = 'Audio', minSeconds = 0.5, maxSeco
   return seconds;
 }
 
+function parseTimeBase(value) {
+  const match = String(value || '').match(/^(\d+)\/(\d+)$/);
+  if (!match) return Number.NaN;
+  const numerator = Number(match[1]);
+  const denominator = Number(match[2]);
+  return denominator > 0 ? numerator / denominator : Number.NaN;
+}
+
+function parseProbeDuration(output) {
+  let metadata;
+  try {
+    metadata = typeof output === 'string' ? JSON.parse(output) : output;
+  } catch {
+    return Number.NaN;
+  }
+
+  const candidates = [];
+  const add = (value) => {
+    const seconds = Number(value);
+    if (Number.isFinite(seconds) && seconds > 0) candidates.push(seconds);
+  };
+
+  add(metadata?.format?.duration);
+  for (const stream of metadata?.streams || []) {
+    if (stream.codec_type && stream.codec_type !== 'audio') continue;
+    add(stream.duration);
+    const durationTicks = Number(stream.duration_ts);
+    const timeBase = parseTimeBase(stream.time_base);
+    if (Number.isFinite(durationTicks) && Number.isFinite(timeBase)) add(durationTicks * timeBase);
+  }
+
+  // Use the longest trustworthy value so the provider safety limit remains conservative.
+  return candidates.length ? Math.max(...candidates) : Number.NaN;
+}
+
 function probeAudioDuration(filePath) {
   return new Promise((resolve, reject) => {
     execFile('ffprobe', [
       '-v', 'error',
-      '-show_entries', 'format=duration',
-      '-of', 'default=noprint_wrappers=1:nokey=1',
+      '-show_entries', 'format=duration:stream=codec_type,duration,duration_ts,time_base',
+      '-of', 'json',
       filePath
     ], { timeout: 15_000, windowsHide: true }, (error, stdout, stderr) => {
       if (error) {
         reject(new Error(`Audio duration check failed: ${String(stderr || error.message).trim()}`));
         return;
       }
-      resolve(Number(String(stdout).trim()));
+      resolve(parseProbeDuration(String(stdout)));
     });
   });
 }
@@ -31,4 +66,4 @@ async function assertAudioDuration(filePath, options) {
   return validateDuration(await probeAudioDuration(filePath), options);
 }
 
-module.exports = { probeAudioDuration, validateDuration, assertAudioDuration };
+module.exports = { probeAudioDuration, parseProbeDuration, validateDuration, assertAudioDuration };
