@@ -1,6 +1,7 @@
 (async function bootAwarenessUi(){
   const mount=document.getElementById('uiBoot');
   const read=async path=>{const response=await fetch(path,{cache:'no-store'});if(!response.ok)throw new Error(`${path} failed (${response.status})`);return response.text()};
+  const loadScript=src=>new Promise((resolve,reject)=>{const s=document.createElement('script');s.src=src;s.onload=resolve;s.onerror=()=>reject(new Error(`${src} failed to load`));document.body.appendChild(s)});
   try{
     const [htmlParts,cssParts,jsParts]=await Promise.all([
       Promise.all([1,2,3].map(i=>read(`/ui-html-${i}.txt`))),
@@ -23,6 +24,7 @@
     const blob=new Blob([jsParts.join('')],{type:'text/javascript'});const url=URL.createObjectURL(blob);
     await new Promise((resolve,reject)=>{const s=document.createElement('script');s.src=url;s.onload=resolve;s.onerror=()=>reject(new Error('UI runtime failed to load'));document.body.appendChild(s)});
     URL.revokeObjectURL(url);
+    await loadScript('/wa-polish.js');
 
     // The learner never controls generated speech. Keep the legacy hidden fields
     // populated only so the supplied prototype runtime can continue unchanged;
