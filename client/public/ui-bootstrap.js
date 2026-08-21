@@ -12,6 +12,8 @@
     const style=document.createElement('style');
     style.textContent=cssParts.join('')+`
       .script-card{display:none!important}
+      .screen[hidden],.screen:not(.active){display:none!important;visibility:hidden!important;pointer-events:none!important}
+      .screen.active{display:block!important;visibility:visible!important;pointer-events:auto!important}
       .wa-typing-dots{display:flex;align-items:center;gap:4px;min-width:42px;padding:3px 1px}
       .wa-typing-dots span{width:7px;height:7px;border-radius:50%;background:#8696a0;opacity:.35;animation:waTypingPulse 1.15s infinite ease-in-out}
       .wa-typing-dots span:nth-child(2){animation-delay:.14s}
@@ -33,7 +35,7 @@
 
     const heroImage=document.querySelector('.hero-visual .face-card img');
     if(heroImage){
-      heroImage.src='/Deepfake.png?v=3';
+      heroImage.src='/Deepfake.png?v=4';
       heroImage.alt='Deepfake awareness illustration';
     }
 
@@ -43,6 +45,24 @@
     await loadScript('/wa-polish.js?v=2');
     await loadScript('/experience-polish.js?v=1');
     document.querySelector('.intro-actions .demo-action')?.remove();
+
+    const enforceScreenVisibility=(name)=>{
+      document.querySelectorAll('.screen').forEach(screen=>{
+        const active=screen.dataset.screen===name;
+        screen.classList.toggle('active',active);
+        screen.hidden=!active;
+        screen.setAttribute('aria-hidden',active?'false':'true');
+      });
+    };
+    if(typeof window.go==='function'){
+      const originalGo=window.go;
+      window.go=function(name){
+        const result=originalGo.call(this,name);
+        enforceScreenVisibility(name);
+        return result;
+      };
+    }
+    enforceScreenVisibility('intro');
 
     const applyInternalScriptPlaceholders=()=>{
       const wa=document.getElementById('whatsappScriptInput');
