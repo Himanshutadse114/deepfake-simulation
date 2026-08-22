@@ -78,6 +78,7 @@
     await loadScript('/final-flow-polish.js?v=2');
     await loadScript('/wa-call-ringtone.js?v=1');
     await loadScript('/camera-face-guide.js?v=2');
+    await loadScript('/instagram-video-grid.js?v=1mp-3plusvideo-20260822-1');
     const enforceScreenVisibility=(name)=>{
       document.querySelectorAll('.screen').forEach(screen=>{
         const active=screen.dataset.screen===name;
