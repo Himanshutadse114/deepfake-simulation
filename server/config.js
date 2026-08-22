@@ -24,6 +24,7 @@ module.exports = {
 
   maxImageBytes: numberEnv('MAX_IMAGE_SIZE_MB', 8) * 1024 * 1024,
   maxAudioBytes: numberEnv('MAX_AUDIO_SIZE_MB', 20) * 1024 * 1024,
+  maxReferenceAudioSeconds: Math.min(numberEnv('MAX_REFERENCE_AUDIO_SECONDS', 60), 120),
   maxGeneratedAudioSeconds: 12,
   maxVideoSeconds: Math.min(numberEnv('MAX_VIDEO_SECONDS', 10), 10),
   retentionMs: numberEnv('MEDIA_RETENTION_MINUTES', 30) * 60 * 1000,
@@ -40,8 +41,6 @@ module.exports = {
   demoMode: String(process.env.DEMO_MODE || 'false').toLowerCase() === 'true',
   adminKey: String(process.env.ADMIN_KEY || '').trim(),
 
-  // When connected to the main Innvikta platform, enable REQUIRE_LAUNCH_TOKEN
-  // so only a signed tenant/user/campaign launch can reserve paid AI work.
   launchTokenSecret: String(process.env.LAUNCH_TOKEN_SECRET || '').trim(),
   requireLaunchToken: booleanEnv('REQUIRE_LAUNCH_TOKEN', false),
 
@@ -61,24 +60,19 @@ module.exports = {
     requireAwarenessContext: booleanEnv('SCRIPT_REQUIRE_AWARENESS_CONTEXT', false)
   },
 
-  // Legacy benign fallback retained for older provider adapters.
   awarenessScript: 'This is an AI-generated security awareness simulation. A familiar face or voice can be faked. Verify unusual requests through a trusted channel before acting.',
 
   providers: {
     replicateToken: process.env.REPLICATE_API_TOKEN || '',
-
-    // Active voice path: per-session reference-audio cloning on Replicate.
     voiceProvider: String(process.env.VOICE_PROVIDER || 'qwen').trim().toLowerCase(),
     qwenModel: process.env.QWEN_MODEL || 'qwen/qwen3-tts',
     qwenLanguage: process.env.QWEN_LANGUAGE || 'auto',
 
-    // Optional fallback/experimentation providers kept available but not active by default.
     chatterboxModel: process.env.CHATTERBOX_MODEL || 'resemble-ai/chatterbox-multilingual:9cfba4c265e685f840612be835424f8c33bdee685d7466ece7684b0d9d4c0b1c',
     chatterboxLanguage: process.env.CHATTERBOX_LANGUAGE || 'en',
     elevenLabsApiKey: process.env.ELEVENLABS_API_KEY || '',
     elevenLabsModel: process.env.ELEVENLABS_MODEL || 'eleven_multilingual_v2',
 
-    // Four profile tiles come from one 2 MP FLUX contact-sheet prediction.
     fluxEnabled: String(process.env.FLUX_ENABLED || 'true').toLowerCase() !== 'false',
     fluxModel: process.env.FLUX_MODEL || 'black-forest-labs/flux-2-pro',
     fluxGridImages: 4,
@@ -92,8 +86,6 @@ module.exports = {
     heygenAccessToken: process.env.HEYGEN_ACCESS_TOKEN || '',
     heygenEnabled: String(process.env.HEYGEN_ADAPTER_ENABLED || 'false').toLowerCase() !== 'false',
 
-    // Pruna remains isolated by default so one failed paid provider never
-    // automatically spills into another paid provider and multiplies cost.
     allowPaidVideoFallback: booleanEnv('ALLOW_PAID_VIDEO_FALLBACK', false),
     videoProviderPreference: (process.env.VIDEO_PROVIDER_PREFERENCE || 'pruna')
       .split(',')
