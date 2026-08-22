@@ -56,9 +56,19 @@ function predictionCallbacks(session, stageKey) {
   const stage = session.stages[stageKey];
   return {
     predictionId: stage.predictionId,
+    onBeforePredictionCreate: async () => {
+      if (stage.predictionId) return;
+      // Persist the paid-creation boundary before sending the provider request.
+      // If Render stops after this write but before the prediction ID is saved,
+      // recovery fails closed instead of guessing and potentially paying twice.
+      stage.status = 'creation_started';
+      stage.creationStartedAt = Date.now();
+      await persistSession(session);
+    },
     onPredictionCreated: async (prediction) => {
       stage.predictionId = prediction.id;
       stage.status = 'provider_running';
+      stage.predictionCreatedAt = Date.now();
       await persistSession(session);
     },
     onProviderOutput: async (payload) => {
@@ -228,7 +238,9 @@ async function generateVideoWithFallback(session, speechRef, workspace = path.jo
     } catch (error) {
       failures.push(`${provider}: ${error.message}`);
       if (provider === 'pruna') {
-        session.stages.pruna.status = error.nonRetryable ? 'provider_failed' : 'interrupted';
+        session.stages.pruna.status = error.code === 'REPLICATE_CREATE_AMBIGUOUS'
+          ? 'creation_ambiguous'
+          : error.nonRetryable ? 'provider_failed' : 'interrupted';
         await persistSession(session);
       }
       if (providerAttempted && !config.providers.allowPaidVideoFallback) throw error;
@@ -328,7 +340,9 @@ async function generateProfileVariants(session, workspace = path.join(config.wor
     await persistSession(session);
     return session.variants;
   } catch (error) {
-    session.stages.flux.status = error.nonRetryable ? 'provider_failed' : 'interrupted';
+    session.stages.flux.status = error.code === 'REPLICATE_CREATE_AMBIGUOUS'
+      ? 'creation_ambiguous'
+      : error.nonRetryable ? 'provider_failed' : 'interrupted';
     session.profileError = error.message || 'Profile images could not be prepared.';
     updateProfileStatus(session, 'failed', session.profileError);
     await persistSession(session);
@@ -394,10 +408,18 @@ async function generateSimulation(session) {
     return session;
   } catch (error) {
     console.warn(`[generation:${session.id}] ${error.stack || error.message || error}`);
+    // Qwen has no provider-specific catch block, so classify an ambiguous create
+    // here while keeping its persisted creation boundary visible to recovery.
+    if (error.code === 'REPLICATE_CREATE_AMBIGUOUS') {
+      for (const stageKey of ['whatsappAudio', 'videoAudio']) {
+        const stage = session.stages?.[stageKey];
+        if (stage?.status === 'creation_started' && !stage.predictionId) stage.status = 'creation_ambiguous';
+      }
+    }
     if (error.nonRetryable) {
       updateStatus(session, 'failed', error.message || 'Generation failed.');
     } else {
-      updateStatus(session, 'retrying', `Generation was interrupted safely. Existing paid prediction IDs were kept so the worker can resume without blindly purchasing the same stage again. ${error.message || ''}`.trim());
+      updateStatus(session, 'retrying', `Generation was interrupted safely. Existing paid prediction IDs were kept so the service can resume without blindly purchasing the same stage again. ${error.message || ''}`.trim());
     }
     await persistSession(session).catch(() => {});
     throw error;
