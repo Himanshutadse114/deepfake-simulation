@@ -16,9 +16,11 @@ const costGuard = read('server/cost-guard.js');
 const pipeline = read('server/pipeline.js');
 const media = read('server/media.js');
 const prediction = read('server/services/replicate-prediction.js');
+const admin = read('server/admin.js');
+const adminUi = read('client/public/admin-ui.js');
 const render = read('render.yaml');
 
- test('defaults to four paid pipelines and two local media processes in one-service mode', () => {
+test('defaults to four paid pipelines and two local media processes in one-service mode', () => {
   assert.equal(config.aiWorkerConcurrency, 4);
   assert.equal(config.ffmpegConcurrency, 2);
   assert.equal(config.maxQueuedJobs, 250);
@@ -36,6 +38,12 @@ test('single-service sessions and unfinished queue state are durable in R2', () 
   assert.match(store, /recoverSessionsFromObjectStorage/);
   assert.match(queue, /recoverDurableLocalQueue/);
   assert.match(storage, /ListObjectsV2Command/);
+});
+
+test('production paid generation fails closed without durable object storage', () => {
+  assert.match(queue, /DURABLE_OBJECT_STORAGE_REQUIRED/);
+  assert.match(queue, /NODE_ENV/);
+  assert.match(queue, /enqueueGeneration\(session\)[\s\S]*assertDistributedStorageReady\(\)/);
 });
 
 test('recovery blocks ambiguous paid creation but resumes a persisted prediction id', () => {
@@ -80,6 +88,15 @@ test('Replicate creation uses async mode and fails closed on ambiguous POST outc
   assert.doesNotMatch(prediction, /Prefer:\s*['"]wait/);
   assert.match(prediction, /REPLICATE_CREATE_AMBIGUOUS/);
   assert.match(prediction, /nonRetryable = true/);
+});
+
+test('admin page has a protected real R2 write-read-delete connection test', () => {
+  assert.match(admin, /router\.post\('\/storage-test', requireAdmin/);
+  assert.match(admin, /putJson\(key, probe\)/);
+  assert.match(admin, /getJson\(key\)/);
+  assert.match(admin, /deleteKey\(key\)/);
+  assert.match(adminUi, /Test R2 connection|testStorage/);
+  assert.match(adminUi, /\/api\/admin\/storage-test/);
 });
 
 test('Render blueprint contains only the one durable R2-backed web service', () => {
