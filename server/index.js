@@ -19,6 +19,8 @@ const { getQueueStats, closeQueue, recoverDurableLocalQueue } = require('./queue
 const { mediaProcessStats } = require('./services/process-limit');
 
 const app = express();
+let startupRecoveryState = { attempted: false, ok: null, error: null };
+
 app.disable('x-powered-by');
 app.set('trust proxy', 1);
 
@@ -49,8 +51,6 @@ if (allowedOrigin) {
 
 app.use(express.json({ limit: '1mb' }));
 
-// IP rate limiting remains an abuse backstop, not the paid entitlement system.
-// A corporate NAT can legitimately represent hundreds of learners.
 const createLimiter = rateLimit({
   windowMs: Number(process.env.RATE_LIMIT_WINDOW_MINUTES || 15) * 60 * 1000,
   limit: Number(process.env.RATE_LIMIT_MAX || 250),
@@ -67,6 +67,7 @@ app.get('/api/health', async (_req, res) => {
   const replicateConfigured = Boolean(config.providers.replicateToken);
   const redisReady = redisConfigured();
   const storageReady = objectStorageConfigured();
+  const recoveryHealthy = startupRecoveryState.ok !== false;
   const queue = await getQueueStats().catch((error) => ({ mode: redisReady ? 'unavailable' : 'bounded-local', error: error.message }));
 
   res.json({
@@ -78,14 +79,15 @@ app.get('/api/health', async (_req, res) => {
     customAwarenessScripts: true,
     productionReadiness: {
       singleServiceMode: !redisReady,
-      durableR2State: !redisReady && storageReady,
+      durableR2State: !redisReady && storageReady && recoveryHealthy,
+      storageRecovery: startupRecoveryState,
       replicateConfigured,
-      readyForSingleServiceAi: !redisReady && storageReady && replicateConfigured,
+      readyForSingleServiceAi: !redisReady && storageReady && recoveryHealthy && replicateConfigured,
       distributedQueue: redisReady,
       privateObjectStorage: storageReady,
       signedLaunchRequired: config.requireLaunchToken,
       signedLaunchConfigured: Boolean(config.launchTokenSecret),
-      readyForMultiInstanceAi: redisReady && storageReady && replicateConfigured
+      readyForMultiInstanceAi: redisReady && storageReady && recoveryHealthy && replicateConfigured
     },
     concurrency: {
       worker: config.aiWorkerConcurrency,
@@ -167,11 +169,19 @@ async function start() {
     fsp.mkdir(config.workRoot, { recursive: true })
   ]);
 
-  // In the one-Render-service deployment, the local queue is intentionally
-  // bounded but its source of truth is R2. Recover before accepting traffic so
-  // unfinished jobs cannot be forgotten by a deploy/restart.
-  const recovery = await recoverDurableLocalQueue();
-  console.log(`[startup-recovery] mode=${recovery.mode} sessions=${recovery.recoveredSessions} requeued=${recovery.requeued} blocked=${recovery.blocked} expired=${recovery.expired}`);
+  startupRecoveryState = { attempted: true, ok: null, error: null };
+  try {
+    const recovery = await recoverDurableLocalQueue();
+    startupRecoveryState = { attempted: true, ok: true, error: null, ...recovery };
+    console.log(`[startup-recovery] mode=${recovery.mode} sessions=${recovery.recoveredSessions} requeued=${recovery.requeued} blocked=${recovery.blocked} expired=${recovery.expired}`);
+  } catch (error) {
+    // Keep the service/admin page online so an operator can use the protected
+    // “Test R2 connection” button to diagnose credentials. Paid generation is
+    // still fail-closed because every session/checkpoint write must reach R2.
+    startupRecoveryState = { attempted: true, ok: false, error: error.message };
+    console.error(`[startup-recovery] R2 recovery failed: ${error.stack || error.message}`);
+  }
+
   startExpiryCleanup();
 
   const server = app.listen(config.port, '0.0.0.0', () => {
