@@ -32,8 +32,9 @@ app.use(helmet({
       imgSrc: ["'self'", 'data:', 'blob:'],
       mediaSrc: ["'self'", 'blob:'],
       connectSrc: ["'self'"],
-      scriptSrc: ["'self'", 'blob:'],
+      scriptSrc: ["'self'", 'blob:', "'wasm-unsafe-eval'"],
       scriptSrcAttr: ["'unsafe-inline'"],
+      workerSrc: ["'self'", 'blob:'],
       styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
       fontSrc: ["'self'", 'data:', 'https://fonts.gstatic.com']
     }
