@@ -14,18 +14,15 @@ test('accepts a valid tenant/user/campaign launch token and rejects tampering', 
   const previous = config.launchTokenSecret;
   config.launchTokenSecret = 'unit-test-launch-secret';
   try {
-    const token = sign(config.launchTokenSecret, {
+    const exp = Math.floor(Date.now() / 1000) + 300;
+    const payload = {
       userId: 'user-100',
       tenantId: 'tenant-a',
       campaignId: 'deepfake-aug-2026',
-      exp: Math.floor(Date.now() / 1000) + 300
-    });
-    assert.deepEqual(verifyLaunchToken(token), {
-      userId: 'user-100',
-      tenantId: 'tenant-a',
-      campaignId: 'deepfake-aug-2026',
-      exp: Math.floor(Date.now() / 1000) + 300
-    });
+      exp
+    };
+    const token = sign(config.launchTokenSecret, payload);
+    assert.deepEqual(verifyLaunchToken(token), payload);
     assert.throws(() => verifyLaunchToken(`${token.slice(0, -1)}x`), /signature/i);
   } finally {
     config.launchTokenSecret = previous;
