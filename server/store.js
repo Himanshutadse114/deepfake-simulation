@@ -13,6 +13,7 @@ const {
 } = require('./storage');
 
 const sessions = new Map();
+const saveChains = new Map();
 const KEY_PREFIX = 'deepfake:session:';
 
 function sessionKey(id) {
@@ -32,7 +33,7 @@ function buildStages() {
   };
 }
 
-async function saveSession(session) {
+async function writeSessionState(session) {
   session.updatedAt = Date.now();
   const redis = getRedisClient();
   if (redis) {
@@ -47,13 +48,28 @@ async function saveSession(session) {
     return session;
   }
 
-  // In one-service mode the process map is only a hot cache. R2 is the durable
-  // source of truth so a Render restart can reconstruct the queue/checkpoints.
   sessions.set(session.id, session);
   if (objectStorageConfigured()) {
     await putJson(sessionStateObjectKey(session.id), session);
   }
   return session;
+}
+
+async function saveSession(session) {
+  if (!session?.id) throw new Error('Session id is required.');
+
+  // FLUX and Pruna intentionally run in parallel. Serialize persistence for the
+  // same session so an older R2 PUT can never finish after a newer checkpoint
+  // and overwrite a prediction id/status with stale state.
+  const previous = saveChains.get(session.id) || Promise.resolve();
+  const current = previous.catch(() => {}).then(() => writeSessionState(session));
+  saveChains.set(session.id, current);
+
+  try {
+    return await current;
+  } finally {
+    if (saveChains.get(session.id) === current) saveChains.delete(session.id);
+  }
 }
 
 async function createSession(consents, {
@@ -130,7 +146,6 @@ async function recoverSessionsFromObjectStorage() {
     .filter((key) => /^sessions\/[^/]+\/state\/session\.json$/.test(key));
   const recovered = [];
 
-  // Avoid opening hundreds of R2 bodies simultaneously during a cold start.
   for (let offset = 0; offset < stateKeys.length; offset += 10) {
     const batch = stateKeys.slice(offset, offset + 10);
     const results = await Promise.all(batch.map(async (key) => {
@@ -148,6 +163,7 @@ async function recoverSessionsFromObjectStorage() {
     recovered.push(...results.filter(Boolean));
   }
 
+  recovered.sort((a, b) => Number(a.createdAt || 0) - Number(b.createdAt || 0));
   return recovered;
 }
 
@@ -169,8 +185,6 @@ function updateStatus(session, status, detail = '') {
   } else if (status === 'collecting') {
     if (!session.expiresAt) session.expiresAt = Date.now() + config.retentionMs;
   } else {
-    // Queued and active AI jobs must never expire while waiting for a local slot
-    // or provider. A fresh retention window starts only at a terminal state.
     session.expiresAt = null;
   }
 }
@@ -223,10 +237,6 @@ async function deleteSession(id, { cancelPredictions = true } = {}) {
   const session = await getSession(id);
   const redis = getRedisClient();
 
-  // Delayed cleanup timers are advisory. Never let an old timer delete a job
-  // that became active (expiresAt=null) or whose terminal retention window has
-  // not actually elapsed. Explicit learner deletion still sets
-  // cancelPredictions=true and bypasses this protection.
   if (session && !cancelPredictions) {
     const expiresAt = session.expiresAt;
     if (expiresAt === null || expiresAt === undefined || Number(expiresAt) > Date.now()) {
@@ -243,8 +253,12 @@ async function deleteSession(id, { cancelPredictions = true } = {}) {
     ]);
   }
 
+  const pendingSave = saveChains.get(id);
+  if (pendingSave) await pendingSave.catch(() => {});
+
   if (redis) await redis.del(sessionKey(id));
   sessions.delete(id);
+  saveChains.delete(id);
 
   await deleteSessionPrefix(id).catch((error) => {
     console.warn(`[session-cleanup:${id}] ${error.message}`);
@@ -253,8 +267,6 @@ async function deleteSession(id, { cancelPredictions = true } = {}) {
 }
 
 function startExpiryCleanup() {
-  // Redis-backed sessions use key TTL plus delayed BullMQ cleanup jobs. In the
-  // one-service R2 mode, recovered sessions are cached and checked here.
   if (getRedisClient()) return null;
 
   const timer = setInterval(async () => {
