@@ -16,7 +16,13 @@ const config = require('./config');
 let s3 = null;
 
 function objectStorageConfigured() {
-  return Boolean(config.storage?.bucket);
+  if (!config.storage?.bucket) return false;
+  // Custom S3-compatible endpoints such as Cloudflare R2 need explicit
+  // credentials on Render. Native AWS S3 can still use the SDK credential chain.
+  if (config.storage.endpoint) {
+    return Boolean(config.storage.accessKeyId && config.storage.secretAccessKey);
+  }
+  return true;
 }
 
 function objectRef(key) {
@@ -38,7 +44,8 @@ function getS3() {
 
   const options = {
     region: config.storage.region || 'auto',
-    forcePathStyle: Boolean(config.storage.forcePathStyle)
+    forcePathStyle: Boolean(config.storage.forcePathStyle),
+    maxAttempts: 5
   };
   if (config.storage.endpoint) options.endpoint = config.storage.endpoint;
   if (config.storage.accessKeyId && config.storage.secretAccessKey) {
@@ -49,6 +56,71 @@ function getS3() {
   }
   s3 = new S3Client(options);
   return s3;
+}
+
+async function bodyToBuffer(body) {
+  if (!body) return Buffer.alloc(0);
+  if (typeof body.transformToByteArray === 'function') {
+    return Buffer.from(await body.transformToByteArray());
+  }
+  const chunks = [];
+  for await (const chunk of body) chunks.push(Buffer.from(chunk));
+  return Buffer.concat(chunks);
+}
+
+async function putJson(key, value) {
+  if (!objectStorageConfigured()) throw new Error('Object storage is not configured.');
+  await getS3().send(new PutObjectCommand({
+    Bucket: config.storage.bucket,
+    Key: String(key).replace(/^\/+/, ''),
+    Body: `${JSON.stringify(value)}\n`,
+    ContentType: 'application/json',
+    CacheControl: 'private, no-store'
+  }));
+  return key;
+}
+
+async function getJson(key) {
+  if (!objectStorageConfigured()) return null;
+  try {
+    const response = await getS3().send(new GetObjectCommand({
+      Bucket: config.storage.bucket,
+      Key: String(key).replace(/^\/+/, '')
+    }));
+    if (!response.Body) return null;
+    const raw = await bodyToBuffer(response.Body);
+    return JSON.parse(raw.toString('utf8'));
+  } catch (error) {
+    const status = error?.$metadata?.httpStatusCode;
+    if (status === 404 || error?.name === 'NoSuchKey' || error?.Code === 'NoSuchKey') return null;
+    throw error;
+  }
+}
+
+async function listKeys(prefix) {
+  if (!objectStorageConfigured()) return [];
+  const keys = [];
+  let continuationToken;
+  do {
+    const page = await getS3().send(new ListObjectsV2Command({
+      Bucket: config.storage.bucket,
+      Prefix: String(prefix || '').replace(/^\/+/, ''),
+      ContinuationToken: continuationToken
+    }));
+    for (const item of page.Contents || []) {
+      if (item.Key) keys.push(item.Key);
+    }
+    continuationToken = page.IsTruncated ? page.NextContinuationToken : undefined;
+  } while (continuationToken);
+  return keys;
+}
+
+async function deleteKey(key) {
+  if (!objectStorageConfigured() || !key) return;
+  await getS3().send(new DeleteObjectCommand({
+    Bucket: config.storage.bucket,
+    Key: String(key).replace(/^\/+/, '')
+  })).catch(() => {});
 }
 
 async function putFile(localPath, key, contentType) {
@@ -167,10 +239,7 @@ async function sendAsset(res, ref, { contentType, filename } = {}) {
 async function deleteRef(ref) {
   if (!ref) return;
   if (isObjectRef(ref)) {
-    await getS3().send(new DeleteObjectCommand({
-      Bucket: config.storage.bucket,
-      Key: keyFromRef(ref)
-    })).catch(() => {});
+    await deleteKey(keyFromRef(ref));
     return;
   }
   if (!/^https?:\/\//i.test(ref)) await fs.rm(ref, { force: true }).catch(() => {});
@@ -209,6 +278,10 @@ module.exports = {
   objectRef,
   isObjectRef,
   keyFromRef,
+  putJson,
+  getJson,
+  listKeys,
+  deleteKey,
   persistInputFile,
   persistGeneratedFile,
   persistTemporaryProviderFile,
