@@ -2,6 +2,7 @@ const express = require('express');
 const crypto = require('node:crypto');
 const config = require('./config');
 const { getActiveScripts, saveActiveScripts } = require('./admin-settings');
+const { objectStorageConfigured, putJson, getJson, deleteKey } = require('./storage');
 
 const router = express.Router();
 
@@ -44,6 +45,51 @@ router.put('/scripts', requireAdmin, async (req, res, next) => {
   }
 });
 
+router.post('/storage-test', requireAdmin, async (_req, res) => {
+  if (!objectStorageConfigured()) {
+    return res.status(503).json({
+      ok: false,
+      error: 'Cloudflare R2/S3 storage is not fully configured. Check S3_BUCKET, S3_ENDPOINT, S3_ACCESS_KEY_ID and S3_SECRET_ACCESS_KEY.'
+    });
+  }
+
+  const startedAt = Date.now();
+  const nonce = crypto.randomUUID();
+  const key = `control/healthchecks/${Date.now()}-${nonce}.json`;
+  const probe = {
+    nonce,
+    service: 'innvikta-deepfake-awareness',
+    createdAt: new Date().toISOString()
+  };
+
+  try {
+    await putJson(key, probe);
+    const readBack = await getJson(key);
+    if (!readBack || readBack.nonce !== nonce) {
+      throw new Error('R2 write succeeded but the verification read did not match the test object.');
+    }
+
+    await deleteKey(key);
+    return res.json({
+      ok: true,
+      connected: true,
+      bucket: config.storage.bucket,
+      region: config.storage.region || 'auto',
+      latencyMs: Date.now() - startedAt,
+      checks: ['write', 'read', 'delete']
+    });
+  } catch (error) {
+    await deleteKey(key).catch(() => {});
+    console.warn(`[storage-test] ${error.stack || error.message}`);
+    return res.status(502).json({
+      ok: false,
+      connected: false,
+      bucket: config.storage.bucket || null,
+      error: `R2 connection test failed: ${error.message}`
+    });
+  }
+});
+
 function renderAdminPage() {
   const max = config.scriptPolicy.maxChars;
   return `<!doctype html>
@@ -54,13 +100,13 @@ function renderAdminPage() {
 <meta name="robots" content="noindex,nofollow">
 <title>Simulation Script Admin</title>
 <style>
-:root{font-family:Inter,system-ui,sans-serif;color:#f7f8fb;background:#070a10}*{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(circle at 15% 0,rgba(241,90,36,.14),transparent 28%),#070a10}.wrap{width:min(820px,calc(100% - 32px));margin:48px auto}.top{margin-bottom:22px}.kicker{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#ff9d55;font-weight:700}.top h1{font-size:clamp(30px,5vw,48px);margin:8px 0 10px}.muted{color:#9aa4b5;line-height:1.55}.card{background:#111722;border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:22px;box-shadow:0 24px 70px rgba(0,0,0,.3)}label{display:block;font-size:13px;font-weight:700;margin:15px 0 7px}input,textarea{width:100%;border:1px solid rgba(255,255,255,.12);border-radius:10px;background:#0b1018;color:#fff;padding:12px 14px;outline:none}input:focus,textarea:focus{border-color:#f15a24;box-shadow:0 0 0 3px rgba(241,90,36,.14)}textarea{min-height:118px;resize:vertical;line-height:1.5}.row{display:flex;justify-content:space-between;gap:12px;align-items:center}.count{font-size:11px;color:#7f8a9d}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:20px}.btn{border:0;border-radius:9px;padding:11px 16px;font-weight:800;cursor:pointer}.primary{background:linear-gradient(135deg,#f15a24,#ff6b1a);color:#fff}.secondary{background:#1a2230;color:#fff;border:1px solid rgba(255,255,255,.1)}.note{margin-top:14px;padding:12px 14px;border-radius:10px;background:#0d1521;border:1px solid rgba(106,168,255,.18);color:#b9c6d8;font-size:12px;line-height:1.5}.status{margin-top:14px;min-height:20px;font-size:12px;color:#aeb8c8}.status.ok{color:#75e0a7}.status.err{color:#ff818a}@media(max-width:640px){.wrap{margin:24px auto}.card{padding:16px}}
+:root{font-family:Inter,system-ui,sans-serif;color:#f7f8fb;background:#070a10}*{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(circle at 15% 0,rgba(241,90,36,.14),transparent 28%),#070a10}.wrap{width:min(820px,calc(100% - 32px));margin:48px auto}.top{margin-bottom:22px}.kicker{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#ff9d55;font-weight:700}.top h1{font-size:clamp(30px,5vw,48px);margin:8px 0 10px}.muted{color:#9aa4b5;line-height:1.55}.card{background:#111722;border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:22px;box-shadow:0 24px 70px rgba(0,0,0,.3)}label{display:block;font-size:13px;font-weight:700;margin:15px 0 7px}input,textarea{width:100%;border:1px solid rgba(255,255,255,.12);border-radius:10px;background:#0b1018;color:#fff;padding:12px 14px;outline:none}input:focus,textarea:focus{border-color:#f15a24;box-shadow:0 0 0 3px rgba(241,90,36,.14)}textarea{min-height:118px;resize:vertical;line-height:1.5}.row{display:flex;justify-content:space-between;gap:12px;align-items:center}.count{font-size:11px;color:#7f8a9d}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:20px}.btn{border:0;border-radius:9px;padding:11px 16px;font-weight:800;cursor:pointer}.btn:disabled{opacity:.55;cursor:wait}.primary{background:linear-gradient(135deg,#f15a24,#ff6b1a);color:#fff}.secondary{background:#1a2230;color:#fff;border:1px solid rgba(255,255,255,.1)}.storage{margin-top:18px;padding:14px;border:1px solid rgba(255,255,255,.09);border-radius:11px;background:#0b1018}.storage-title{font-size:13px;font-weight:750;margin-bottom:5px}.storage-copy{font-size:12px;color:#8e9aae;line-height:1.45}.note{margin-top:14px;padding:12px 14px;border-radius:10px;background:#0d1521;border:1px solid rgba(106,168,255,.18);color:#b9c6d8;font-size:12px;line-height:1.5}.status{margin-top:14px;min-height:20px;font-size:12px;color:#aeb8c8}.status.ok{color:#75e0a7}.status.err{color:#ff818a}@media(max-width:640px){.wrap{margin:24px auto}.card{padding:16px}}
 </style>
 <script src="/admin-ui.js" defer></script>
 </head>
 <body>
 <main class="wrap">
-  <div class="top"><div class="kicker">Internal configuration</div><h1>Simulation script admin</h1><p class="muted">Set the two approved awareness scripts. Qwen generates one WhatsApp track and one video track; each must be 12 seconds or less before Pruna can be called.</p></div>
+  <div class="top"><div class="kicker">Internal configuration</div><h1>Simulation script admin</h1><p class="muted">Set the two approved awareness scripts and verify the private R2 storage used by the one-service production architecture.</p></div>
   <section class="card">
     <label for="adminKey">Admin key</label>
     <input id="adminKey" type="password" autocomplete="current-password" placeholder="Enter ADMIN_KEY">
@@ -72,7 +118,15 @@ function renderAdminPage() {
     <textarea id="videoScript" maxlength="${max}" placeholder="Deepfake video script"></textarea>
 
     <div class="actions"><button class="btn secondary" id="loadScripts" type="button">Load current</button><button class="btn primary" id="saveScripts" type="button">Save scripts</button></div>
-    <div class="note">Keep each script short enough for a 12-second spoken result. If either generated track exceeds 12 seconds, generation stops before Pruna. Sensitive payment and credential requests remain blocked by the core simulation safeguard.</div>
+
+    <div class="storage">
+      <div class="storage-title">Private storage</div>
+      <div class="storage-copy">Runs a real write → read → delete probe against the configured Cloudflare R2 bucket. No credentials are sent to the browser.</div>
+      <div class="actions"><button class="btn secondary" id="testStorage" type="button">Test R2 connection</button></div>
+      <div class="status" id="storageStatus"></div>
+    </div>
+
+    <div class="note">Keep WhatsApp speech within 12 seconds and video speech within 10 seconds. Sensitive payment and credential requests remain blocked by the core simulation safeguard.</div>
     <div class="status" id="adminStatus"></div>
   </section>
 </main>
