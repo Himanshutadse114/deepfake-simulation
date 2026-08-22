@@ -2,10 +2,50 @@ const crypto = require('node:crypto');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const config = require('./config');
+const { getRedisClient } = require('./redis-client');
+const { deleteSessionPrefix, isObjectRef } = require('./storage');
 
 const sessions = new Map();
+const KEY_PREFIX = 'deepfake:session:';
 
-function createSession(consents, { mode = 'ai', participant = {}, scripts = {} } = {}) {
+function sessionKey(id) {
+  return `${KEY_PREFIX}${id}`;
+}
+
+function buildStages() {
+  return {
+    whatsappAudio: { status: 'pending', predictionId: null },
+    videoAudio: { status: 'pending', predictionId: null },
+    pruna: { status: 'pending', predictionId: null, providerUrl: null },
+    flux: { status: 'pending', predictionId: null, providerUrl: null }
+  };
+}
+
+async function saveSession(session) {
+  session.updatedAt = Date.now();
+  const redis = getRedisClient();
+  if (!redis) {
+    sessions.set(session.id, session);
+    return session;
+  }
+
+  const key = sessionKey(session.id);
+  await redis.set(key, JSON.stringify(session));
+  if (session.expiresAt === null || session.expiresAt === undefined) {
+    await redis.persist(key);
+  } else {
+    const ttl = Math.max(1000, Number(session.expiresAt) - Date.now());
+    await redis.pexpire(key, ttl);
+  }
+  return session;
+}
+
+async function createSession(consents, {
+  mode = 'ai',
+  participant = {},
+  scripts = {},
+  identity = null
+} = {}) {
   const id = crypto.randomUUID();
   const now = Date.now();
   const session = {
@@ -14,8 +54,10 @@ function createSession(consents, { mode = 'ai', participant = {}, scripts = {} }
     consents,
     mode: config.demoMode ? 'demo' : mode,
     participant,
+    identity,
     scripts,
     createdAt: now,
+    updatedAt: now,
     expiresAt: now + config.retentionMs,
     status: 'collecting',
     detail: 'Waiting for participant media.',
@@ -26,25 +68,52 @@ function createSession(consents, { mode = 'ai', participant = {}, scripts = {} }
     output: null,
     variants: [],
     provider: {},
+    stages: buildStages(),
+    queueAttempt: 0,
+    budgetReservationUsd: 0,
     profileStatus: 'idle',
     profileDetail: 'Profile preparation is waiting.',
     profileError: null
   };
-  sessions.set(id, session);
+  await saveSession(session);
   return session;
 }
 
-function getSession(id) {
-  return sessions.get(id);
+async function getSession(id) {
+  const redis = getRedisClient();
+  if (!redis) return sessions.get(id);
+  const raw = await redis.get(sessionKey(id));
+  if (!raw) return undefined;
+  try {
+    return JSON.parse(raw);
+  } catch (error) {
+    console.warn(`[session:${id}] invalid Redis state: ${error.message}`);
+    return undefined;
+  }
 }
 
 function publicSession(session) {
-  return { id: session.id, token: session.token, expiresAt: session.expiresAt, mode: session.mode };
+  return {
+    id: session.id,
+    token: session.token,
+    expiresAt: session.expiresAt,
+    mode: session.mode
+  };
 }
 
 function updateStatus(session, status, detail = '') {
   session.status = status;
   session.detail = detail;
+
+  if (status === 'completed' || status === 'failed') {
+    session.expiresAt = Date.now() + config.retentionMs;
+  } else if (status === 'collecting') {
+    if (!session.expiresAt) session.expiresAt = Date.now() + config.retentionMs;
+  } else {
+    // Queued and active AI jobs must never expire while waiting for a worker or
+    // provider. A fresh retention window starts only when they become terminal.
+    session.expiresAt = null;
+  }
 }
 
 function updateProfileStatus(session, status, detail = '') {
@@ -59,49 +128,80 @@ async function removeLocalSessionFiles(session, {
   keepVariants = false,
   keepAudio = false
 } = {}) {
-  const directory = path.join(config.uploadRoot, session.id);
-  if (!keepOutput && !keepFace && !keepVoice && !keepVariants && !keepAudio) {
-    await fs.rm(directory, { recursive: true, force: true });
-    return;
-  }
+  const directories = [
+    path.join(config.uploadRoot, session.id),
+    path.join(config.workRoot, session.id)
+  ];
 
-  const keep = new Set();
-  if (keepOutput && session.output) keep.add(path.basename(session.output));
-  if (keepFace && session.face?.path) keep.add(path.basename(session.face.path));
-  if (keepVoice && session.voice?.path) keep.add(path.basename(session.voice.path));
-  if (keepAudio) {
-    if (session.whatsappAudioOutput) keep.add(path.basename(session.whatsappAudioOutput));
-    if (session.videoAudioOutput) keep.add(path.basename(session.videoAudioOutput));
-  }
-  if (keepVariants) {
-    for (const variant of session.variants || []) keep.add(path.basename(variant));
-  }
+  for (const directory of directories) {
+    let files = [];
+    try { files = await fs.readdir(directory); } catch { continue; }
+    if (!keepOutput && !keepFace && !keepVoice && !keepVariants && !keepAudio) {
+      await fs.rm(directory, { recursive: true, force: true });
+      continue;
+    }
 
-  let files = [];
-  try { files = await fs.readdir(directory); } catch { return; }
-  await Promise.all(files.filter((file) => !keep.has(file)).map((file) => fs.rm(path.join(directory, file), { force: true })));
+    const keep = new Set();
+    const addLocal = (value) => {
+      if (value && !isObjectRef(value) && !/^https?:\/\//i.test(value)) keep.add(path.basename(value));
+    };
+    if (keepOutput) addLocal(session.output);
+    if (keepFace) addLocal(session.face?.path);
+    if (keepVoice) addLocal(session.voice?.path);
+    if (keepAudio) {
+      addLocal(session.whatsappAudioOutput);
+      addLocal(session.videoAudioOutput);
+    }
+    if (keepVariants) for (const variant of session.variants || []) addLocal(variant);
+
+    await Promise.all(files
+      .filter((file) => !keep.has(file))
+      .map((file) => fs.rm(path.join(directory, file), { recursive: true, force: true })));
+  }
 }
 
-async function deleteSession(id) {
-  const session = sessions.get(id);
-  if (!session) return;
-  sessions.delete(id);
-  await removeLocalSessionFiles(session);
+async function deleteSession(id, { cancelPredictions = true } = {}) {
+  const session = await getSession(id);
+  const redis = getRedisClient();
+
+  if (session && cancelPredictions) {
+    const { cancelQueuedGeneration } = require('./queue');
+    const { cancelSessionPredictions } = require('./services/replicate-prediction');
+    await Promise.allSettled([
+      cancelQueuedGeneration(session),
+      cancelSessionPredictions(session)
+    ]);
+  }
+
+  if (redis) await redis.del(sessionKey(id));
+  else sessions.delete(id);
+
+  await deleteSessionPrefix(id).catch((error) => {
+    console.warn(`[session-cleanup:${id}] ${error.message}`);
+  });
 }
 
 function startExpiryCleanup() {
+  // Redis-backed sessions use key TTL plus delayed BullMQ cleanup jobs. The
+  // local fallback keeps the original interval for development/single-process use.
+  if (getRedisClient()) return null;
+
   const timer = setInterval(async () => {
     const now = Date.now();
     for (const [id, session] of sessions) {
-      if (session.expiresAt <= now) await deleteSession(id).catch(() => {});
+      if (session.expiresAt !== null && session.expiresAt !== undefined && session.expiresAt <= now) {
+        await deleteSession(id).catch(() => {});
+      }
     }
   }, 60_000);
   timer.unref();
+  return timer;
 }
 
 module.exports = {
   createSession,
   getSession,
+  saveSession,
   publicSession,
   updateStatus,
   updateProfileStatus,
