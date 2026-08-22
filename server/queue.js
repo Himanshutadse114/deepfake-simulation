@@ -13,7 +13,8 @@ const localJobIds = new Set();
 let localActive = 0;
 
 function queueMode() {
-  return redisConfigured() ? 'bullmq' : 'bounded-local';
+  if (redisConfigured()) return 'bullmq';
+  return objectStorageConfigured() ? 'durable-r2-local' : 'bounded-local';
 }
 
 function assertDistributedStorageReady() {
@@ -34,6 +35,22 @@ function getQueue() {
   return queue;
 }
 
+function unsafeAutomaticResumeReason(session) {
+  for (const [name, stage] of Object.entries(session?.stages || {})) {
+    if (!stage) continue;
+    if (stage.status === 'provider_failed') {
+      return `${name} ended in a terminal provider failure.`;
+    }
+    if (stage.status === 'creation_ambiguous') {
+      return `${name} may have been accepted by the provider but no prediction ID was safely persisted.`;
+    }
+    if (stage.status === 'creation_started' && !stage.predictionId) {
+      return `${name} had begun paid prediction creation but no prediction ID was persisted before the process stopped.`;
+    }
+  }
+  return null;
+}
+
 async function markFinalWorkerFailure(sessionId, error) {
   const { getSession, updateStatus, saveSession } = require('./store');
   const session = await getSession(sessionId);
@@ -44,7 +61,7 @@ async function markFinalWorkerFailure(sessionId, error) {
 }
 
 async function processLocalQueue() {
-  const limit = Math.max(1, Number(config.aiWorkerConcurrency || 5));
+  const limit = Math.max(1, Number(config.aiWorkerConcurrency || 4));
   while (localActive < limit && localJobs.length) {
     const job = localJobs.shift();
     localActive += 1;
@@ -81,7 +98,7 @@ async function enqueueGeneration(session) {
 
   if (!redisConfigured()) {
     if (localJobIds.has(id)) return { id, mode: queueMode() };
-    if (localJobs.length + localActive >= config.maxQueuedJobs) {
+    if (localJobs.filter((job) => job.name === 'generate').length + localActive >= config.maxQueuedJobs) {
       const error = new Error('The simulation generation queue is full. Please try again shortly.');
       error.status = 503;
       error.code = 'GENERATION_QUEUE_FULL';
@@ -112,6 +129,60 @@ async function enqueueGeneration(session) {
     removeOnFail: { age: 24 * 3600, count: 2000 }
   });
   return { id: job.id, mode: queueMode() };
+}
+
+async function recoverDurableLocalQueue() {
+  if (redisConfigured()) return { mode: 'bullmq', recoveredSessions: 0, requeued: 0, blocked: 0, expired: 0 };
+  if (!objectStorageConfigured()) return { mode: 'bounded-local', recoveredSessions: 0, requeued: 0, blocked: 0, expired: 0 };
+
+  const {
+    recoverSessionsFromObjectStorage,
+    saveSession,
+    updateStatus,
+    deleteSession
+  } = require('./store');
+
+  const recovered = await recoverSessionsFromObjectStorage();
+  let requeued = 0;
+  let blocked = 0;
+  let expired = 0;
+  const now = Date.now();
+
+  for (const session of recovered) {
+    const terminalOrCollecting = ['collecting', 'completed', 'failed'].includes(session.status);
+    if (session.expiresAt !== null && session.expiresAt !== undefined && Number(session.expiresAt) <= now) {
+      await deleteSession(session.id, { cancelPredictions: false }).catch(() => {});
+      expired += 1;
+      continue;
+    }
+    if (terminalOrCollecting) continue;
+
+    const unsafeReason = unsafeAutomaticResumeReason(session);
+    if (unsafeReason) {
+      updateStatus(
+        session,
+        'failed',
+        `Automatic recovery stopped to prevent duplicate AI spend. ${unsafeReason} Start a new paid attempt only if you intentionally want to regenerate this stage.`
+      );
+      await saveSession(session);
+      blocked += 1;
+      continue;
+    }
+
+    session.queueAttempt = Math.max(1, Number(session.queueAttempt || 1));
+    updateStatus(session, 'queued', 'Recovered after a Render restart. Existing provider prediction IDs and generated checkpoints will be reused.');
+    await saveSession(session);
+    await enqueueGeneration(session);
+    requeued += 1;
+  }
+
+  return {
+    mode: queueMode(),
+    recoveredSessions: recovered.length,
+    requeued,
+    blocked,
+    expired
+  };
 }
 
 async function scheduleSessionCleanup(sessionId, delayMs = config.retentionMs) {
@@ -230,7 +301,12 @@ function startGenerationWorker() {
 
 async function getQueueStats() {
   if (!redisConfigured()) {
-    return { mode: queueMode(), active: localActive, waiting: localJobs.filter((job) => job.name === 'generate').length };
+    return {
+      mode: queueMode(),
+      active: localActive,
+      waiting: localJobs.filter((job) => job.name === 'generate').length,
+      durableState: objectStorageConfigured()
+    };
   }
   const counts = await getQueue().getJobCounts('waiting', 'active', 'delayed', 'failed');
   return { mode: queueMode(), ...counts };
@@ -250,6 +326,8 @@ async function closeQueue() {
 module.exports = {
   queueMode,
   enqueueGeneration,
+  recoverDurableLocalQueue,
+  unsafeAutomaticResumeReason,
   scheduleSessionCleanup,
   cancelQueuedGeneration,
   startGenerationWorker,
