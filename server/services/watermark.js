@@ -1,28 +1,30 @@
-const fs = require('node:fs/promises');
 const { spawn } = require('node:child_process');
+const { downloadWithRetry } = require('./download');
+const { withMediaProcessSlot } = require('./process-limit');
 
 const WATERMARK_TEXT = 'AI-GENERATED SECURITY AWARENESS SIMULATION';
 
 async function downloadVideo(url, outputPath) {
-  const response = await fetch(url, { signal: AbortSignal.timeout(120_000) });
-  if (!response.ok) throw new Error(`Generated video download failed (${response.status}).`);
-  await fs.writeFile(outputPath, Buffer.from(await response.arrayBuffer()), { mode: 0o600 });
+  return downloadWithRetry(url, outputPath, {
+    label: 'Generated Pruna video',
+    attempts: 5,
+    timeoutMs: 120_000
+  });
 }
 
 function buildWatermarkFilter() {
   const font = '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf';
-  // drawbox w/h refer to the box itself. Use iw/ih for the input video dimensions.
   return `drawbox=x=0:y=ih-72:w=iw:h=72:color=black@0.68:t=fill,drawtext=fontfile=${font}:text='${WATERMARK_TEXT}':fontcolor=white:fontsize=24:x=(w-text_w)/2:y=h-47`;
 }
 
 function spawnFfmpeg(args) {
-  return new Promise((resolve, reject) => {
+  return withMediaProcessSlot(() => new Promise((resolve, reject) => {
     const process = spawn('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', ...args], { stdio: ['ignore', 'ignore', 'pipe'] });
     let stderr = '';
     process.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
     process.on('error', (error) => reject(new Error(`FFmpeg is required to process the awareness video: ${error.message}`)));
     process.on('close', (code) => code === 0 ? resolve() : reject(new Error(stderr.slice(-1200) || `ffmpeg exit ${code}`)));
-  });
+  }));
 }
 
 function buildFfmpegArgs(inputPath, outputPath, maxSeconds) {
@@ -54,4 +56,11 @@ async function createWatermarkedVideo(sourceUrl, rawPath, outputPath, options) {
   return outputPath;
 }
 
-module.exports = { createWatermarkedVideo, runFfmpeg, buildFfmpegArgs, buildWatermarkFilter, WATERMARK_TEXT };
+module.exports = {
+  createWatermarkedVideo,
+  runFfmpeg,
+  downloadVideo,
+  buildFfmpegArgs,
+  buildWatermarkFilter,
+  WATERMARK_TEXT
+};
