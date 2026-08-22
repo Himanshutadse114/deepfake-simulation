@@ -24,6 +24,7 @@ async function generateAvatarVideo(faceFile, speechRef, options = {}) {
       resolution: config.providers.prunaResolution,
       disable_safety_filter: false
     };
+    await options.onBeforePredictionCreate?.();
   }
 
   const result = await runOfficialPrediction({
