@@ -2,8 +2,10 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const config = require('./config');
 const { validateScriptPair } = require('./script-policy');
+const { getRedisClient } = require('./redis-client');
 
 const settingsPath = path.join(config.uploadRoot, 'admin-scripts.json');
+const REDIS_KEY = 'deepfake:admin-scripts';
 
 const defaultScripts = () => validateScriptPair({
   whatsapp: process.env.WHATSAPP_AUDIO_SCRIPT || 'This is an AI voice-clone awareness demo. A familiar voice can be faked, so verify unusual requests through a trusted channel before you act.',
@@ -12,14 +14,27 @@ const defaultScripts = () => validateScriptPair({
 
 let cached = null;
 
+function normalizePayload(parsed) {
+  return {
+    scripts: validateScriptPair(parsed.scripts || parsed),
+    updatedAt: parsed.updatedAt || null
+  };
+}
+
 async function readSaved() {
+  const redis = getRedisClient();
+  if (redis) {
+    try {
+      const raw = await redis.get(REDIS_KEY);
+      return raw ? normalizePayload(JSON.parse(raw)) : null;
+    } catch (error) {
+      console.warn(`[admin-settings:redis] ${error.message}`);
+    }
+  }
+
   try {
     const raw = await fs.readFile(settingsPath, 'utf8');
-    const parsed = JSON.parse(raw);
-    return {
-      scripts: validateScriptPair(parsed.scripts || parsed),
-      updatedAt: parsed.updatedAt || null
-    };
+    return normalizePayload(JSON.parse(raw));
   } catch (error) {
     if (error.code === 'ENOENT') return null;
     console.warn(`[admin-settings] ${error.message}`);
@@ -28,20 +43,33 @@ async function readSaved() {
 }
 
 async function getActiveScripts() {
-  if (cached) return { scripts: { ...cached.scripts }, updatedAt: cached.updatedAt };
+  // In distributed mode Redis is the source of truth. Avoid a permanent
+  // process-local cache so changes made through one web instance are immediately
+  // visible to sessions created through another instance.
+  if (!getRedisClient() && cached) {
+    return { scripts: { ...cached.scripts }, updatedAt: cached.updatedAt };
+  }
   const saved = await readSaved();
-  cached = saved || { scripts: defaultScripts(), updatedAt: null };
-  return { scripts: { ...cached.scripts }, updatedAt: cached.updatedAt };
+  const active = saved || { scripts: defaultScripts(), updatedAt: null };
+  if (!getRedisClient()) cached = active;
+  return { scripts: { ...active.scripts }, updatedAt: active.updatedAt };
 }
 
 async function saveActiveScripts(input) {
   const scripts = validateScriptPair(input || {});
   const payload = { scripts, updatedAt: new Date().toISOString() };
-  await fs.mkdir(config.uploadRoot, { recursive: true });
-  const temp = `${settingsPath}.tmp`;
-  await fs.writeFile(temp, `${JSON.stringify(payload, null, 2)}\n`, { mode: 0o600 });
-  await fs.rename(temp, settingsPath);
-  cached = payload;
+  const redis = getRedisClient();
+
+  if (redis) {
+    await redis.set(REDIS_KEY, JSON.stringify(payload));
+  } else {
+    await fs.mkdir(config.uploadRoot, { recursive: true });
+    const temp = `${settingsPath}.tmp`;
+    await fs.writeFile(temp, `${JSON.stringify(payload, null, 2)}\n`, { mode: 0o600 });
+    await fs.rename(temp, settingsPath);
+    cached = payload;
+  }
+
   return { scripts: { ...scripts }, updatedAt: payload.updatedAt };
 }
 
