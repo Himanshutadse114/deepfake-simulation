@@ -13,6 +13,10 @@ const simulationRoutes = require('./routes');
 const { router: adminRouter, renderAdminPage } = require('./admin');
 const { renderDemoPage } = require('./demo');
 const { startExpiryCleanup } = require('./store');
+const { redisConfigured, closeRedisClient } = require('./redis-client');
+const { objectStorageConfigured } = require('./storage');
+const { getQueueStats, closeQueue } = require('./queue');
+const { mediaProcessStats } = require('./services/process-limit');
 
 const app = express();
 app.disable('x-powered-by');
@@ -35,13 +39,21 @@ app.use(helmet({
 }));
 
 const allowedOrigin = process.env.CORS_ORIGIN?.trim();
-if (allowedOrigin) app.use(cors({ origin: allowedOrigin, methods: ['GET', 'POST', 'PUT', 'DELETE'], allowedHeaders: ['content-type', 'x-simulation-token', 'x-admin-key'] }));
+if (allowedOrigin) {
+  app.use(cors({
+    origin: allowedOrigin,
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    allowedHeaders: ['content-type', 'x-simulation-token', 'x-admin-key', 'x-innvikta-launch-token']
+  }));
+}
 
 app.use(express.json({ limit: '1mb' }));
 
+// IP rate limiting remains an abuse backstop, not the paid entitlement system.
+// A corporate NAT can legitimately represent hundreds of learners.
 const createLimiter = rateLimit({
-  windowMs: Number(process.env.RATE_LIMIT_WINDOW_MINUTES || 60) * 60 * 1000,
-  limit: Number(process.env.RATE_LIMIT_MAX || 3),
+  windowMs: Number(process.env.RATE_LIMIT_WINDOW_MINUTES || 15) * 60 * 1000,
+  limit: Number(process.env.RATE_LIMIT_MAX || 250),
   standardHeaders: 'draft-8',
   legacyHeaders: false,
   message: { error: 'Too many simulation sessions were created from this network. Please try again later.' }
@@ -49,10 +61,13 @@ const createLimiter = rateLimit({
 
 app.use('/api/simulation/session', createLimiter);
 
-app.get('/api/health', (_req, res) => {
+app.get('/api/health', async (_req, res) => {
   const heygenConfigured = config.providers.heygenEnabled && Boolean(config.providers.heygenAccessToken || config.providers.heygenApiKey);
   const didConfigured = config.providers.didEnabled && Boolean(config.providers.didKey);
   const replicateConfigured = Boolean(config.providers.replicateToken);
+  const redisReady = redisConfigured();
+  const storageReady = objectStorageConfigured();
+  const queue = await getQueueStats().catch((error) => ({ mode: redisReady ? 'unavailable' : 'bounded-local', error: error.message }));
 
   res.json({
     ok: true,
@@ -61,9 +76,30 @@ app.get('/api/health', (_req, res) => {
     sessionDemoMode: true,
     demoInstancePath: '/demo',
     customAwarenessScripts: true,
+    productionReadiness: {
+      distributedQueue: redisReady,
+      privateObjectStorage: storageReady,
+      replicateConfigured,
+      signedLaunchRequired: config.requireLaunchToken,
+      signedLaunchConfigured: Boolean(config.launchTokenSecret),
+      readyForMultiInstanceAi: redisReady && storageReady && replicateConfigured
+    },
+    concurrency: {
+      worker: config.aiWorkerConcurrency,
+      mediaProcesses: config.ffmpegConcurrency,
+      maxQueuedJobs: config.maxQueuedJobs,
+      queue
+    },
+    costGuard: {
+      dailyBudgetUsd: config.dailyAiBudgetUsd,
+      estimatedReservationPerSimulationUsd: config.estimatedSimulationCostUsd,
+      paidVideoFallbackEnabled: config.providers.allowPaidVideoFallback
+    },
+    mediaProcesses: mediaProcessStats(),
     audioTracks: ['whatsapp', 'video'],
     durationLimits: {
-      generatedAudioSeconds: config.maxGeneratedAudioSeconds,
+      whatsappAudioSeconds: config.maxGeneratedAudioSeconds,
+      videoAudioSeconds: config.maxVideoSeconds,
       videoSeconds: config.maxVideoSeconds
     },
     scriptPolicy: {
@@ -75,7 +111,7 @@ app.get('/api/health', (_req, res) => {
     },
     stack: {
       voice: config.providers.voiceProvider,
-      images: config.providers.fluxEnabled ? 'flux-2-pro' : 'disabled',
+      images: config.providers.fluxEnabled ? 'flux-2-pro-single-grid' : 'disabled',
       video: config.providers.videoProviderPreference
     },
     providers: {
@@ -115,16 +151,31 @@ app.use((error, _req, res, _next) => {
   if (error instanceof multer.MulterError) {
     return res.status(400).json({ error: error.code === 'LIMIT_FILE_SIZE' ? 'Uploaded media exceeds the configured size limit.' : error.message });
   }
-  console.error('[simulation-error]', error.message);
-  res.status(500).json({ error: error.message || 'Unexpected server error.' });
+  const status = Number(error.status || 500);
+  if (status >= 500) console.error('[simulation-error]', error.stack || error.message);
+  else console.warn('[simulation-request]', error.message);
+  res.status(status).json({ error: error.message || 'Unexpected server error.', code: error.code });
 });
 
 async function start() {
-  await fsp.mkdir(config.uploadRoot, { recursive: true });
+  await Promise.all([
+    fsp.mkdir(config.uploadRoot, { recursive: true }),
+    fsp.mkdir(config.stagingRoot, { recursive: true }),
+    fsp.mkdir(config.workRoot, { recursive: true })
+  ]);
   startExpiryCleanup();
-  app.listen(config.port, '0.0.0.0', () => {
+  const server = app.listen(config.port, '0.0.0.0', () => {
     console.log(`Deepfake awareness simulation listening on port ${config.port}${config.demoMode ? ' (GLOBAL DEMO_MODE)' : ''}`);
   });
+
+  const shutdown = async (signal) => {
+    console.log(`Web service received ${signal}; closing queue/state connections.`);
+    server.close();
+    await closeQueue().catch(() => {});
+    await closeRedisClient().catch(() => {});
+  };
+  process.once('SIGTERM', () => shutdown('SIGTERM'));
+  process.once('SIGINT', () => shutdown('SIGINT'));
 }
 
 start().catch((error) => {
