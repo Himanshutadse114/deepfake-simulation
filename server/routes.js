@@ -37,7 +37,6 @@ function unsafePaidRetryReason(session) {
       return `${stageName} crossed the paid-creation boundary without a persisted prediction ID.`;
     }
   }
-  if (session?.voicePreflight?.status === 'failed') return 'The participant voice sample failed local validation before paid AI work.';
   return null;
 }
 
