@@ -3,19 +3,20 @@ const config = require('./config');
 const MAX_SCRIPT_CHARS = config.scriptPolicy.maxChars;
 const MIN_SCRIPT_CHARS = config.scriptPolicy.minChars;
 
-const awarenessTerms = /\b()\b/i;
+const awarenessTerms = /\b(?:ai|deepfake|synthetic|impersonation|voice[- ]?clone|security awareness|simulation|verify|verification|scam|phishing)\b/i;
 const urlPattern = /(?:https?:\/\/|www\.|\b[a-z0-9-]+\.(?:com|net|org|io|in|co)\b)/i;
-const secretPattern = /\b()\b/i;
-const secretRequest = new RegExp(`\\b()\\b[\\s\\S]{0,45}${secretPattern.source}`, 'i');
-const moneyRequest = /\b()\b[\s\S]{0,35}\b()\b/i;
-const warningContext = /\b()\b/i;
+const secretPattern = /\b(?:otp|one[- ]?time password|password|passcode|pin|security code|verification code|login code|mfa code|2fa code|credential(?:s)?)\b/i;
+const requestVerb = /\b(?:send|share|tell|give|provide|read out|forward|reply with|enter|type|disclose)\b/i;
+const moneyRequest = /\b(?:send|transfer|wire|pay|approve|make)\b[\s\S]{0,45}\b(?:money|funds|payment|transfer|transaction|invoice|bank transfer)\b/i;
+const warningContext = /\b(?:do not|don't|never|avoid|refuse|should not|must not|if someone|if anyone|warning|beware|report|suspicious|scam|phishing|verify first|verify the request|independently verify)\b/i;
 
 function normalizeScript(value) {
   return String(value || '').replace(/\s+/g, ' ').trim();
 }
 
 function sentenceContainsUnsafeInstruction(sentence) {
-  const sensitive = secretRequest.test(sentence) || moneyRequest.test(sentence);
+  const secretRequest = requestVerb.test(sentence) && secretPattern.test(sentence);
+  const sensitive = secretRequest || moneyRequest.test(sentence);
   return sensitive && !warningContext.test(sentence);
 }
 
@@ -34,7 +35,9 @@ function validateAwarenessScript(value, label = 'Script') {
     throw new Error(`${label} cannot contain links or domains.`);
   }
 
-  // Core safeguard: cloned speech cannot directly request sensitive credentials or payments.
+  // Core safeguard: cloned speech cannot directly request sensitive credentials
+  // or payments. Educational warnings are allowed only when the same sentence
+  // clearly tells the learner not to comply, to verify, or to report the request.
   const sentences = text.match(/[^.!?]+[.!?]?/g) || [text];
   if (sentences.some(sentenceContainsUnsafeInstruction)) {
     throw new Error(`${label} cannot directly instruct the listener to send money, approve payments, or disclose passwords, OTPs, credentials or security codes.`);
@@ -54,5 +57,6 @@ module.exports = {
   MIN_SCRIPT_CHARS,
   normalizeScript,
   validateAwarenessScript,
-  validateScriptPair
+  validateScriptPair,
+  sentenceContainsUnsafeInstruction
 };
