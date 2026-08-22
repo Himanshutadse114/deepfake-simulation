@@ -158,9 +158,12 @@ async function generateSimulation(session) {
       return;
     }
 
-    const mediaWork = async () => {
-      await generateCheckedAudioTracks(session, { whatsappPath, videoSpeechPath });
+    // Validate both generated speech tracks before starting paid image/video work.
+    // This avoids spending on FLUX or Pruna when a generated track exceeds the
+    // allowed awareness-script duration and the simulation cannot continue.
+    await generateCheckedAudioTracks(session, { whatsappPath, videoSpeechPath });
 
+    const videoWork = async () => {
       const video = await generateVideoWithFallback(session, session.videoAudioOutput);
       session.provider.video = video.provider;
 
@@ -170,14 +173,15 @@ async function generateSimulation(session) {
       });
       session.output = outputPath;
       if (session.profileStatus !== 'completed') {
-        updateStatus(session, 'generating_profile', 'Decoding facial structure into four profile variations.');
+        updateStatus(session, 'generating_profile', 'Preparing four profile variations from one generated image grid.');
       }
     };
 
-    // Start the four profile images with the audio/video pipeline. Waiting for
-    // both tasks here keeps the learner on one uninterrupted loading screen.
+    // Once both audio tracks are known-good, run the paid video and single-grid
+    // FLUX jobs together to keep the learner wait time short without wasting
+    // image-generation spend on an invalid audio result.
     await runInitialGeneration(
-      mediaWork,
+      videoWork,
       () => generateProfileVariants(session)
     );
 
@@ -205,7 +209,7 @@ async function generateProfileVariants(session) {
     return session.variants;
   }
 
-  updateProfileStatus(session, 'generating', 'Decoding facial structure into four profile variations.');
+  updateProfileStatus(session, 'generating', 'Creating one identity-consistent profile grid and preparing four photos.');
   session.profileError = null;
 
   try {
@@ -220,11 +224,9 @@ async function generateProfileVariants(session) {
     session.variants = await generateIdentityVariants(session.face, session.id, {
       onRateLimit: rateLimitStatus(session)
     });
-    if (!session.variants.length) throw new Error('No profile image could be prepared. Please try the simulation again.');
-    session.provider.images = session.variants.length === 4 ? 'flux-2-pro' : 'flux-2-pro-partial';
-    updateProfileStatus(session, 'completed', session.variants.length === 4
-      ? 'Four profile images are ready.'
-      : `${session.variants.length} profile image${session.variants.length === 1 ? ' is' : 's are'} ready. Available images will fill the four-post profile.`);
+    if (session.variants.length !== 4) throw new Error('The generated profile grid could not be split into four images. Please try the simulation again.');
+    session.provider.images = 'flux-2-pro-grid';
+    updateProfileStatus(session, 'completed', 'Four profile images are ready.');
     return session.variants;
   } catch (error) {
     session.profileError = error.message || 'Profile images could not be prepared.';
