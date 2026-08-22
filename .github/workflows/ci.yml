@@ -61,6 +61,7 @@ jobs:
           node --check client/public/wa-flow-fix.js
           node --check client/public/wa-replay-reset.js
           node --check client/public/wa-call-ringtone.js
+          node --check client/public/editorial-scroll-reset.js
           node --check client/public/experience-polish.js
       - name: Build client
         run: npm --prefix client run build
