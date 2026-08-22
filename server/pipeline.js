@@ -58,9 +58,6 @@ function predictionCallbacks(session, stageKey) {
     predictionId: stage.predictionId,
     onBeforePredictionCreate: async () => {
       if (stage.predictionId) return;
-      // Persist the paid-creation boundary before sending the provider request.
-      // If Render stops after this write but before the prediction ID is saved,
-      // recovery fails closed instead of guessing and potentially paying twice.
       stage.status = 'creation_started';
       stage.creationStartedAt = Date.now();
       await persistSession(session);
@@ -136,6 +133,22 @@ async function persistAudioTrack(session, stageKey, localPath, relativeName) {
   return ref;
 }
 
+async function validateGeneratedTrack(session, stageKey, filePath, options, checkDuration = assertAudioDuration) {
+  try {
+    return await checkDuration(filePath, options);
+  } catch (cause) {
+    const stage = ensureStages(session)[stageKey];
+    stage.status = 'validation_failed';
+    stage.validationError = cause.message;
+    await persistSession(session);
+    const error = new Error(cause.message);
+    error.code = 'GENERATED_AUDIO_VALIDATION_FAILED';
+    error.nonRetryable = true;
+    error.cause = cause;
+    throw error;
+  }
+}
+
 async function generateCheckedAudioTracks(session, { whatsappPath, videoSpeechPath }, dependencies = {}) {
   ensureStages(session);
   const generateVoiceTrack = dependencies.generateVoice || generateVoice;
@@ -143,22 +156,58 @@ async function generateCheckedAudioTracks(session, { whatsappPath, videoSpeechPa
 
   if (session.stages.whatsappAudio.status !== 'completed' || !session.whatsappAudioOutput) {
     await generateVoiceTrack(session, whatsappPath, session.scripts.whatsapp, 'cloning_whatsapp', 'whatsappAudio');
-    await checkDuration(whatsappPath, {
+    await validateGeneratedTrack(session, 'whatsappAudio', whatsappPath, {
       label: 'Generated awareness audio',
       maxSeconds: config.maxGeneratedAudioSeconds
-    });
+    }, checkDuration);
     await persistAudioTrack(session, 'whatsappAudio', whatsappPath, 'whatsapp-speech.wav');
   }
 
   if (session.stages.videoAudio.status !== 'completed' || !session.videoAudioOutput) {
     await generateVoiceTrack(session, videoSpeechPath, session.scripts.video, 'cloning_video', 'videoAudio');
-    await checkDuration(videoSpeechPath, {
+    await validateGeneratedTrack(session, 'videoAudio', videoSpeechPath, {
       label: 'Generated video audio',
-      // Pruna is billed per output second and the final video is capped at ten
-      // seconds. Never pay for generated video audio that will later be cut off.
       maxSeconds: config.maxVideoSeconds
-    });
+    }, checkDuration);
     await persistAudioTrack(session, 'videoAudio', videoSpeechPath, 'video-speech.wav');
+  }
+}
+
+function extensionForAudioMime(mime) {
+  if (mime === 'audio/wav') return 'wav';
+  if (mime === 'audio/mpeg') return 'mp3';
+  if (mime === 'audio/mp4') return 'm4a';
+  return 'webm';
+}
+
+async function validateParticipantVoice(session, workspace) {
+  if (session.voicePreflight?.status === 'completed') return session.voicePreflight;
+  if (!session.voice?.path) throw new Error('Participant voice sample is missing.');
+
+  updateStatus(session, 'validating', 'Checking the voice sample locally before any paid AI request.');
+  await persistSession(session);
+
+  const localPath = path.join(workspace, `reference-voice.${extensionForAudioMime(session.voice.mime)}`);
+  await materialize(session.voice.path, localPath);
+  try {
+    const seconds = await assertAudioDuration(localPath, {
+      label: 'Voice sample',
+      minSeconds: 2,
+      maxSeconds: config.maxReferenceAudioSeconds
+    });
+    session.voicePreflight = { status: 'completed', durationSeconds: Number(seconds.toFixed(3)) };
+    await persistSession(session);
+    return session.voicePreflight;
+  } catch (cause) {
+    session.voicePreflight = { status: 'failed', error: cause.message };
+    await persistSession(session);
+    const error = new Error(`Voice sample validation failed before paid AI work: ${cause.message}`);
+    error.code = 'REFERENCE_AUDIO_INVALID';
+    error.nonRetryable = true;
+    error.cause = cause;
+    throw error;
+  } finally {
+    await fs.rm(localPath, { force: true }).catch(() => {});
   }
 }
 
@@ -220,8 +269,11 @@ async function generateVideoWithFallback(session, speechRef, workspace = path.jo
         updateStatus(session, 'generating_video', 'Decoding facial structure and preparing the impersonation video.');
         await persistSession(session);
 
-        if (stage.status === 'provider_succeeded' && stage.providerUrl) {
-          return { provider: 'pruna', url: stage.providerUrl, predictionId: stage.predictionId };
+        // If a prediction id exists, ask Replicate for the current prediction
+        // output again. This refreshes an expired provider URL after a restart
+        // without creating or paying for another Pruna prediction.
+        if (stage.status === 'provider_succeeded' && stage.providerUrl && !stage.predictionId) {
+          return { provider: 'pruna', url: stage.providerUrl, predictionId: null };
         }
 
         const callbacks = predictionCallbacks(session, 'pruna');
@@ -371,6 +423,9 @@ async function generateSimulation(session) {
       return session;
     }
 
+    // This is local/R2 work only. It deliberately occurs before Qwen so corrupt
+    // or unreasonably long participant audio cannot spend provider credits.
+    await validateParticipantVoice(session, workspace);
     await generateCheckedAudioTracks(session, { whatsappPath, videoSpeechPath });
 
     const videoWork = async () => {
@@ -397,8 +452,6 @@ async function generateSimulation(session) {
         : 'Your voice and video experience are ready. The profile image step was unavailable, so the interface will use the consented portrait as a fallback.'
     );
 
-    // Paid provider work is finished. Remove the original portrait/voice from
-    // server-side/object storage; generated outputs remain only for retention.
     const originalFace = session.face?.path;
     const originalVoice = session.voice?.path;
     await Promise.allSettled([deleteRef(originalFace), deleteRef(originalVoice)]);
@@ -408,8 +461,6 @@ async function generateSimulation(session) {
     return session;
   } catch (error) {
     console.warn(`[generation:${session.id}] ${error.stack || error.message || error}`);
-    // Qwen has no provider-specific catch block, so classify an ambiguous create
-    // here while keeping its persisted creation boundary visible to recovery.
     if (error.code === 'REPLICATE_CREATE_AMBIGUOUS') {
       for (const stageKey of ['whatsappAudio', 'videoAudio']) {
         const stage = session.stages?.[stageKey];
@@ -434,6 +485,8 @@ module.exports = {
   generateVideoWithFallback,
   generateVoice,
   generateCheckedAudioTracks,
+  validateGeneratedTrack,
+  validateParticipantVoice,
   completeDemoSession,
   runInitialGeneration,
   ensureStages,
