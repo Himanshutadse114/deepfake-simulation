@@ -34,6 +34,7 @@ test('paid prediction creation boundary is checkpointed before a prediction id e
     id: `unit-${Date.now()}`,
     provider: {},
     variants: [],
+    expiresAt: null,
     stages: {
       whatsappAudio: { status: 'pending', predictionId: null },
       videoAudio: { status: 'pending', predictionId: null },
@@ -51,5 +52,7 @@ test('paid prediction creation boundary is checkpointed before a prediction id e
   assert.equal(session.stages.whatsappAudio.status, 'provider_running');
   assert.equal(session.stages.whatsappAudio.predictionId, 'pred-unit-1');
 
+  session.expiresAt = Date.now() - 1;
+  await saveSession(session);
   await deleteSession(session.id, { cancelPredictions: false });
 });
