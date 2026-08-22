@@ -1,11 +1,27 @@
+const crypto = require('node:crypto');
 const config = require('./config');
 const { getRedisClient } = require('./redis-client');
+const {
+  objectStorageConfigured,
+  putJson,
+  getJson,
+  listKeys
+} = require('./storage');
 
-const localReservations = new Map();
+const localBudgetReservations = new Map();
 const localDailyTotals = new Map();
+const localEntitlements = new Map();
+let durableLoadedDay = null;
+let localMutationLock = Promise.resolve();
 
 function utcDay() {
   return new Date().toISOString().slice(0, 10);
+}
+
+function withLocalLock(operation) {
+  const run = localMutationLock.then(operation, operation);
+  localMutationLock = run.catch(() => {});
+  return run;
 }
 
 function budgetError(current, limit, requested) {
@@ -13,6 +29,35 @@ function budgetError(current, limit, requested) {
   error.status = 429;
   error.code = 'AI_DAILY_BUDGET_LIMIT';
   return error;
+}
+
+function durableBudgetPrefix(day) {
+  return `control/budget/reservations/${day}/`;
+}
+
+function durableBudgetKey(day, sessionId) {
+  return `${durableBudgetPrefix(day)}${sessionId}.json`;
+}
+
+async function loadDurableDailyBudget(day) {
+  if (!objectStorageConfigured() || durableLoadedDay === day) return;
+
+  const keys = (await listKeys(durableBudgetPrefix(day))).filter((key) => key.endsWith('.json'));
+  let total = 0;
+  localBudgetReservations.clear();
+
+  for (let offset = 0; offset < keys.length; offset += 20) {
+    const batch = await Promise.all(keys.slice(offset, offset + 20).map((key) => getJson(key).catch(() => null)));
+    for (const item of batch) {
+      const amount = Number(item?.amount || 0);
+      if (!item?.sessionId || !(amount > 0)) continue;
+      localBudgetReservations.set(item.sessionId, amount);
+      total += amount;
+    }
+  }
+
+  localDailyTotals.set(day, total);
+  durableLoadedDay = day;
 }
 
 async function reserveEstimatedCost(sessionId, amount = config.estimatedSimulationCostUsd) {
@@ -49,46 +94,93 @@ async function reserveEstimatedCost(sessionId, amount = config.estimatedSimulati
     return { reserved, limit, total };
   }
 
-  if (localReservations.has(sessionId)) {
-    return {
-      reserved: localReservations.get(sessionId),
-      limit,
-      total: Number(localDailyTotals.get(day) || 0)
-    };
-  }
-  const current = Number(localDailyTotals.get(day) || 0);
-  if (current + requested > limit) throw budgetError(current, limit, requested);
-  localReservations.set(sessionId, requested);
-  localDailyTotals.set(day, current + requested);
-  return { reserved: requested, limit, total: current + requested };
+  return withLocalLock(async () => {
+    if (objectStorageConfigured()) await loadDurableDailyBudget(day);
+
+    if (localBudgetReservations.has(sessionId)) {
+      return {
+        reserved: localBudgetReservations.get(sessionId),
+        limit,
+        total: Number(localDailyTotals.get(day) || 0)
+      };
+    }
+
+    const current = Number(localDailyTotals.get(day) || 0);
+    if (current + requested > limit) throw budgetError(current, limit, requested);
+
+    if (objectStorageConfigured()) {
+      // Write the immutable per-session reservation before updating the in-memory
+      // total. If Render stops immediately afterwards, the next boot recomputes
+      // the total from these R2 reservation objects and does not lose the guard.
+      await putJson(durableBudgetKey(day, sessionId), {
+        sessionId,
+        day,
+        amount: requested,
+        createdAt: new Date().toISOString()
+      });
+    }
+
+    localBudgetReservations.set(sessionId, requested);
+    localDailyTotals.set(day, current + requested);
+    return { reserved: requested, limit, total: current + requested };
+  });
+}
+
+function entitlementObjectKey(identity) {
+  const digest = crypto.createHash('sha256')
+    .update(`${identity.tenantId}\u0000${identity.campaignId}\u0000${identity.userId}`)
+    .digest('hex');
+  return `control/entitlements/${digest}.json`;
 }
 
 async function reserveLaunchEntitlement(identity, sessionId) {
   if (!identity?.userId || !identity?.tenantId || !identity?.campaignId) return { enforced: false };
-  const key = `deepfake:entitlement:${identity.tenantId}:${identity.campaignId}:${identity.userId}`;
+  const redisKey = `deepfake:entitlement:${identity.tenantId}:${identity.campaignId}:${identity.userId}`;
   const redis = getRedisClient();
 
   if (redis) {
-    const existing = await redis.get(key);
+    const existing = await redis.get(redisKey);
     if (existing && existing !== sessionId) {
       const error = new Error('This learner already has an AI generation reserved for this campaign.');
       error.status = 409;
       error.code = 'AI_SIMULATION_ALREADY_RESERVED';
       throw error;
     }
-    await redis.set(key, sessionId, 'EX', 7 * 24 * 60 * 60, 'NX');
+    await redis.set(redisKey, sessionId, 'EX', 7 * 24 * 60 * 60, 'NX');
     return { enforced: true };
   }
 
-  const existing = localReservations.get(key);
-  if (existing && existing !== sessionId) {
-    const error = new Error('This learner already has an AI generation reserved for this campaign.');
-    error.status = 409;
-    error.code = 'AI_SIMULATION_ALREADY_RESERVED';
-    throw error;
-  }
-  localReservations.set(key, sessionId);
-  return { enforced: true };
+  return withLocalLock(async () => {
+    const key = entitlementObjectKey(identity);
+    const now = Date.now();
+    let existing = localEntitlements.get(key) || null;
+    if (!existing && objectStorageConfigured()) existing = await getJson(key);
+
+    if (existing && Number(existing.expiresAt || 0) > now && existing.sessionId !== sessionId) {
+      const error = new Error('This learner already has an AI generation reserved for this campaign.');
+      error.status = 409;
+      error.code = 'AI_SIMULATION_ALREADY_RESERVED';
+      throw error;
+    }
+
+    const payload = {
+      sessionId,
+      tenantId: identity.tenantId,
+      campaignId: identity.campaignId,
+      userId: identity.userId,
+      createdAt: new Date(now).toISOString(),
+      expiresAt: now + (7 * 24 * 60 * 60 * 1000)
+    };
+    if (objectStorageConfigured()) await putJson(key, payload);
+    localEntitlements.set(key, payload);
+    return { enforced: true };
+  });
 }
 
-module.exports = { reserveEstimatedCost, reserveLaunchEntitlement, utcDay };
+module.exports = {
+  reserveEstimatedCost,
+  reserveLaunchEntitlement,
+  utcDay,
+  durableBudgetPrefix,
+  entitlementObjectKey
+};
