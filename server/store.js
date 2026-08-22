@@ -223,6 +223,17 @@ async function deleteSession(id, { cancelPredictions = true } = {}) {
   const session = await getSession(id);
   const redis = getRedisClient();
 
+  // Delayed cleanup timers are advisory. Never let an old timer delete a job
+  // that became active (expiresAt=null) or whose terminal retention window has
+  // not actually elapsed. Explicit learner deletion still sets
+  // cancelPredictions=true and bypasses this protection.
+  if (session && !cancelPredictions) {
+    const expiresAt = session.expiresAt;
+    if (expiresAt === null || expiresAt === undefined || Number(expiresAt) > Date.now()) {
+      return false;
+    }
+  }
+
   if (session && cancelPredictions) {
     const { cancelQueuedGeneration } = require('./queue');
     const { cancelSessionPredictions } = require('./services/replicate-prediction');
@@ -238,6 +249,7 @@ async function deleteSession(id, { cancelPredictions = true } = {}) {
   await deleteSessionPrefix(id).catch((error) => {
     console.warn(`[session-cleanup:${id}] ${error.message}`);
   });
+  return true;
 }
 
 function startExpiryCleanup() {
@@ -249,7 +261,7 @@ function startExpiryCleanup() {
     const now = Date.now();
     for (const [id, session] of sessions) {
       if (session.expiresAt !== null && session.expiresAt !== undefined && session.expiresAt <= now) {
-        await deleteSession(id).catch(() => {});
+        await deleteSession(id, { cancelPredictions: false }).catch(() => {});
       }
     }
   }, 60_000);
