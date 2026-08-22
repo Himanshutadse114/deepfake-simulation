@@ -1,6 +1,7 @@
 const { Queue, Worker, UnrecoverableError } = require('bullmq');
 const config = require('./config');
 const { redisConfigured, createRedisConnection } = require('./redis-client');
+const { objectStorageConfigured } = require('./storage');
 
 let queue = null;
 let worker = null;
@@ -13,6 +14,15 @@ let localActive = 0;
 
 function queueMode() {
   return redisConfigured() ? 'bullmq' : 'bounded-local';
+}
+
+function assertDistributedStorageReady() {
+  if (redisConfigured() && !objectStorageConfigured()) {
+    const error = new Error('Distributed generation is configured, but private shared object storage is not. Configure the S3-compatible media settings before paid AI work is allowed.');
+    error.status = 503;
+    error.code = 'SHARED_OBJECT_STORAGE_REQUIRED';
+    throw error;
+  }
 }
 
 function getQueue() {
@@ -83,6 +93,7 @@ async function enqueueGeneration(session) {
     return { id, mode: queueMode() };
   }
 
+  assertDistributedStorageReady();
   const q = getQueue();
   const counts = await q.getJobCounts('waiting', 'active', 'delayed', 'prioritized');
   const total = Object.values(counts).reduce((sum, value) => sum + Number(value || 0), 0);
@@ -173,6 +184,7 @@ async function handleCleanupJob(sessionId) {
 
 function startGenerationWorker() {
   if (!redisConfigured()) throw new Error('REDIS_URL is required to start the distributed generation worker.');
+  assertDistributedStorageReady();
   if (worker) return worker;
 
   workerConnection = createRedisConnection({ role: 'bullmq' });
@@ -242,5 +254,6 @@ module.exports = {
   cancelQueuedGeneration,
   startGenerationWorker,
   getQueueStats,
-  closeQueue
+  closeQueue,
+  assertDistributedStorageReady
 };
