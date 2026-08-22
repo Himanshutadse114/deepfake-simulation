@@ -70,13 +70,18 @@ router.post('/storage-test', requireAdmin, async (_req, res) => {
     }
 
     await deleteKey(key);
+    const afterDelete = await getJson(key);
+    if (afterDelete !== null) {
+      throw new Error('R2 write/read succeeded, but the test object could not be deleted. Check delete permission for this bucket.');
+    }
+
     return res.json({
       ok: true,
       connected: true,
       bucket: config.storage.bucket,
       region: config.storage.region || 'auto',
       latencyMs: Date.now() - startedAt,
-      checks: ['write', 'read', 'delete']
+      checks: ['write', 'read', 'delete', 'delete-verified']
     });
   } catch (error) {
     await deleteKey(key).catch(() => {});
@@ -121,7 +126,7 @@ function renderAdminPage() {
 
     <div class="storage">
       <div class="storage-title">Private storage</div>
-      <div class="storage-copy">Runs a real write → read → delete probe against the configured Cloudflare R2 bucket. No credentials are sent to the browser.</div>
+      <div class="storage-copy">Runs a real write → read → delete → verify-deleted probe against the configured Cloudflare R2 bucket. No credentials are sent to the browser.</div>
       <div class="actions"><button class="btn secondary" id="testStorage" type="button">Test R2 connection</button></div>
       <div class="status" id="storageStatus"></div>
     </div>
