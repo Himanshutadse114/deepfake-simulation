@@ -134,6 +134,7 @@ async function generateIdentityVariants(faceFile, sessionId, options = {}) {
         safety_tolerance: 2,
         prompt_upsampling: false
       };
+      await options.onBeforePredictionCreate?.();
     }
 
     const result = await runOfficialPrediction({
