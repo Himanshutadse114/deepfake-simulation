@@ -20,7 +20,7 @@ function renderDemoPage() {
 <body data-demo-instance="true">
 <div id="uiBoot" style="min-height:100vh;background:#06080d"></div>
 <script src="/voice-recording-prompt.js?v=1" defer></script>
-<script src="/ui-bootstrap.js?v=network-recovery-20260822-1" defer></script>
+<script src="/ui-bootstrap.js?v=guided-camera-20260822-2" defer></script>
 </body>
 </html>`;
 }
