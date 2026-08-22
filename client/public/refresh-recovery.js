@@ -107,7 +107,7 @@
   function restoreGeneratedFaceFallback() {
     try {
       if (Array.isArray(window.variantUrls) && window.variantUrls[0]) {
-        window.uploadedPhotoUrl = window.variantUrls[0];
+        if (typeof uploadedPhotoUrl !== 'undefined') uploadedPhotoUrl = window.variantUrls[0];
         window.setSharedFace?.(window.variantUrls[0]);
       }
     } catch (_) {}
