@@ -18,7 +18,7 @@ function modelParts(model) {
   return { owner, name };
 }
 
-async function parseResponse(response, label) {
+async function parseResponse(response, label, { creation = false } = {}) {
   const payload = await response.json().catch(() => ({}));
   if (response.ok) return payload;
 
@@ -27,23 +27,43 @@ async function parseResponse(response, label) {
   error.status = response.status;
   error.request = { url: response.url };
   error.response = { status: response.status, headers: response.headers, url: response.url };
+
+  // A creation 429 explicitly means the creation request was throttled and is
+  // safe for the dedicated creation-rate-limit retry helper. Any other creation
+  // error is not blindly retried: a transport/proxy failure can be ambiguous as
+  // to whether the remote provider already accepted billable work.
+  if (creation && response.status !== 429) {
+    error.nonRetryable = true;
+    error.code = 'REPLICATE_CREATE_FAILED_NO_BLIND_RETRY';
+  }
   throw error;
 }
 
 async function createOfficialPrediction(model, input, { cancelAfter = '5m' } = {}) {
   const { owner, name } = modelParts(model);
   const url = `${API}/models/${encodeURIComponent(owner)}/${encodeURIComponent(name)}/predictions`;
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: authHeaders({
-      'content-type': 'application/json',
-      Prefer: 'wait=1',
-      'Cancel-After': cancelAfter
-    }),
-    body: JSON.stringify({ input }),
-    signal: AbortSignal.timeout(30_000)
-  });
-  return parseResponse(response, `${model} prediction creation`);
+  let response;
+  try {
+    // Use Replicate's default async mode so a prediction ID is returned as soon
+    // as the creation request is accepted. This minimizes the ambiguous window
+    // between paid-job creation and persisting the prediction ID locally.
+    response = await fetch(url, {
+      method: 'POST',
+      headers: authHeaders({
+        'content-type': 'application/json',
+        'Cancel-After': cancelAfter
+      }),
+      body: JSON.stringify({ input }),
+      signal: AbortSignal.timeout(30_000)
+    });
+  } catch (cause) {
+    const error = new Error(`Could not confirm whether ${model} accepted the prediction creation request. Automatic recreation is blocked to prevent duplicate spend: ${cause.message}`);
+    error.code = 'REPLICATE_CREATE_AMBIGUOUS';
+    error.nonRetryable = true;
+    error.cause = cause;
+    throw error;
+  }
+  return parseResponse(response, `${model} prediction creation`, { creation: true });
 }
 
 async function getPrediction(predictionId) {
