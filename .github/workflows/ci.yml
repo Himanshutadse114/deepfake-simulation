@@ -58,6 +58,7 @@ jobs:
           node --check client/public/generation-safety.js
           node --check client/public/admin-ui.js
           node --check client/public/voice-recording-prompt.js
+          node --check client/public/voice-sample-controls.js
           node --check client/public/wa-polish.js
           node --check client/public/wa-flow-fix.js
           node --check client/public/wa-replay-reset.js
