@@ -12,20 +12,32 @@ const { downloadWithRetry } = require('./download');
 const { withMediaProcessSlot } = require('./process-limit');
 const { runOfficialPrediction } = require('./replicate-prediction');
 
-const GRID_PROMPT = [
-  'Using image 1 only as the identity reference, create ONE photorealistic square 2x2 contact sheet containing exactly four equal square photographs of the SAME single person.',
-  'Identity consistency is the highest priority: preserve the same distinctive facial features, facial proportions, approximate age, skin tone, hairstyle, hair colour, eye shape and overall appearance in every panel.',
-  'IMPORTANT POSE DIVERSITY: do not copy or repeat the head pose from the reference image across the grid. The four panels must have clearly different head orientations and camera viewpoints while still looking like the exact same person.',
-  'Avoid four similar side profiles. At least one panel must show the face nearly straight-on, one must show a natural three-quarter-left view, one must show a natural three-quarter-right view, and one must use a slightly elevated or arm-length selfie viewpoint with the face turned only slightly. Keep both eyes reasonably visible in at least three panels; avoid extreme profile views.',
-  'Each panel must contain exactly one person, framed as a believable social-media photo. Do not create extra people, duplicate faces inside a panel, text, captions, labels, logos, watermarks, documents, badges or props that imply credentials or money.',
-  'Use a clean edge-to-edge 2x2 layout with four equal panels, aligned precisely in two rows and two columns. No gutters, no borders, no rounded cards, no separators, no decorative frame and no overlap between panels.',
-  'TOP LEFT: modern office or coworking space, NEARLY FRONT-FACING head and shoulders, eyes toward the camera, natural expression, soft daylight, casual-professional clothing, realistic smartphone photography.',
-  'TOP RIGHT: bright cafe, clear THREE-QUARTER RIGHT head turn, eyes naturally toward or just past the camera, warm window light, everyday clothing, realistic smartphone photography.',
-  'BOTTOM LEFT: generic city promenade or public plaza, clear THREE-QUARTER LEFT head turn, natural daylight, relaxed expression, realistic smartphone photography, no recognisable landmark.',
-  'BOTTOM RIGHT: green park or neutral outdoor setting, ARM-LENGTH SELFIE or slightly elevated camera angle, face only slightly turned, both eyes visible, slightly wider waist-up framing, soft late-afternoon light, natural expression, realistic smartphone photography.',
-  'Vary head direction, camera height, crop, shoulder orientation and expression subtly between all four photographs. Do not mirror or duplicate the same pose. Make all four photographs independently believable while clearly depicting the exact same person.',
-  'Keep skin texture realistic and avoid beauty-filter, plastic-skin, illustration, collage-art or poster styling.'
-].join(' ');
+const PROFILE_VARIANT_COUNT = 3;
+const FLUX_PROFILE_RESOLUTION = '1 MP';
+
+const PROFILE_VARIANT_PROMPTS = [
+  [
+    'Using image 1 only as the identity reference, create one photorealistic square social-media photograph of the same single person.',
+    'Identity consistency is the highest priority: preserve the same distinctive facial features, facial proportions, approximate age, skin tone, hairstyle, hair colour, eye shape and overall appearance.',
+    'Show a nearly front-facing head-and-shoulders portrait in a modern office or coworking space, eyes naturally toward the camera, relaxed expression, casual-professional clothing and soft daylight.',
+    'The result should look like an ordinary smartphone photograph posted to a personal Instagram profile, with realistic skin texture, natural lighting and believable camera detail.',
+    'Include exactly one person. Keep the background generic and free of readable text, logos, credentials, documents, money or recognisable landmarks.'
+  ].join(' '),
+  [
+    'Using image 1 only as the identity reference, create one photorealistic square social-media photograph of the same single person.',
+    'Identity consistency is the highest priority: preserve the same distinctive facial features, facial proportions, approximate age, skin tone, hairstyle, hair colour, eye shape and overall appearance.',
+    'Place the person in a bright everyday cafe with a clear natural three-quarter-right head angle, both eyes reasonably visible, warm window light, relaxed expression and casual clothing.',
+    'Use a slightly different crop and shoulder orientation from a straight portrait. Make it feel like a spontaneous smartphone photo rather than a studio portrait.',
+    'Include exactly one person. Keep the scene free of readable text, logos, credentials, documents, money or recognisable brand marks.'
+  ].join(' '),
+  [
+    'Using image 1 only as the identity reference, create one photorealistic square social-media photograph of the same single person.',
+    'Identity consistency is the highest priority: preserve the same distinctive facial features, facial proportions, approximate age, skin tone, hairstyle, hair colour, eye shape and overall appearance.',
+    'Place the person in a green park or generic outdoor public setting with a natural three-quarter-left or soft arm-length selfie angle, both eyes visible, relaxed expression and natural daylight.',
+    'Use a slightly wider framing and a different camera height from the other profile photos so the post feels independently captured and believable.',
+    'Include exactly one person. Keep the background generic with no readable text, credentials, money, logos or recognisable landmarks.'
+  ].join(' ')
+];
 
 function runFfmpeg(args, label) {
   return withMediaProcessSlot(() => new Promise((resolve, reject) => {
@@ -43,9 +55,9 @@ function runFfmpeg(args, label) {
 }
 
 async function createFluxReference(sourcePath, targetPath) {
-  // FLUX pricing is driven by image megapixels, not JPEG byte size. Keep the
-  // original portrait for video generation and create a dedicated <=1024px
-  // reference copy only for the one FLUX profile-grid prediction.
+  // FLUX.2 Pro bills reference images by megapixels. Keep the original portrait
+  // for the video provider and create a dedicated reference bounded to 1024px
+  // on both axes so every profile request stays in the 1 MP reference tier.
   await runFfmpeg([
     '-i', sourcePath,
     '-vf', 'scale=min(1024\\,iw):min(1024\\,ih):force_original_aspect_ratio=decrease',
@@ -63,36 +75,14 @@ function outputUrl(output) {
   return null;
 }
 
-async function saveOutput(output, targetPath) {
+async function saveOutput(output, targetPath, label = 'FLUX profile image') {
   const url = outputUrl(output);
   if (!url) throw new Error('FLUX did not return an image URL.');
-  return downloadWithRetry(url, targetPath, { label: 'FLUX profile grid', timeoutMs: 90_000 });
+  return downloadWithRetry(url, targetPath, { label, timeoutMs: 90_000 });
 }
 
-async function splitGrid(sheetPath, directory) {
-  const targets = [1, 2, 3, 4].map((number) => path.join(directory, `variant-${number}.jpg`));
-  const filter = [
-    '[0:v]split=4[a][b][c][d]',
-    '[a]crop=iw/2:ih/2:0:0[v1]',
-    '[b]crop=iw/2:ih/2:iw/2:0[v2]',
-    '[c]crop=iw/2:ih/2:0:ih/2[v3]',
-    '[d]crop=iw/2:ih/2:iw/2:ih/2[v4]'
-  ].join(';');
-
-  await runFfmpeg([
-    '-i', sheetPath,
-    '-filter_complex', filter,
-    '-map', '[v1]', '-frames:v', '1', '-q:v', '2', targets[0],
-    '-map', '[v2]', '-frames:v', '1', '-q:v', '2', targets[1],
-    '-map', '[v3]', '-frames:v', '1', '-q:v', '2', targets[2],
-    '-map', '[v4]', '-frames:v', '1', '-q:v', '2', targets[3]
-  ], 'FLUX 2x2 grid split');
-
-  return targets;
-}
-
-// Kept exported for backwards-compatible tests/helpers even though production
-// uses one paid FLUX prediction instead of four independent predictions.
+// Kept exported for backwards-compatible tests/helpers. Production now creates
+// three independent 1 MP photos rather than one composite contact sheet.
 async function collectVariantResults(count, runVariant, onFailure = () => {}) {
   const results = [];
   for (let index = 0; index < count; index += 1) {
@@ -106,62 +96,86 @@ async function collectVariantResults(count, runVariant, onFailure = () => {}) {
 }
 
 async function generateIdentityVariants(faceFile, sessionId, options = {}) {
-  if (!config.providers.fluxEnabled) return { variants: [], predictionId: null, providerOutputUrl: null };
+  if (!config.providers.fluxEnabled) return { variants: [], predictionIds: [], providerOutputUrls: [] };
   if (!config.providers.replicateToken) throw new Error('REPLICATE_API_TOKEN is not configured.');
 
   const directory = options.workspace || path.join(config.workRoot, sessionId);
   await fs.mkdir(directory, { recursive: true });
   const sourcePath = path.join(directory, 'flux-source-image');
   const referencePath = path.join(directory, 'flux-reference.jpg');
-  const sheetPath = path.join(directory, 'flux-profile-grid.jpg');
   let temporaryProviderRef = null;
+  let providerReferenceUri = null;
+
+  const ensureProviderReference = async () => {
+    if (providerReferenceUri) return providerReferenceUri;
+    await materialize(faceFile.path, sourcePath);
+    await createFluxReference(sourcePath, referencePath);
+    temporaryProviderRef = await persistTemporaryProviderFile(
+      sessionId,
+      'flux-reference.jpg',
+      referencePath,
+      'image/jpeg'
+    );
+    providerReferenceUri = await toProviderUri(temporaryProviderRef, 'image/jpeg');
+    return providerReferenceUri;
+  };
 
   try {
-    let input;
-    if (!options.predictionId) {
-      await materialize(faceFile.path, sourcePath);
-      await createFluxReference(sourcePath, referencePath);
-      temporaryProviderRef = await persistTemporaryProviderFile(
-        sessionId,
-        'flux-reference.jpg',
-        referencePath,
-        'image/jpeg'
-      );
-      input = {
-        prompt: GRID_PROMPT,
-        input_images: [await toProviderUri(temporaryProviderRef, 'image/jpeg')],
-        resolution: '2 MP',
-        aspect_ratio: '1:1',
-        output_format: 'jpg',
-        output_quality: 90,
-        safety_tolerance: 2,
-        prompt_upsampling: false
-      };
-      await options.onBeforePredictionCreate?.();
+    const variants = [];
+    const predictionIds = [];
+    const providerOutputUrls = [];
+
+    // Deliberately run the three image predictions sequentially. This keeps one
+    // FLUX prediction active per simulation, reduces burst rate-limit pressure,
+    // and lets the durable stage checkpoint represent exactly one paid creation
+    // boundary at a time.
+    for (let index = 0; index < PROFILE_VARIANT_COUNT; index += 1) {
+      const callbacks = typeof options.itemCallbacks === 'function'
+        ? options.itemCallbacks(index)
+        : {};
+      let input;
+
+      if (!callbacks.predictionId) {
+        input = {
+          prompt: PROFILE_VARIANT_PROMPTS[index],
+          input_images: [await ensureProviderReference()],
+          resolution: FLUX_PROFILE_RESOLUTION,
+          aspect_ratio: '1:1',
+          output_format: 'jpg',
+          output_quality: 90,
+          safety_tolerance: 2,
+          prompt_upsampling: false
+        };
+        await callbacks.onBeforePredictionCreate?.();
+      }
+
+      const result = await runOfficialPrediction({
+        model: config.providers.fluxModel,
+        input,
+        predictionId: callbacks.predictionId,
+        label: `FLUX profile image ${index + 1}`,
+        cancelAfter: '5m',
+        onPredictionCreated: callbacks.onPredictionCreated,
+        onRateLimit: options.onRateLimit
+      });
+
+      const url = outputUrl(result.output);
+      if (!url) throw new Error(`FLUX profile image ${index + 1} did not return an image URL.`);
+      await callbacks.onProviderOutput?.({ predictionId: result.prediction.id, url, index });
+
+      const target = path.join(directory, `variant-${index + 1}.jpg`);
+      await saveOutput(result.output, target, `FLUX profile image ${index + 1}`);
+      variants.push(target);
+      predictionIds.push(result.prediction.id);
+      providerOutputUrls.push(url);
     }
 
-    const result = await runOfficialPrediction({
-      model: config.providers.fluxModel,
-      input,
-      predictionId: options.predictionId,
-      label: 'FLUX 2x2 profile grid',
-      cancelAfter: '5m',
-      onPredictionCreated: options.onPredictionCreated,
-      onRateLimit: options.onRateLimit
-    });
-
-    const url = outputUrl(result.output);
-    if (!url) throw new Error('FLUX did not return a profile-grid URL.');
-    await options.onProviderOutput?.({ predictionId: result.prediction.id, url });
-    await saveOutput(result.output, sheetPath);
-    const variants = await splitGrid(sheetPath, directory);
-    console.log(`Generated one FLUX 2x2 profile grid and split it into ${variants.length} images for session ${sessionId.slice(0, 8)}.`);
-    return { variants, predictionId: result.prediction.id, providerOutputUrl: url };
+    console.log(`Generated ${variants.length} independent FLUX 1 MP profile images for session ${sessionId.slice(0, 8)}.`);
+    return { variants, predictionIds, providerOutputUrls };
   } finally {
     await Promise.allSettled([
       fs.rm(sourcePath, { force: true }),
       fs.rm(referencePath, { force: true }),
-      fs.rm(sheetPath, { force: true }),
       temporaryProviderRef ? deleteRef(temporaryProviderRef) : Promise.resolve()
     ]);
   }
@@ -171,8 +185,9 @@ module.exports = {
   generateIdentityVariants,
   collectVariantResults,
   createFluxReference,
-  splitGrid,
   saveOutput,
   outputUrl,
-  GRID_PROMPT
+  PROFILE_VARIANT_COUNT,
+  FLUX_PROFILE_RESOLUTION,
+  PROFILE_VARIANT_PROMPTS
 };
