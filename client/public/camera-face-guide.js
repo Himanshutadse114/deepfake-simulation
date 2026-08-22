@@ -16,11 +16,11 @@
 
   const style = document.createElement('style');
   style.textContent = `
-    body.camera-guide-open{overflow:hidden!important;overscroll-behavior:none!important;touch-action:none!important}
-    #cameraContainer.camera-guide-fullscreen{position:fixed!important;inset:0!important;z-index:2147483000!important;width:100vw!important;height:100dvh!important;display:block!important;border-radius:0!important;background:#02050a!important;overflow:hidden!important}
-    #cameraContainer.camera-guide-fullscreen #cameraVideo{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;object-fit:cover!important;transform:scaleX(-1);background:#02050a}
+    body.camera-guide-open{overflow:hidden!important;overscroll-behavior:none!important;touch-action:none!important;-webkit-text-size-adjust:100%}
+    #cameraContainer.camera-guide-fullscreen{position:fixed!important;inset:0!important;z-index:2147483000!important;width:100vw!important;height:100vh!important;height:100dvh!important;min-height:-webkit-fill-available;display:block!important;border-radius:0!important;background:#02050a!important;overflow:hidden!important}
+    #cameraContainer.camera-guide-fullscreen #cameraVideo{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;object-fit:cover!important;transform:scaleX(-1);background:#02050a;-webkit-user-select:none;user-select:none}
     .camera-guide-layer{position:absolute;inset:0;z-index:3;pointer-events:none;color:#fff;font-family:Inter,system-ui,sans-serif}
-    .camera-guide-top{position:absolute;left:0;right:0;top:0;padding:max(22px,env(safe-area-inset-top)) 20px 0;text-align:center;text-shadow:0 2px 18px rgba(0,0,0,.7)}
+    .camera-guide-top{position:absolute;left:0;right:0;top:0;padding:max(22px,calc(env(safe-area-inset-top) + 12px)) 20px 0;text-align:center;text-shadow:0 2px 18px rgba(0,0,0,.7)}
     .camera-guide-top strong{display:block;font-size:clamp(21px,5vw,30px);font-weight:700;letter-spacing:-.02em}
     .camera-guide-top span{display:block;margin:6px auto 0;max-width:420px;font-size:12px;line-height:1.45;color:rgba(255,255,255,.78)}
     .camera-guide-oval{position:absolute;left:50%;top:46%;width:min(72vw,370px);aspect-ratio:.76;transform:translate(-50%,-50%);border:3px solid rgba(255,255,255,.76);border-radius:50%;box-shadow:0 0 0 200vmax rgba(0,0,0,.58),0 0 34px rgba(255,255,255,.08) inset;transition:border-color .18s ease,box-shadow .18s ease}
@@ -29,18 +29,27 @@
     #cameraContainer[data-guide-state="ready"] .camera-guide-oval{border-color:#42d980;box-shadow:0 0 0 200vmax rgba(0,0,0,.55),0 0 30px rgba(66,217,128,.38)}
     #cameraContainer[data-guide-state="warn"] .camera-guide-oval{border-color:#ffb15f}
     #cameraContainer[data-guide-state="error"] .camera-guide-oval{border-color:#ff6565}
-    .camera-guide-status{position:absolute;left:50%;bottom:calc(116px + env(safe-area-inset-bottom));transform:translateX(-50%);width:min(90vw,430px);padding:11px 16px;border-radius:999px;background:rgba(7,12,20,.78);border:1px solid rgba(255,255,255,.14);backdrop-filter:blur(14px);text-align:center;font-size:12px;font-weight:650;box-shadow:0 10px 35px rgba(0,0,0,.28)}
+    .camera-guide-status{position:absolute;left:50%;bottom:calc(116px + env(safe-area-inset-bottom));transform:translateX(-50%);width:min(90vw,430px);padding:11px 16px;border-radius:999px;background:rgba(7,12,20,.78);border:1px solid rgba(255,255,255,.14);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);text-align:center;font-size:12px;font-weight:650;box-shadow:0 10px 35px rgba(0,0,0,.28)}
     .camera-guide-status i{display:inline-block;width:8px;height:8px;border-radius:50%;background:#ffb15f;margin-right:8px;vertical-align:1px}
     #cameraContainer[data-guide-state="ready"] .camera-guide-status i{background:#42d980;box-shadow:0 0 12px rgba(66,217,128,.7)}
     #cameraContainer[data-guide-state="error"] .camera-guide-status i{background:#ff6565}
     .camera-guide-privacy{position:absolute;left:50%;bottom:calc(82px + env(safe-area-inset-bottom));transform:translateX(-50%);font-size:8px;letter-spacing:.07em;text-transform:uppercase;color:rgba(255,255,255,.58);white-space:nowrap}
-    #cameraContainer.camera-guide-fullscreen .camera-guide-actions{position:absolute!important;left:0!important;right:0!important;bottom:max(18px,env(safe-area-inset-bottom))!important;z-index:5!important;display:flex!important;gap:12px!important;justify-content:center!important;padding:0 18px!important}
-    #cameraContainer.camera-guide-fullscreen .camera-guide-actions button{min-height:48px!important;padding:0 22px!important;border-radius:999px!important;font-size:13px!important}
+    #cameraContainer.camera-guide-fullscreen .camera-guide-actions{position:absolute!important;left:0!important;right:0!important;bottom:max(18px,calc(env(safe-area-inset-bottom) + 8px))!important;z-index:5!important;display:flex!important;gap:12px!important;justify-content:center!important;padding:0 18px!important}
+    #cameraContainer.camera-guide-fullscreen .camera-guide-actions button{min-height:48px!important;padding:0 22px!important;border-radius:999px!important;font-size:13px!important;-webkit-tap-highlight-color:transparent}
     #cameraContainer.camera-guide-fullscreen .camera-guide-actions button[disabled]{opacity:.38!important;cursor:not-allowed!important;filter:saturate(.25)}
     @media(max-width:520px){.camera-guide-oval{width:min(76vw,330px);top:45%}.camera-guide-status{bottom:calc(120px + env(safe-area-inset-bottom));font-size:11px}.camera-guide-privacy{bottom:calc(87px + env(safe-area-inset-bottom))}.camera-guide-top{padding-left:18px;padding-right:18px}}
     @media(orientation:landscape) and (max-height:600px){.camera-guide-oval{width:min(34vw,270px);top:48%}.camera-guide-top strong{font-size:20px}.camera-guide-top span{font-size:10px}.camera-guide-status{bottom:70px;width:min(62vw,420px)}.camera-guide-privacy{display:none}}
   `;
   document.head.appendChild(style);
+
+  function isIOSLike() {
+    return /iPhone|iPad|iPod/i.test(navigator.userAgent)
+      || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  }
+
+  function canUseLiveCamera() {
+    return Boolean(navigator.mediaDevices?.getUserMedia) && typeof DataTransfer === 'function';
+  }
 
   function getUi() {
     const container = document.getElementById('cameraContainer');
@@ -50,9 +59,20 @@
     return { container, video, capture, cancel };
   }
 
+  function prepareVideoForSafari(video) {
+    if (!video) return;
+    video.autoplay = true;
+    video.muted = true;
+    video.playsInline = true;
+    video.setAttribute('playsinline', '');
+    video.setAttribute('webkit-playsinline', '');
+    video.setAttribute('muted', '');
+  }
+
   function ensureUi() {
-    const { container, capture } = getUi();
+    const { container, capture, video } = getUi();
     if (!container) return;
+    prepareVideoForSafari(video);
     const controls = capture?.parentElement;
     controls?.classList.add('camera-guide-actions');
     if (container.querySelector('.camera-guide-layer')) return;
@@ -76,6 +96,21 @@
       if (detectorMode === 'manual') capture.disabled = false;
       else capture.disabled = !canCapture;
     }
+  }
+
+  function openNativeCameraFallback(event) {
+    event?.preventDefault?.();
+    event?.stopPropagation?.();
+    stopGuide();
+    const input = document.getElementById('photoInput');
+    if (!input) return;
+    input.setAttribute('capture', 'user');
+    const clearCaptureHint = () => {
+      input.removeAttribute('capture');
+      input.removeEventListener('change', clearCaptureHint);
+    };
+    input.addEventListener('change', clearCaptureHint, { once: true });
+    input.click();
   }
 
   async function createDetector() {
@@ -216,9 +251,13 @@
 
   async function waitForVideo() {
     const { video } = getUi();
-    for (let attempt = 0; attempt < 80; attempt += 1) {
+    for (let attempt = 0; attempt < 100; attempt += 1) {
       if (!cameraOpen) return false;
-      if (video?.srcObject && video.readyState >= 2 && video.videoWidth > 0) return true;
+      if (video?.srcObject) {
+        prepareVideoForSafari(video);
+        try { await video.play(); } catch (_) {}
+        if (video.readyState >= 2 && video.videoWidth > 0) return true;
+      }
       await new Promise((resolve) => setTimeout(resolve, 50));
     }
     return false;
@@ -235,7 +274,7 @@
     container.classList.add('camera-guide-fullscreen');
     document.body.classList.add('camera-guide-open');
     if (capture) capture.disabled = true;
-    setGuide('warn', 'Opening front camera…', false);
+    setGuide('warn', isIOSLike() ? 'Opening iPhone front camera…' : 'Opening front camera…', false);
 
     if (!(await waitForVideo()) || !cameraOpen) {
       setGuide('error', 'Camera could not start. Check camera permission and try again.', false);
@@ -262,6 +301,10 @@
     ensureUi();
 
     window.startCamera = function guidedStartCamera(event) {
+      if (!canUseLiveCamera()) {
+        openNativeCameraFallback(event);
+        return;
+      }
       ensureUi();
       const { container } = getUi();
       if (container) {
@@ -300,6 +343,13 @@
     };
 
     window.addEventListener('pagehide', stopGuide);
+    window.addEventListener('orientationchange', () => {
+      if (!cameraOpen) return;
+      setTimeout(() => window.scrollTo(0, 0), 120);
+    });
+    window.visualViewport?.addEventListener('resize', () => {
+      if (cameraOpen) window.scrollTo(0, 0);
+    });
     document.addEventListener('visibilitychange', () => {
       if (!document.hidden || !cameraOpen) return;
       const { video, container } = getUi();
