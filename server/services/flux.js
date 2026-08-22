@@ -1,9 +1,16 @@
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
-const Replicate = require('replicate');
 const config = require('../config');
-const { runWithReplicateRetry } = require('./replicate-retry');
+const {
+  materialize,
+  persistTemporaryProviderFile,
+  toProviderUri,
+  deleteRef
+} = require('../storage');
+const { downloadWithRetry } = require('./download');
+const { withMediaProcessSlot } = require('./process-limit');
+const { runOfficialPrediction } = require('./replicate-prediction');
 
 const GRID_PROMPT = [
   'Using image 1 only as the identity reference, create ONE photorealistic square 2x2 contact sheet containing exactly four equal square photographs of the SAME single person.',
@@ -17,13 +24,8 @@ const GRID_PROMPT = [
   'Make all four photographs independently believable while clearly depicting the exact same person. Keep skin texture realistic and avoid beauty-filter, plastic-skin, illustration, collage-art or poster styling.'
 ].join(' ');
 
-function requireReplicate() {
-  if (!config.providers.replicateToken) throw new Error('REPLICATE_API_TOKEN is not configured.');
-  return new Replicate({ auth: config.providers.replicateToken, fileEncodingStrategy: 'upload' });
-}
-
 function runFfmpeg(args, label) {
-  return new Promise((resolve, reject) => {
+  return withMediaProcessSlot(() => new Promise((resolve, reject) => {
     const child = spawn('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', ...args], {
       windowsHide: true
     });
@@ -34,13 +36,13 @@ function runFfmpeg(args, label) {
       if (code === 0) return resolve();
       reject(new Error(`${label} failed${stderr ? `: ${stderr.trim()}` : ` with exit code ${code}`}`));
     });
-  });
+  }));
 }
 
 async function createFluxReference(sourcePath, targetPath) {
-  // FLUX pricing is driven by image megapixels, not just JPEG byte size.
-  // Keep the participant's original portrait untouched for the video provider,
-  // and create a dedicated <=1024px reference copy for FLUX only.
+  // FLUX pricing is driven by image megapixels, not JPEG byte size. Keep the
+  // original portrait for video generation and create a dedicated <=1024px
+  // reference copy only for the one FLUX profile-grid prediction.
   await runFfmpeg([
     '-i', sourcePath,
     '-vf', 'scale=min(1024\\,iw):min(1024\\,ih):force_original_aspect_ratio=decrease',
@@ -51,31 +53,17 @@ async function createFluxReference(sourcePath, targetPath) {
   return targetPath;
 }
 
+function outputUrl(output) {
+  if (typeof output === 'string') return output;
+  if (typeof output?.url === 'string') return output.url;
+  if (Array.isArray(output) && typeof output[0] === 'string') return output[0];
+  return null;
+}
+
 async function saveOutput(output, targetPath) {
-  if (!output) throw new Error('FLUX did not return an image output.');
-  let url;
-  if (typeof output === 'string') url = output;
-  else if (typeof output?.url === 'function') url = output.url();
-  else if (typeof output?.url === 'string') url = output.url;
-
-  if (url) {
-    const response = await fetch(url, { signal: AbortSignal.timeout(90_000) });
-    if (!response.ok) throw new Error(`Could not download FLUX output (${response.status}).`);
-    await fs.writeFile(targetPath, Buffer.from(await response.arrayBuffer()), { mode: 0o600 });
-    return targetPath;
-  }
-
-  if (typeof output?.arrayBuffer === 'function') {
-    await fs.writeFile(targetPath, Buffer.from(await output.arrayBuffer()), { mode: 0o600 });
-    return targetPath;
-  }
-
-  if (Buffer.isBuffer(output) || output instanceof Uint8Array) {
-    await fs.writeFile(targetPath, output, { mode: 0o600 });
-    return targetPath;
-  }
-
-  throw new Error('FLUX returned an unsupported image output shape.');
+  const url = outputUrl(output);
+  if (!url) throw new Error('FLUX did not return an image URL.');
+  return downloadWithRetry(url, targetPath, { label: 'FLUX profile grid', timeoutMs: 90_000 });
 }
 
 async function splitGrid(sheetPath, directory) {
@@ -101,7 +89,7 @@ async function splitGrid(sheetPath, directory) {
 }
 
 // Kept exported for backwards-compatible tests/helpers even though production
-// now uses one paid FLUX prediction instead of four independent predictions.
+// uses one paid FLUX prediction instead of four independent predictions.
 async function collectVariantResults(count, runVariant, onFailure = () => {}) {
   const results = [];
   for (let index = 0; index < count; index += 1) {
@@ -115,41 +103,62 @@ async function collectVariantResults(count, runVariant, onFailure = () => {}) {
 }
 
 async function generateIdentityVariants(faceFile, sessionId, options = {}) {
-  if (!config.providers.fluxEnabled) return [];
+  if (!config.providers.fluxEnabled) return { variants: [], predictionId: null, providerOutputUrl: null };
+  if (!config.providers.replicateToken) throw new Error('REPLICATE_API_TOKEN is not configured.');
 
-  const replicate = requireReplicate();
-  const directory = path.dirname(faceFile.path);
+  const directory = options.workspace || path.join(config.workRoot, sessionId);
+  await fs.mkdir(directory, { recursive: true });
+  const sourcePath = path.join(directory, 'flux-source-image');
   const referencePath = path.join(directory, 'flux-reference.jpg');
   const sheetPath = path.join(directory, 'flux-profile-grid.jpg');
+  let temporaryProviderRef = null;
 
   try {
-    await createFluxReference(faceFile.path, referencePath);
-    const reference = await fs.readFile(referencePath);
+    let input;
+    if (!options.predictionId) {
+      await materialize(faceFile.path, sourcePath);
+      await createFluxReference(sourcePath, referencePath);
+      temporaryProviderRef = await persistTemporaryProviderFile(
+        sessionId,
+        'flux-reference.jpg',
+        referencePath,
+        'image/jpeg'
+      );
+      input = {
+        prompt: GRID_PROMPT,
+        input_images: [await toProviderUri(temporaryProviderRef, 'image/jpeg')],
+        resolution: '2 MP',
+        aspect_ratio: '1:1',
+        output_format: 'jpg',
+        output_quality: 90,
+        safety_tolerance: 2,
+        prompt_upsampling: false
+      };
+    }
 
-    const output = await runWithReplicateRetry(
-      () => replicate.run(config.providers.fluxModel, {
-        input: {
-          prompt: GRID_PROMPT,
-          input_images: [reference],
-          resolution: '2 MP',
-          aspect_ratio: '1:1',
-          output_format: 'jpg',
-          output_quality: 90,
-          safety_tolerance: 2,
-          prompt_upsampling: false
-        }
-      }),
-      { label: 'FLUX 2x2 profile grid', onRateLimit: options.onRateLimit }
-    );
+    const result = await runOfficialPrediction({
+      model: config.providers.fluxModel,
+      input,
+      predictionId: options.predictionId,
+      label: 'FLUX 2x2 profile grid',
+      cancelAfter: '5m',
+      onPredictionCreated: options.onPredictionCreated,
+      onRateLimit: options.onRateLimit
+    });
 
-    await saveOutput(output, sheetPath);
-    const results = await splitGrid(sheetPath, directory);
-    console.log(`Generated one FLUX 2x2 profile grid and split it into ${results.length} images for session ${sessionId.slice(0, 8)}.`);
-    return results;
+    const url = outputUrl(result.output);
+    if (!url) throw new Error('FLUX did not return a profile-grid URL.');
+    await options.onProviderOutput?.({ predictionId: result.prediction.id, url });
+    await saveOutput(result.output, sheetPath);
+    const variants = await splitGrid(sheetPath, directory);
+    console.log(`Generated one FLUX 2x2 profile grid and split it into ${variants.length} images for session ${sessionId.slice(0, 8)}.`);
+    return { variants, predictionId: result.prediction.id, providerOutputUrl: url };
   } finally {
     await Promise.allSettled([
-      fs.unlink(referencePath),
-      fs.unlink(sheetPath)
+      fs.rm(sourcePath, { force: true }),
+      fs.rm(referencePath, { force: true }),
+      fs.rm(sheetPath, { force: true }),
+      temporaryProviderRef ? deleteRef(temporaryProviderRef) : Promise.resolve()
     ]);
   }
 }
@@ -159,5 +168,7 @@ module.exports = {
   collectVariantResults,
   createFluxReference,
   splitGrid,
+  saveOutput,
+  outputUrl,
   GRID_PROMPT
 };
