@@ -3,13 +3,24 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const config = require('./config');
 const { getRedisClient } = require('./redis-client');
-const { deleteSessionPrefix, isObjectRef } = require('./storage');
+const {
+  objectStorageConfigured,
+  putJson,
+  getJson,
+  listKeys,
+  deleteSessionPrefix,
+  isObjectRef
+} = require('./storage');
 
 const sessions = new Map();
 const KEY_PREFIX = 'deepfake:session:';
 
 function sessionKey(id) {
   return `${KEY_PREFIX}${id}`;
+}
+
+function sessionStateObjectKey(id) {
+  return `sessions/${id}/state/session.json`;
 }
 
 function buildStages() {
@@ -24,18 +35,23 @@ function buildStages() {
 async function saveSession(session) {
   session.updatedAt = Date.now();
   const redis = getRedisClient();
-  if (!redis) {
-    sessions.set(session.id, session);
+  if (redis) {
+    const key = sessionKey(session.id);
+    await redis.set(key, JSON.stringify(session));
+    if (session.expiresAt === null || session.expiresAt === undefined) {
+      await redis.persist(key);
+    } else {
+      const ttl = Math.max(1000, Number(session.expiresAt) - Date.now());
+      await redis.pexpire(key, ttl);
+    }
     return session;
   }
 
-  const key = sessionKey(session.id);
-  await redis.set(key, JSON.stringify(session));
-  if (session.expiresAt === null || session.expiresAt === undefined) {
-    await redis.persist(key);
-  } else {
-    const ttl = Math.max(1000, Number(session.expiresAt) - Date.now());
-    await redis.pexpire(key, ttl);
+  // In one-service mode the process map is only a hot cache. R2 is the durable
+  // source of truth so a Render restart can reconstruct the queue/checkpoints.
+  sessions.set(session.id, session);
+  if (objectStorageConfigured()) {
+    await putJson(sessionStateObjectKey(session.id), session);
   }
   return session;
 }
@@ -81,15 +97,58 @@ async function createSession(consents, {
 
 async function getSession(id) {
   const redis = getRedisClient();
-  if (!redis) return sessions.get(id);
-  const raw = await redis.get(sessionKey(id));
-  if (!raw) return undefined;
-  try {
-    return JSON.parse(raw);
-  } catch (error) {
-    console.warn(`[session:${id}] invalid Redis state: ${error.message}`);
-    return undefined;
+  if (redis) {
+    const raw = await redis.get(sessionKey(id));
+    if (!raw) return undefined;
+    try {
+      return JSON.parse(raw);
+    } catch (error) {
+      console.warn(`[session:${id}] invalid Redis state: ${error.message}`);
+      return undefined;
+    }
   }
+
+  const cached = sessions.get(id);
+  if (cached) return cached;
+  if (!objectStorageConfigured()) return undefined;
+
+  try {
+    const session = await getJson(sessionStateObjectKey(id));
+    if (!session || session.id !== id) return undefined;
+    sessions.set(id, session);
+    return session;
+  } catch (error) {
+    console.warn(`[session:${id}] could not restore R2 state: ${error.message}`);
+    throw error;
+  }
+}
+
+async function recoverSessionsFromObjectStorage() {
+  if (getRedisClient() || !objectStorageConfigured()) return [];
+
+  const stateKeys = (await listKeys('sessions/'))
+    .filter((key) => /^sessions\/[^/]+\/state\/session\.json$/.test(key));
+  const recovered = [];
+
+  // Avoid opening hundreds of R2 bodies simultaneously during a cold start.
+  for (let offset = 0; offset < stateKeys.length; offset += 10) {
+    const batch = stateKeys.slice(offset, offset + 10);
+    const results = await Promise.all(batch.map(async (key) => {
+      try {
+        const session = await getJson(key);
+        const match = key.match(/^sessions\/([^/]+)\/state\/session\.json$/);
+        if (!session?.id || !match || session.id !== match[1]) return null;
+        sessions.set(session.id, session);
+        return session;
+      } catch (error) {
+        console.warn(`[session-recovery:${key}] ${error.message}`);
+        return null;
+      }
+    }));
+    recovered.push(...results.filter(Boolean));
+  }
+
+  return recovered;
 }
 
 function publicSession(session) {
@@ -110,8 +169,8 @@ function updateStatus(session, status, detail = '') {
   } else if (status === 'collecting') {
     if (!session.expiresAt) session.expiresAt = Date.now() + config.retentionMs;
   } else {
-    // Queued and active AI jobs must never expire while waiting for a worker or
-    // provider. A fresh retention window starts only when they become terminal.
+    // Queued and active AI jobs must never expire while waiting for a local slot
+    // or provider. A fresh retention window starts only at a terminal state.
     session.expiresAt = null;
   }
 }
@@ -174,7 +233,7 @@ async function deleteSession(id, { cancelPredictions = true } = {}) {
   }
 
   if (redis) await redis.del(sessionKey(id));
-  else sessions.delete(id);
+  sessions.delete(id);
 
   await deleteSessionPrefix(id).catch((error) => {
     console.warn(`[session-cleanup:${id}] ${error.message}`);
@@ -182,8 +241,8 @@ async function deleteSession(id, { cancelPredictions = true } = {}) {
 }
 
 function startExpiryCleanup() {
-  // Redis-backed sessions use key TTL plus delayed BullMQ cleanup jobs. The
-  // local fallback keeps the original interval for development/single-process use.
+  // Redis-backed sessions use key TTL plus delayed BullMQ cleanup jobs. In the
+  // one-service R2 mode, recovered sessions are cached and checked here.
   if (getRedisClient()) return null;
 
   const timer = setInterval(async () => {
@@ -202,6 +261,8 @@ module.exports = {
   createSession,
   getSession,
   saveSession,
+  recoverSessionsFromObjectStorage,
+  sessionStateObjectKey,
   publicSession,
   updateStatus,
   updateProfileStatus,
