@@ -15,7 +15,7 @@ const { renderDemoPage } = require('./demo');
 const { startExpiryCleanup } = require('./store');
 const { redisConfigured, closeRedisClient } = require('./redis-client');
 const { objectStorageConfigured } = require('./storage');
-const { getQueueStats, closeQueue } = require('./queue');
+const { getQueueStats, closeQueue, recoverDurableLocalQueue } = require('./queue');
 const { mediaProcessStats } = require('./services/process-limit');
 
 const app = express();
@@ -77,9 +77,12 @@ app.get('/api/health', async (_req, res) => {
     demoInstancePath: '/demo',
     customAwarenessScripts: true,
     productionReadiness: {
+      singleServiceMode: !redisReady,
+      durableR2State: !redisReady && storageReady,
+      replicateConfigured,
+      readyForSingleServiceAi: !redisReady && storageReady && replicateConfigured,
       distributedQueue: redisReady,
       privateObjectStorage: storageReady,
-      replicateConfigured,
       signedLaunchRequired: config.requireLaunchToken,
       signedLaunchConfigured: Boolean(config.launchTokenSecret),
       readyForMultiInstanceAi: redisReady && storageReady && replicateConfigured
@@ -163,13 +166,20 @@ async function start() {
     fsp.mkdir(config.stagingRoot, { recursive: true }),
     fsp.mkdir(config.workRoot, { recursive: true })
   ]);
+
+  // In the one-Render-service deployment, the local queue is intentionally
+  // bounded but its source of truth is R2. Recover before accepting traffic so
+  // unfinished jobs cannot be forgotten by a deploy/restart.
+  const recovery = await recoverDurableLocalQueue();
+  console.log(`[startup-recovery] mode=${recovery.mode} sessions=${recovery.recoveredSessions} requeued=${recovery.requeued} blocked=${recovery.blocked} expired=${recovery.expired}`);
   startExpiryCleanup();
+
   const server = app.listen(config.port, '0.0.0.0', () => {
     console.log(`Deepfake awareness simulation listening on port ${config.port}${config.demoMode ? ' (GLOBAL DEMO_MODE)' : ''}`);
   });
 
   const shutdown = async (signal) => {
-    console.log(`Web service received ${signal}; closing queue/state connections.`);
+    console.log(`Web service received ${signal}; stopping new HTTP work. Durable queue/session checkpoints are already stored in R2.`);
     server.close();
     await closeQueue().catch(() => {});
     await closeRedisClient().catch(() => {});
