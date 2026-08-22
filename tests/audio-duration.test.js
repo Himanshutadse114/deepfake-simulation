@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { parseProbeDuration, validateDuration } = require('../server/services/audio-duration');
+const { parseProbeDuration, validateDuration, assertAudioDuration } = require('../server/services/audio-duration');
 
 test('reads duration from the container or audio stream metadata', () => {
   assert.equal(parseProbeDuration(JSON.stringify({
@@ -25,6 +25,10 @@ test('accepts audio inside the configured safety window', () => {
   assert.equal(validateDuration(11.9, { minSeconds: 3, maxSeconds: 12 }), 11.9);
 });
 
+test('participant input voice is passed through without local duration verification', async () => {
+  assert.equal(await assertAudioDuration('/file/does/not/need/to/exist.webm', { label: 'Voice sample' }), 0);
+});
+
 test('rejects unexpectedly long generated audio before video generation', () => {
   assert.throws(
     () => validateDuration(120, { label: 'Generated awareness audio', maxSeconds: 12 }),
@@ -32,7 +36,7 @@ test('rejects unexpectedly long generated audio before video generation', () => 
   );
 });
 
-test('rejects invalid or too-short audio durations', () => {
+test('rejects invalid or too-short generated audio durations', () => {
   assert.throws(() => validateDuration(Number.NaN), /could not be verified/);
   assert.throws(() => validateDuration(1, { minSeconds: 3 }), /too short/);
 });
