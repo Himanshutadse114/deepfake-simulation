@@ -2,6 +2,7 @@ const config = require('../config');
 const { runWithReplicateRetry } = require('./replicate-retry');
 
 const API = 'https://api.replicate.com/v1';
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function authHeaders(extra = {}) {
   if (!config.providers.replicateToken) throw new Error('REPLICATE_API_TOKEN is not configured.');
@@ -28,10 +29,6 @@ async function parseResponse(response, label, { creation = false } = {}) {
   error.request = { url: response.url };
   error.response = { status: response.status, headers: response.headers, url: response.url };
 
-  // A creation 429 explicitly means the creation request was throttled and is
-  // safe for the dedicated creation-rate-limit retry helper. Any other creation
-  // error is not blindly retried: a transport/proxy failure can be ambiguous as
-  // to whether the remote provider already accepted billable work.
   if (creation && response.status !== 429) {
     error.nonRetryable = true;
     error.code = 'REPLICATE_CREATE_FAILED_NO_BLIND_RETRY';
@@ -44,9 +41,6 @@ async function createOfficialPrediction(model, input, { cancelAfter = '5m' } = {
   const url = `${API}/models/${encodeURIComponent(owner)}/${encodeURIComponent(name)}/predictions`;
   let response;
   try {
-    // Use Replicate's default async mode so a prediction ID is returned as soon
-    // as the creation request is accepted. This minimizes the ambiguous window
-    // between paid-job creation and persisting the prediction ID locally.
     response = await fetch(url, {
       method: 'POST',
       headers: authHeaders({
@@ -74,16 +68,46 @@ async function getPrediction(predictionId) {
   return parseResponse(response, 'Replicate prediction lookup');
 }
 
-async function cancelPrediction(predictionId) {
-  if (!predictionId || !config.providers.replicateToken) return;
-  const response = await fetch(`${API}/predictions/${encodeURIComponent(predictionId)}/cancel`, {
-    method: 'POST',
-    headers: authHeaders(),
-    signal: AbortSignal.timeout(30_000)
-  });
-  if (!response.ok && response.status !== 409 && response.status !== 404) {
-    await parseResponse(response, 'Replicate prediction cancellation');
+function retryableReadError(error) {
+  const status = Number(error?.status || error?.response?.status || 0);
+  return !status || status === 408 || status === 425 || status === 429 || status >= 500;
+}
+
+async function getPredictionWithRetry(predictionId, { attempts = 5 } = {}) {
+  let lastError;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      return await getPrediction(predictionId);
+    } catch (error) {
+      lastError = error;
+      if (!retryableReadError(error) || attempt === attempts - 1) throw error;
+      await sleep(Math.min(20_000, 1000 * (2 ** attempt)));
+    }
   }
+  throw lastError;
+}
+
+async function cancelPrediction(predictionId, { attempts = 3 } = {}) {
+  if (!predictionId || !config.providers.replicateToken) return;
+  let lastError;
+
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      const response = await fetch(`${API}/predictions/${encodeURIComponent(predictionId)}/cancel`, {
+        method: 'POST',
+        headers: authHeaders(),
+        signal: AbortSignal.timeout(30_000)
+      });
+      if (response.ok || response.status === 409 || response.status === 404) return;
+      await parseResponse(response, 'Replicate prediction cancellation');
+      return;
+    } catch (error) {
+      lastError = error;
+      if (!retryableReadError(error) || attempt === attempts - 1) throw error;
+      await sleep(1000 * (attempt + 1));
+    }
+  }
+  if (lastError) throw lastError;
 }
 
 function terminalPredictionError(prediction, label) {
@@ -112,8 +136,8 @@ async function waitForPrediction(prediction, {
       error.predictionId = current.id;
       throw error;
     }
-    await new Promise((resolve) => setTimeout(resolve, pollMs));
-    current = await getPrediction(current.id);
+    await sleep(pollMs);
+    current = await getPredictionWithRetry(current.id);
   }
 }
 
@@ -129,7 +153,9 @@ async function runOfficialPrediction({
   let prediction;
 
   if (predictionId) {
-    prediction = await getPrediction(predictionId);
+    // GET-only resume. It is safe to retry lookup failures because no new paid
+    // prediction can be created on this path.
+    prediction = await getPredictionWithRetry(predictionId);
   } else {
     prediction = await runWithReplicateRetry(
       () => createOfficialPrediction(model, input, { cancelAfter }),
@@ -160,9 +186,11 @@ async function cancelSessionPredictions(session) {
 module.exports = {
   createOfficialPrediction,
   getPrediction,
+  getPredictionWithRetry,
   cancelPrediction,
   waitForPrediction,
   runOfficialPrediction,
   cancelSessionPredictions,
-  collectPredictionIds
+  collectPredictionIds,
+  retryableReadError
 };
