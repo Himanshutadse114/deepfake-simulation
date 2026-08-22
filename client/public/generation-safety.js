@@ -1,9 +1,12 @@
 (() => {
   let preserveFailedSession = false;
+  let installed = false;
+  let originalPoll = null;
+  let originalCleanup = null;
 
   // Platform launch tokens are consumed only by session creation. Keep the
   // token out of the visible URL after the initial page load and attach it as a
-  // request header instead of letting it leak into later asset URLs/referrers.
+  // request header instead of letting it leak into generated-asset URLs.
   const params = new URLSearchParams(location.search);
   const suppliedLaunchToken = params.get('launchToken') || params.get('launch_token') || '';
   if (suppliedLaunchToken) {
@@ -30,34 +33,6 @@
     return originalFetch(input, init);
   };
 
-  const originalPoll = window.pollGenerationUntilReady;
-  if (typeof originalPoll === 'function') {
-    window.pollGenerationUntilReady = async function safeGenerationPoll(...args) {
-      try {
-        const result = await originalPoll.apply(this, args);
-        preserveFailedSession = false;
-        return result;
-      } catch (error) {
-        // Keep the session so the server can reuse its persisted paid-prediction
-        // IDs. The normal startGeneration catch will still present the failure.
-        if (window.liveSession) preserveFailedSession = true;
-        throw error;
-      }
-    };
-  }
-
-  const originalCleanup = window.cleanupLiveSession;
-  if (typeof originalCleanup === 'function') {
-    window.cleanupLiveSession = async function costSafeCleanup(...args) {
-      if (preserveFailedSession && window.liveSession) {
-        try { window.stopGeneratedPlayback?.(); } catch (_) {}
-        try { clearTimeout(window.generationPollTimer); } catch (_) {}
-        return;
-      }
-      return originalCleanup.apply(this, args);
-    };
-  }
-
   function failureActions() {
     return document.getElementById('generationFailureActions');
   }
@@ -67,54 +42,100 @@
     if (!actions || actions.dataset.costSafeActions === 'true') return;
     actions.dataset.costSafeActions = 'true';
     actions.innerHTML = `
-      <div class="generation-safe-actions">
+      <div class="generation-safe-actions" style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center">
         <button type="button" class="primary" onclick="retryFailedGenerationSafely()">Retry safely</button>
         <button type="button" class="secondary" onclick="abandonFailedGeneration()">Back to media setup</button>
       </div>
-      <div class="tiny generation-safe-note">Safe retry resumes existing paid AI prediction IDs when possible. Starting over cancels and removes the current session.</div>
+      <div class="tiny generation-safe-note" style="margin-top:8px;text-align:center">Safe retry resumes existing paid AI prediction IDs when possible. Starting over cancels and removes the current session.</div>
     `;
   }
 
-  window.retryFailedGenerationSafely = async function retryFailedGenerationSafely() {
-    if (!window.liveSession) {
-      window.toast?.('The previous simulation session is no longer available.');
-      return;
-    }
+  function installRuntimeGuards() {
+    if (installed) return true;
+    if (typeof window.pollGenerationUntilReady !== 'function' ||
+        typeof window.cleanupLiveSession !== 'function' ||
+        typeof window.apiRequest !== 'function') return false;
 
-    const actions = failureActions();
-    if (actions) actions.style.display = 'none';
-    preserveFailedSession = true;
-    window.generationInProgress = true;
-    window.go?.('generate');
-    window.updateGenerationFromServer?.({ status: 'queued', detail: 'Resuming your existing AI generation checkpoints…' });
+    installed = true;
+    originalPoll = window.pollGenerationUntilReady;
+    originalCleanup = window.cleanupLiveSession;
 
-    try {
-      await window.apiRequest(
-        `/api/simulation/${window.liveSession.id}/retry`,
-        { method: 'POST', body: JSON.stringify({}) },
-        window.liveSession.token
-      );
-      await window.pollGenerationUntilReady();
+    window.pollGenerationUntilReady = async function safeGenerationPoll(...args) {
+      try {
+        const result = await originalPoll.apply(this, args);
+        preserveFailedSession = false;
+        return result;
+      } catch (error) {
+        // Keep the session so the server can reuse its persisted paid-prediction
+        // IDs. The normal startGeneration catch still presents the failure UI.
+        if (window.liveSession) preserveFailedSession = true;
+        throw error;
+      }
+    };
+
+    window.cleanupLiveSession = async function costSafeCleanup(...args) {
+      if (preserveFailedSession && window.liveSession) {
+        try { window.stopGeneratedPlayback?.(); } catch (_) {}
+        try { clearTimeout(window.generationPollTimer); } catch (_) {}
+        return;
+      }
+      return originalCleanup.apply(this, args);
+    };
+
+    window.retryFailedGenerationSafely = async function retryFailedGenerationSafely() {
+      if (!window.liveSession) {
+        window.toast?.('The previous simulation session is no longer available.');
+        return;
+      }
+
+      const actions = failureActions();
+      if (actions) actions.style.display = 'none';
+      preserveFailedSession = true;
+      window.generationInProgress = true;
+      window.go?.('generate');
+      window.updateGenerationFromServer?.({ status: 'queued', detail: 'Resuming your existing AI generation checkpoints…' });
+
+      try {
+        await window.apiRequest(
+          `/api/simulation/${window.liveSession.id}/retry`,
+          { method: 'POST', body: JSON.stringify({}) },
+          window.liveSession.token
+        );
+        await window.pollGenerationUntilReady();
+        preserveFailedSession = false;
+      } catch (error) {
+        window.generationInProgress = false;
+        preserveFailedSession = Boolean(window.liveSession);
+        const eta = document.getElementById('genEta');
+        if (eta) eta.textContent = error.message;
+        window.toast?.(error.message);
+        if (actions) actions.style.display = 'block';
+      }
+    };
+
+    window.abandonFailedGeneration = async function abandonFailedGeneration() {
       preserveFailedSession = false;
-    } catch (error) {
+      if (typeof originalCleanup === 'function') await originalCleanup();
       window.generationInProgress = false;
-      preserveFailedSession = Boolean(window.liveSession);
-      const eta = document.getElementById('genEta');
-      if (eta) eta.textContent = error.message;
-      window.toast?.(error.message);
-      if (actions) actions.style.display = 'block';
-    }
-  };
+      window.go?.('media');
+      window.checkMediaReady?.();
+    };
 
-  window.abandonFailedGeneration = async function abandonFailedGeneration() {
-    preserveFailedSession = false;
-    if (typeof originalCleanup === 'function') await originalCleanup();
-    window.generationInProgress = false;
-    window.go?.('media');
-    window.checkMediaReady?.();
-  };
+    installFailureActions();
+    return true;
+  }
 
-  installFailureActions();
-  const observer = new MutationObserver(installFailureActions);
-  observer.observe(document.body, { childList: true, subtree: true });
+  const observer = new MutationObserver(() => {
+    installRuntimeGuards();
+    installFailureActions();
+  });
+  observer.observe(document.documentElement, { childList: true, subtree: true });
+
+  if (!installRuntimeGuards()) {
+    let checks = 0;
+    const timer = setInterval(() => {
+      checks += 1;
+      if (installRuntimeGuards() || checks > 120) clearInterval(timer);
+    }, 100);
+  }
 })();
