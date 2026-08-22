@@ -117,7 +117,7 @@ app.get('/api/health', async (_req, res) => {
     },
     stack: {
       voice: config.providers.voiceProvider,
-      images: config.providers.fluxEnabled ? 'flux-2-pro-single-grid' : 'disabled',
+      images: config.providers.fluxEnabled ? 'flux-2-pro-3x-1mp' : 'disabled',
       video: config.providers.videoProviderPreference
     },
     providers: {
@@ -133,6 +133,8 @@ app.get('/api/health', async (_req, res) => {
     qwenModel: config.providers.qwenModel,
     qwenLanguage: config.providers.qwenLanguage,
     fluxEnabled: config.providers.fluxEnabled,
+    fluxProfileImages: config.providers.fluxProfileImages,
+    fluxProfileResolution: config.providers.fluxProfileResolution,
     fluxGridImages: config.providers.fluxGridImages,
     videoProviderPreference: config.providers.videoProviderPreference
   });
