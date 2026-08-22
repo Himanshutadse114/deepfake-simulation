@@ -75,7 +75,10 @@ module.exports = {
 
     fluxEnabled: String(process.env.FLUX_ENABLED || 'true').toLowerCase() !== 'false',
     fluxModel: process.env.FLUX_MODEL || 'black-forest-labs/flux-2-pro',
-    fluxGridImages: 4,
+    fluxProfileImages: 3,
+    fluxProfileResolution: '1 MP',
+    // Backwards-compatible health/config field kept for older clients.
+    fluxGridImages: 3,
 
     didKey: process.env.DID_API_KEY || '',
     didEnabled: String(process.env.DID_ADAPTER_ENABLED || 'false').toLowerCase() !== 'false',
