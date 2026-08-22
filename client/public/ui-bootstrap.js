@@ -77,6 +77,7 @@
     await loadScript('/editorial-cta-fix.js?v=1');
     await loadScript('/final-flow-polish.js?v=2');
     await loadScript('/wa-call-ringtone.js?v=1');
+    await loadScript('/camera-face-guide.js?v=1');
     const enforceScreenVisibility=(name)=>{
       document.querySelectorAll('.screen').forEach(screen=>{
         const active=screen.dataset.screen===name;
