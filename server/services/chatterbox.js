@@ -3,7 +3,10 @@ const path = require('node:path');
 const { spawn } = require('node:child_process');
 const Replicate = require('replicate');
 const config = require('../config');
+const { isObjectRef, materialize } = require('../storage');
 const { runWithReplicateRetry } = require('./replicate-retry');
+const { downloadWithRetry } = require('./download');
+const { withMediaProcessSlot } = require('./process-limit');
 
 function requireReplicate() {
   if (!config.providers.replicateToken) throw new Error('REPLICATE_API_TOKEN is not configured.');
@@ -11,13 +14,13 @@ function requireReplicate() {
 }
 
 function runFfmpeg(args) {
-  return new Promise((resolve, reject) => {
+  return withMediaProcessSlot(() => new Promise((resolve, reject) => {
     const child = spawn('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', ...args]);
     let stderr = '';
     child.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
     child.on('error', reject);
     child.on('close', (code) => code === 0 ? resolve() : reject(new Error(stderr || `FFmpeg failed (${code}).`)));
-  });
+  }));
 }
 
 function splitScript(text, max = 280) {
@@ -43,10 +46,13 @@ async function normalizeReferenceAudio(inputPath, outputPath) {
 
 async function saveReplicateOutput(output, targetPath) {
   if (!output) throw new Error('Replicate did not return audio output.');
-  if (typeof output === 'string') {
-    const response = await fetch(output, { signal: AbortSignal.timeout(60_000) });
-    if (!response.ok) throw new Error(`Could not download Chatterbox output (${response.status}).`);
-    await fs.writeFile(targetPath, Buffer.from(await response.arrayBuffer()), { mode: 0o600 });
+  const url = typeof output === 'string' ? output : typeof output?.url === 'string' ? output.url : null;
+  if (url) {
+    await downloadWithRetry(url, targetPath, { label: 'Chatterbox output', timeoutMs: 60_000 });
+    return;
+  }
+  if (typeof output?.arrayBuffer === 'function') {
+    await fs.writeFile(targetPath, Buffer.from(await output.arrayBuffer()), { mode: 0o600 });
     return;
   }
   await fs.writeFile(targetPath, output, { mode: 0o600 });
@@ -56,12 +62,17 @@ async function synthesizeFixedScript(voiceFile, outputPath, text = config.awaren
   const replicate = requireReplicate();
   const directory = path.dirname(outputPath);
   const referencePath = path.join(directory, `reference-${path.basename(outputPath)}.wav`);
-  await normalizeReferenceAudio(voiceFile.path, referencePath);
+  const sourcePath = path.join(directory, `chatterbox-source-${path.basename(outputPath)}`);
+  const needsMaterialize = isObjectRef(voiceFile.path) || /^https?:\/\//i.test(String(voiceFile.path || ''));
+  const localVoicePath = needsMaterialize ? await materialize(voiceFile.path, sourcePath) : voiceFile.path;
+  await normalizeReferenceAudio(localVoicePath, referencePath);
   const reference = await fs.readFile(referencePath);
   const chunks = splitScript(text || config.awarenessScript);
   const partPaths = [];
 
   try {
+    // Admin scripts are capped at 180 chars in production, so the active policy
+    // normally produces exactly one paid Chatterbox prediction per audio track.
     for (let index = 0; index < chunks.length; index += 1) {
       const output = await runWithReplicateRetry(
         () => replicate.run(config.providers.chatterboxModel, {
@@ -91,7 +102,11 @@ async function synthesizeFixedScript(voiceFile, outputPath, text = config.awaren
     }
     return outputPath;
   } finally {
-    await Promise.allSettled([fs.rm(referencePath, { force: true }), ...partPaths.map((file) => fs.rm(file, { force: true }))]);
+    await Promise.allSettled([
+      fs.rm(referencePath, { force: true }),
+      needsMaterialize ? fs.rm(sourcePath, { force: true }) : Promise.resolve(),
+      ...partPaths.map((file) => fs.rm(file, { force: true }))
+    ]);
   }
 }
 
