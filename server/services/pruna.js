@@ -1,35 +1,45 @@
-const fs = require('node:fs/promises');
-const Replicate = require('replicate');
 const config = require('../config');
-const { runWithReplicateRetry } = require('./replicate-retry');
+const { toProviderUri } = require('../storage');
+const { runOfficialPrediction } = require('./replicate-prediction');
 
-function requireReplicate() {
+function outputUrl(output) {
+  if (typeof output === 'string') return output;
+  if (typeof output?.url === 'string') return output.url;
+  if (Array.isArray(output) && typeof output[0] === 'string') return output[0];
+  return null;
+}
+
+async function generateAvatarVideo(faceFile, speechRef, options = {}) {
   if (!config.providers.replicateToken) throw new Error('REPLICATE_API_TOKEN is not configured.');
-  return new Replicate({ auth: config.providers.replicateToken, fileEncodingStrategy: 'upload' });
-}
 
-async function generateAvatarVideo(faceFile, speechPath, options = {}) {
-  const replicate = requireReplicate();
-  const [image, audio] = await Promise.all([
-    fs.readFile(faceFile.path),
-    fs.readFile(speechPath)
-  ]);
+  let input;
+  if (!options.predictionId) {
+    const [image, audio] = await Promise.all([
+      toProviderUri(faceFile.path, faceFile.mime || 'image/jpeg'),
+      toProviderUri(speechRef, 'audio/wav')
+    ]);
+    input = {
+      image,
+      audio,
+      resolution: config.providers.prunaResolution,
+      disable_safety_filter: false
+    };
+  }
 
-  const output = await runWithReplicateRetry(
-    () => replicate.run(config.providers.prunaModel, {
-      input: {
-        image,
-        audio,
-        resolution: config.providers.prunaResolution,
-        disable_safety_filter: false
-      }
-    }),
-    { label: 'Pruna avatar video', onRateLimit: options.onRateLimit }
-  );
+  const result = await runOfficialPrediction({
+    model: config.providers.prunaModel,
+    input,
+    predictionId: options.predictionId,
+    label: 'Pruna avatar video',
+    cancelAfter: '5m',
+    onPredictionCreated: options.onPredictionCreated,
+    onRateLimit: options.onRateLimit
+  });
 
-  const url = typeof output === 'string' ? output : typeof output?.url === 'function' ? output.url() : output?.url;
+  const url = outputUrl(result.output);
   if (!url) throw new Error('Pruna did not return a video URL.');
-  return { provider: 'pruna', url };
+  await options.onProviderOutput?.({ predictionId: result.prediction.id, url });
+  return { provider: 'pruna', url, predictionId: result.prediction.id };
 }
 
-module.exports = { generateAvatarVideo };
+module.exports = { generateAvatarVideo, outputUrl };
