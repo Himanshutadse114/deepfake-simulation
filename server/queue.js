@@ -18,10 +18,11 @@ function queueMode() {
 }
 
 function assertDistributedStorageReady() {
-  if (redisConfigured() && !objectStorageConfigured()) {
-    const error = new Error('Distributed generation is configured, but private shared object storage is not. Configure the S3-compatible media settings before paid AI work is allowed.');
+  const productionNeedsDurability = String(process.env.NODE_ENV || '').toLowerCase() === 'production';
+  if ((redisConfigured() || productionNeedsDurability) && !objectStorageConfigured()) {
+    const error = new Error('Paid AI generation is blocked because private durable object storage is not configured. Configure the Cloudflare R2/S3 environment variables before starting production AI work.');
     error.status = 503;
-    error.code = 'SHARED_OBJECT_STORAGE_REQUIRED';
+    error.code = 'DURABLE_OBJECT_STORAGE_REQUIRED';
     throw error;
   }
 }
@@ -73,8 +74,7 @@ async function processLocalQueue() {
           const session = await getSession(job.data.sessionId);
           if (session) await generateSimulation(session);
         } else if (job.name === 'cleanup') {
-          const { deleteSession } = require('./store');
-          await deleteSession(job.data.sessionId, { cancelPredictions: false });
+          await handleCleanupJob(job.data.sessionId);
         }
       } catch (error) {
         console.warn(`[local-queue:${job.name}] ${error.stack || error.message}`);
@@ -93,6 +93,7 @@ async function processLocalQueue() {
 }
 
 async function enqueueGeneration(session) {
+  assertDistributedStorageReady();
   const attempt = Math.max(1, Number(session.queueAttempt || 1));
   const id = `simulation-${session.id}-${attempt}`;
 
@@ -110,7 +111,6 @@ async function enqueueGeneration(session) {
     return { id, mode: queueMode() };
   }
 
-  assertDistributedStorageReady();
   const q = getQueue();
   const counts = await q.getJobCounts('waiting', 'active', 'delayed', 'prioritized');
   const total = Object.values(counts).reduce((sum, value) => sum + Number(value || 0), 0);
@@ -283,7 +283,7 @@ function startGenerationWorker() {
     }
   }, {
     connection: workerConnection,
-    concurrency: Math.max(1, Number(config.aiWorkerConcurrency || 5)),
+    concurrency: Math.max(1, Number(config.aiWorkerConcurrency || 4)),
     maxStalledCount: 1,
     lockDuration: 5 * 60_000
   });
