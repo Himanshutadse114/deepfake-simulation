@@ -1,11 +1,4 @@
 services:
-  - type: keyvalue
-    name: innvikta-deepfake-queue
-    plan: starter
-    ipAllowList: []
-    maxmemoryPolicy: noeviction
-    persistenceMode: journal-snapshot
-
   - type: web
     name: innvikta-deepfake-awareness
     runtime: docker
@@ -22,21 +15,19 @@ services:
         value: "false"
       - key: ADMIN_KEY
         sync: false
-      - key: REDIS_URL
-        fromService:
-          type: keyvalue
-          name: innvikta-deepfake-queue
-          property: connectionString
       - key: REPLICATE_API_TOKEN
         sync: false
       - key: LAUNCH_TOKEN_SECRET
         sync: false
       - key: REQUIRE_LAUNCH_TOKEN
         value: "false"
+
+      # Cloudflare R2 / S3-compatible private storage. In single-service mode R2
+      # stores both media and durable session/queue checkpoints across deploys.
       - key: S3_BUCKET
         sync: false
       - key: S3_REGION
-        sync: false
+        value: auto
       - key: S3_ENDPOINT
         sync: false
       - key: S3_ACCESS_KEY_ID
@@ -45,20 +36,22 @@ services:
         sync: false
       - key: S3_FORCE_PATH_STYLE
         value: "false"
-      - key: AI_QUEUE_NAME
-        value: deepfake-simulation-generation
+
+      # One Render process accepts many learners but runs only four paid AI
+      # pipelines and two FFmpeg/ffprobe processes simultaneously.
       - key: AI_WORKER_CONCURRENCY
-        value: 5
+        value: 4
       - key: FFMPEG_CONCURRENCY
         value: 2
       - key: AI_MAX_QUEUED_JOBS
-        value: 500
+        value: 250
       - key: AI_DAILY_BUDGET_USD
         value: 50
       - key: ESTIMATED_SIMULATION_COST_USD
         value: 0.35
       - key: ALLOW_PAID_VIDEO_FALLBACK
         value: "false"
+
       - key: SCRIPT_MIN_CHARS
         value: 20
       - key: SCRIPT_MAX_CHARS
@@ -67,6 +60,7 @@ services:
         value: "true"
       - key: SCRIPT_REQUIRE_AWARENESS_CONTEXT
         value: "false"
+
       - key: VOICE_PROVIDER
         value: qwen
       - key: QWEN_MODEL
@@ -75,10 +69,12 @@ services:
         value: auto
       - key: MAX_VIDEO_SECONDS
         value: 10
+
       - key: FLUX_ENABLED
         value: "true"
       - key: FLUX_MODEL
         value: black-forest-labs/flux-2-pro
+
       - key: VIDEO_PROVIDER_PREFERENCE
         value: pruna
       - key: PRUNA_MODEL
@@ -89,6 +85,7 @@ services:
         value: "false"
       - key: HEYGEN_ADAPTER_ENABLED
         value: "false"
+
       - key: MAX_IMAGE_SIZE_MB
         value: 8
       - key: MAX_AUDIO_SIZE_MB
@@ -99,80 +96,3 @@ services:
         value: 250
       - key: RATE_LIMIT_WINDOW_MINUTES
         value: 15
-
-  - type: worker
-    name: innvikta-deepfake-generation-worker
-    runtime: docker
-    plan: standard
-    dockerfilePath: ./Dockerfile
-    dockerCommand: node server/worker.js
-    autoDeployTrigger: checksPass
-    maxShutdownDelaySeconds: 300
-    envVars:
-      - key: NODE_ENV
-        value: production
-      - key: REDIS_URL
-        fromService:
-          type: keyvalue
-          name: innvikta-deepfake-queue
-          property: connectionString
-      - key: REPLICATE_API_TOKEN
-        sync: false
-      - key: S3_BUCKET
-        sync: false
-      - key: S3_REGION
-        sync: false
-      - key: S3_ENDPOINT
-        sync: false
-      - key: S3_ACCESS_KEY_ID
-        sync: false
-      - key: S3_SECRET_ACCESS_KEY
-        sync: false
-      - key: S3_FORCE_PATH_STYLE
-        value: "false"
-      - key: AI_QUEUE_NAME
-        value: deepfake-simulation-generation
-      - key: AI_WORKER_CONCURRENCY
-        value: 5
-      - key: FFMPEG_CONCURRENCY
-        value: 2
-      - key: AI_MAX_QUEUED_JOBS
-        value: 500
-      - key: AI_DAILY_BUDGET_USD
-        value: 50
-      - key: ESTIMATED_SIMULATION_COST_USD
-        value: 0.35
-      - key: ALLOW_PAID_VIDEO_FALLBACK
-        value: "false"
-      - key: SCRIPT_MIN_CHARS
-        value: 20
-      - key: SCRIPT_MAX_CHARS
-        value: 180
-      - key: SCRIPT_BLOCK_URLS
-        value: "true"
-      - key: SCRIPT_REQUIRE_AWARENESS_CONTEXT
-        value: "false"
-      - key: VOICE_PROVIDER
-        value: qwen
-      - key: QWEN_MODEL
-        value: qwen/qwen3-tts
-      - key: QWEN_LANGUAGE
-        value: auto
-      - key: MAX_VIDEO_SECONDS
-        value: 10
-      - key: FLUX_ENABLED
-        value: "true"
-      - key: FLUX_MODEL
-        value: black-forest-labs/flux-2-pro
-      - key: VIDEO_PROVIDER_PREFERENCE
-        value: pruna
-      - key: PRUNA_MODEL
-        value: prunaai/p-video-avatar
-      - key: PRUNA_RESOLUTION
-        value: 720p
-      - key: DID_ADAPTER_ENABLED
-        value: "false"
-      - key: HEYGEN_ADAPTER_ENABLED
-        value: "false"
-      - key: MEDIA_RETENTION_MINUTES
-        value: 30
