@@ -26,6 +26,18 @@ function cleanName(value, fallback) {
   return text || fallback;
 }
 
+function unsafePaidRetryReason(session) {
+  for (const [stageName, stage] of Object.entries(session?.stages || {})) {
+    if (!stage) continue;
+    if (stage.status === 'provider_failed') return `${stageName} ended in a terminal provider failure.`;
+    if (stage.status === 'creation_ambiguous') return `${stageName} may already have been purchased, but its prediction ID could not be confirmed.`;
+    if (stage.status === 'creation_started' && !stage.predictionId) {
+      return `${stageName} crossed the paid-creation boundary without a persisted prediction ID.`;
+    }
+  }
+  return null;
+}
+
 async function loadAuthorisedSession(req, res, next) {
   try {
     const session = await getSession(req.params.id);
@@ -133,10 +145,10 @@ router.post('/:id/retry', loadAuthorisedSession, async (req, res, next) => {
       return res.status(409).json({ error: 'The original consented media is no longer available for a safe retry.' });
     }
 
-    const providerFailed = Object.values(session.stages || {}).some((stage) => stage?.status === 'provider_failed');
-    if (providerFailed) {
+    const unsafeReason = unsafePaidRetryReason(session);
+    if (unsafeReason) {
       return res.status(409).json({
-        error: 'A provider returned a terminal failure. Automatic retry is blocked because it would require purchasing a new AI prediction. Start a new simulation only if you intentionally want another paid attempt.',
+        error: `Safe retry is blocked because it could create a duplicate paid prediction. ${unsafeReason} Start a new simulation only if you intentionally want another paid attempt.`,
         code: 'NEW_PAID_ATTEMPT_REQUIRED'
       });
     }
