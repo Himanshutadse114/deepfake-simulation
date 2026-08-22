@@ -3,9 +3,11 @@ const path = require('node:path');
 const config = require('./config');
 const { validateScriptPair } = require('./script-policy');
 const { getRedisClient } = require('./redis-client');
+const { objectStorageConfigured, getJson, putJson } = require('./storage');
 
 const settingsPath = path.join(config.uploadRoot, 'admin-scripts.json');
 const REDIS_KEY = 'deepfake:admin-scripts';
+const R2_KEY = 'control/admin-scripts.json';
 
 const defaultScripts = () => validateScriptPair({
   whatsapp: process.env.WHATSAPP_AUDIO_SCRIPT || 'This is an AI voice-clone awareness demo. A familiar voice can be faked, so verify unusual requests through a trusted channel before you act.',
@@ -32,6 +34,15 @@ async function readSaved() {
     }
   }
 
+  if (!redis && objectStorageConfigured()) {
+    try {
+      const parsed = await getJson(R2_KEY);
+      return parsed ? normalizePayload(parsed) : null;
+    } catch (error) {
+      console.warn(`[admin-settings:r2] ${error.message}`);
+    }
+  }
+
   try {
     const raw = await fs.readFile(settingsPath, 'utf8');
     return normalizePayload(JSON.parse(raw));
@@ -43,9 +54,6 @@ async function readSaved() {
 }
 
 async function getActiveScripts() {
-  // In distributed mode Redis is the source of truth. Avoid a permanent
-  // process-local cache so changes made through one web instance are immediately
-  // visible to sessions created through another instance.
   if (!getRedisClient() && cached) {
     return { scripts: { ...cached.scripts }, updatedAt: cached.updatedAt };
   }
@@ -62,6 +70,9 @@ async function saveActiveScripts(input) {
 
   if (redis) {
     await redis.set(REDIS_KEY, JSON.stringify(payload));
+  } else if (objectStorageConfigured()) {
+    await putJson(R2_KEY, payload);
+    cached = payload;
   } else {
     await fs.mkdir(config.uploadRoot, { recursive: true });
     const temp = `${settingsPath}.tmp`;
