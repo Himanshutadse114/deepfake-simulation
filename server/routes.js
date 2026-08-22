@@ -16,6 +16,7 @@ const { reserveEstimatedCost, reserveLaunchEntitlement } = require('./cost-guard
 const { enqueueGeneration, scheduleSessionCleanup } = require('./queue');
 
 const router = express.Router();
+const generationAdmissions = new Set();
 
 function allConsents(consents) {
   return consents?.faceOwnership === true && consents?.voiceOwnership === true && consents?.processing === true;
@@ -108,6 +109,11 @@ router.post('/:id/voice', loadAuthorisedSession, upload.single('voice'), async (
 
 router.post('/:id/generate', loadAuthorisedSession, async (req, res, next) => {
   const session = req.simulation;
+  if (generationAdmissions.has(session.id)) {
+    return res.status(409).json({ error: 'Generation admission is already in progress for this session.' });
+  }
+  generationAdmissions.add(session.id);
+
   try {
     if (session.status !== 'collecting') return res.status(409).json({ error: `Simulation is already ${session.status}.` });
     if (!session.face?.path || !session.voice?.path) return res.status(400).json({ error: 'Upload both a validated face image and a voice sample first.' });
@@ -134,7 +140,11 @@ router.post('/:id/generate', loadAuthorisedSession, async (req, res, next) => {
       await saveSession(session);
       throw error;
     }
-  } catch (error) { next(error); }
+  } catch (error) {
+    next(error);
+  } finally {
+    generationAdmissions.delete(session.id);
+  }
 });
 
 router.post('/:id/retry', loadAuthorisedSession, async (req, res, next) => {
@@ -238,6 +248,7 @@ router.get('/:id/variant/:index', loadAuthorisedSession, async (req, res, next) 
 
 router.delete('/:id', loadAuthorisedSession, async (req, res, next) => {
   try {
+    generationAdmissions.delete(req.simulation.id);
     await deleteSession(req.simulation.id, { cancelPredictions: true });
     res.json({ ok: true });
   } catch (error) { next(error); }
