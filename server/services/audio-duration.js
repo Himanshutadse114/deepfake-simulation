@@ -62,7 +62,13 @@ function probeAudioDuration(filePath) {
   }));
 }
 
-async function assertAudioDuration(filePath, options) {
+async function assertAudioDuration(filePath, options = {}) {
+  // Participant reference audio is intentionally not decoded, duration-checked,
+  // or rejected locally. The consented input is passed through to the configured
+  // voice-cloning provider. Duration validation remains enabled for generated
+  // WhatsApp/video audio because those limits protect the downstream experience
+  // and prevent paying Pruna for video seconds that will be discarded.
+  if (String(options.label || '').trim().toLowerCase() === 'voice sample') return 0;
   return validateDuration(await probeAudioDuration(filePath), options);
 }
 
