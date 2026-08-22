@@ -4,9 +4,15 @@ let active = 0;
 const waiters = [];
 
 function release() {
-  active = Math.max(0, active - 1);
   const next = waiters.shift();
-  if (next) next();
+  if (next) {
+    // Transfer this exact occupied slot to the oldest waiter. Keep `active`
+    // unchanged so a newly arriving task cannot steal the slot between the
+    // release and the queued waiter's microtask resuming.
+    next();
+    return;
+  }
+  active = Math.max(0, active - 1);
 }
 
 async function acquire() {
@@ -16,8 +22,9 @@ async function acquire() {
     return release;
   }
 
+  // The releaser transfers an already-counted active slot to us, so do not
+  // increment `active` again after waking.
   await new Promise((resolve) => waiters.push(resolve));
-  active += 1;
   return release;
 }
 
