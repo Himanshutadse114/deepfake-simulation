@@ -62,6 +62,8 @@ jobs:
           node --check client/public/wa-replay-reset.js
           node --check client/public/wa-call-ringtone.js
           node --check client/public/editorial-scroll-reset.js
+          node --check client/public/camera-face-guide.js
+          node --check client/scripts/prepare-face-detector-assets.mjs
           node --check client/public/experience-polish.js
       - name: Build client
         run: npm --prefix client run build
