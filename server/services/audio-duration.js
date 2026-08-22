@@ -1,4 +1,5 @@
 const { execFile } = require('node:child_process');
+const { withMediaProcessSlot } = require('./process-limit');
 
 function validateDuration(duration, { label = 'Audio', minSeconds = 0.5, maxSeconds = 12 } = {}) {
   const seconds = Number(duration);
@@ -41,12 +42,11 @@ function parseProbeDuration(output) {
     if (Number.isFinite(durationTicks) && Number.isFinite(timeBase)) add(durationTicks * timeBase);
   }
 
-  // Use the longest trustworthy value so the provider safety limit remains conservative.
   return candidates.length ? Math.max(...candidates) : Number.NaN;
 }
 
 function probeAudioDuration(filePath) {
-  return new Promise((resolve, reject) => {
+  return withMediaProcessSlot(() => new Promise((resolve, reject) => {
     execFile('ffprobe', [
       '-v', 'error',
       '-show_entries', 'format=duration:stream=codec_type,duration,duration_ts,time_base',
@@ -59,7 +59,7 @@ function probeAudioDuration(filePath) {
       }
       resolve(parseProbeDuration(String(stdout)));
     });
-  });
+  }));
 }
 
 async function assertAudioDuration(filePath, options) {
