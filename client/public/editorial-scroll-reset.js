@@ -2,49 +2,34 @@
   const screen = document.querySelector('.screen[data-screen="unifiedLearn"]');
   if (!screen || screen.dataset.editorialScrollResetReady === 'true') return;
   screen.dataset.editorialScrollResetReady = 'true';
+  const mobileQuery = window.matchMedia('(max-width: 900px)');
 
   function resetNewspaperToTop() {
+    if (!mobileQuery.matches) return;
     const activePage = screen.querySelector('[data-editorial-page].active');
-    const targets = [
-      screen,
-      screen.querySelector('.screen-inner'),
-      screen.querySelector('.editorial-news'),
-      screen.querySelector('.editorial-pages'),
-      activePage,
-      document.scrollingElement
-    ].filter(Boolean);
-
-    for (const target of targets) {
+    const targets = [screen, screen.querySelector('.screen-inner'), screen.querySelector('.editorial-news'), screen.querySelector('.editorial-pages'), activePage, document.scrollingElement].filter(Boolean);
+    targets.forEach((target) => {
       try {
         if (typeof target.scrollTo === 'function') target.scrollTo({ top: 0, left: 0, behavior: 'auto' });
         else target.scrollTop = 0;
-      } catch (_) {
-        target.scrollTop = 0;
-      }
-    }
-
-    // Some mobile browsers keep the document viewport independent from the
-    // inner screen scroller, so reset both after the newly active page paints.
+      } catch (_) { target.scrollTop = 0; }
+    });
     try { window.scrollTo({ top: 0, left: 0, behavior: 'auto' }); } catch (_) { window.scrollTo(0, 0); }
   }
 
   function resetAfterNavigation() {
+    if (!mobileQuery.matches) return;
     requestAnimationFrame(() => requestAnimationFrame(resetNewspaperToTop));
   }
 
-  const prev = screen.querySelector('#editorialPrev');
-  const next = screen.querySelector('#editorialNext');
-  prev?.addEventListener('click', resetAfterNavigation, { capture: true });
-  next?.addEventListener('click', resetAfterNavigation, { capture: true });
+  screen.querySelector('#editorialPrev')?.addEventListener('click', resetAfterNavigation);
+  screen.querySelector('#editorialNext')?.addEventListener('click', resetAfterNavigation);
 
-  // Also cover keyboard/programmatic page changes by watching which newspaper
-  // page becomes active instead of relying only on the navigation buttons.
   const pages = [...screen.querySelectorAll('[data-editorial-page]')];
   if (pages.length) {
     const observer = new MutationObserver((mutations) => {
-      if (mutations.some((mutation) => mutation.attributeName === 'class' && mutation.target.classList.contains('active'))) {
-        resetAfterNavigation();
-      }
+      if (!mobileQuery.matches) return;
+      if (mutations.some((mutation) => mutation.attributeName === 'class' && mutation.target.classList.contains('active'))) resetAfterNavigation();
     });
     pages.forEach((page) => observer.observe(page, { attributes: true, attributeFilter: ['class'] }));
   }
