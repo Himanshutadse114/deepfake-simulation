@@ -24,6 +24,15 @@ function getQueue() {
   return queue;
 }
 
+async function markFinalWorkerFailure(sessionId, error) {
+  const { getSession, updateStatus, saveSession } = require('./store');
+  const session = await getSession(sessionId);
+  if (!session || session.status === 'completed' || session.status === 'failed') return;
+  updateStatus(session, 'failed', error?.message || 'Generation worker failed after retrying safely.');
+  await saveSession(session);
+  await scheduleSessionCleanup(session.id, config.retentionMs).catch(() => {});
+}
+
 async function processLocalQueue() {
   const limit = Math.max(1, Number(config.aiWorkerConcurrency || 5));
   while (localActive < limit && localJobs.length) {
@@ -42,6 +51,11 @@ async function processLocalQueue() {
         }
       } catch (error) {
         console.warn(`[local-queue:${job.name}] ${error.stack || error.message}`);
+        if (job.name === 'generate') {
+          await markFinalWorkerFailure(job.data.sessionId, error).catch((cause) => {
+            console.warn(`[local-queue-failure:${job.data.sessionId}] ${cause.message}`);
+          });
+        }
       } finally {
         localActive = Math.max(0, localActive - 1);
         localJobIds.delete(job.id);
@@ -155,15 +169,6 @@ async function handleCleanupJob(sessionId) {
     return;
   }
   await deleteSession(sessionId, { cancelPredictions: false });
-}
-
-async function markFinalWorkerFailure(sessionId, error) {
-  const { getSession, updateStatus, saveSession } = require('./store');
-  const session = await getSession(sessionId);
-  if (!session || session.status === 'completed' || session.status === 'failed') return;
-  updateStatus(session, 'failed', error?.message || 'Generation worker failed after retrying safely.');
-  await saveSession(session);
-  await scheduleSessionCleanup(session.id, config.retentionMs).catch(() => {});
 }
 
 function startGenerationWorker() {
