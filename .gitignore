@@ -3,6 +3,7 @@ client/dist/
 client/public/ui.html
 client/public/ui.css
 client/public/ui.js
+client/public/vendor/mediapipe/
 .env
 uploads/*
 !uploads/.gitkeep
