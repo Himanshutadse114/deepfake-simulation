@@ -30,11 +30,13 @@ function unsafePaidRetryReason(session) {
   for (const [stageName, stage] of Object.entries(session?.stages || {})) {
     if (!stage) continue;
     if (stage.status === 'provider_failed') return `${stageName} ended in a terminal provider failure.`;
+    if (stage.status === 'validation_failed') return `${stageName} produced output that failed the local safety/quality validation.`;
     if (stage.status === 'creation_ambiguous') return `${stageName} may already have been purchased, but its prediction ID could not be confirmed.`;
     if (stage.status === 'creation_started' && !stage.predictionId) {
       return `${stageName} crossed the paid-creation boundary without a persisted prediction ID.`;
     }
   }
+  if (session?.voicePreflight?.status === 'failed') return 'The participant voice sample failed local validation before paid AI work.';
   return null;
 }
 
@@ -148,7 +150,7 @@ router.post('/:id/retry', loadAuthorisedSession, async (req, res, next) => {
     const unsafeReason = unsafePaidRetryReason(session);
     if (unsafeReason) {
       return res.status(409).json({
-        error: `Safe retry is blocked because it could create a duplicate paid prediction. ${unsafeReason} Start a new simulation only if you intentionally want another paid attempt.`,
+        error: `Safe retry is blocked because the existing attempt cannot be resumed into a valid result without an intentional new attempt. ${unsafeReason}`,
         code: 'NEW_PAID_ATTEMPT_REQUIRED'
       });
     }
