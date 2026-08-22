@@ -41,6 +41,7 @@ async function synthesizeScript(voiceFile, outputPath, referenceText = '', text 
     };
     const transcript = String(referenceText || '').trim();
     if (transcript) input.reference_text = transcript.slice(0, 1200);
+    await options.onBeforePredictionCreate?.();
   }
 
   const result = await runOfficialPrediction({
