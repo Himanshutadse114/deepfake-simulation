@@ -15,13 +15,16 @@ const { runOfficialPrediction } = require('./replicate-prediction');
 const GRID_PROMPT = [
   'Using image 1 only as the identity reference, create ONE photorealistic square 2x2 contact sheet containing exactly four equal square photographs of the SAME single person.',
   'Identity consistency is the highest priority: preserve the same distinctive facial features, facial proportions, approximate age, skin tone, hairstyle, hair colour, eye shape and overall appearance in every panel.',
+  'IMPORTANT POSE DIVERSITY: do not copy or repeat the head pose from the reference image across the grid. The four panels must have clearly different head orientations and camera viewpoints while still looking like the exact same person.',
+  'Avoid four similar side profiles. At least one panel must show the face nearly straight-on, one must show a natural three-quarter-left view, one must show a natural three-quarter-right view, and one must use a slightly elevated or arm-length selfie viewpoint with the face turned only slightly. Keep both eyes reasonably visible in at least three panels; avoid extreme profile views.',
   'Each panel must contain exactly one person, framed as a believable social-media photo. Do not create extra people, duplicate faces inside a panel, text, captions, labels, logos, watermarks, documents, badges or props that imply credentials or money.',
   'Use a clean edge-to-edge 2x2 layout with four equal panels, aligned precisely in two rows and two columns. No gutters, no borders, no rounded cards, no separators, no decorative frame and no overlap between panels.',
-  'TOP LEFT: modern office or coworking space, three-quarter left camera angle, natural expression, soft daylight, casual-professional clothing, realistic smartphone photography.',
-  'TOP RIGHT: bright cafe, three-quarter right camera angle, natural expression, warm window light, everyday clothing, realistic smartphone photography.',
-  'BOTTOM LEFT: generic city promenade or public plaza, front-facing to slight angle, natural daylight, relaxed expression, realistic smartphone photography, no recognisable landmark.',
-  'BOTTOM RIGHT: green park or neutral outdoor setting, slightly wider waist-up framing, soft late-afternoon light, natural expression, realistic smartphone photography.',
-  'Make all four photographs independently believable while clearly depicting the exact same person. Keep skin texture realistic and avoid beauty-filter, plastic-skin, illustration, collage-art or poster styling.'
+  'TOP LEFT: modern office or coworking space, NEARLY FRONT-FACING head and shoulders, eyes toward the camera, natural expression, soft daylight, casual-professional clothing, realistic smartphone photography.',
+  'TOP RIGHT: bright cafe, clear THREE-QUARTER RIGHT head turn, eyes naturally toward or just past the camera, warm window light, everyday clothing, realistic smartphone photography.',
+  'BOTTOM LEFT: generic city promenade or public plaza, clear THREE-QUARTER LEFT head turn, natural daylight, relaxed expression, realistic smartphone photography, no recognisable landmark.',
+  'BOTTOM RIGHT: green park or neutral outdoor setting, ARM-LENGTH SELFIE or slightly elevated camera angle, face only slightly turned, both eyes visible, slightly wider waist-up framing, soft late-afternoon light, natural expression, realistic smartphone photography.',
+  'Vary head direction, camera height, crop, shoulder orientation and expression subtly between all four photographs. Do not mirror or duplicate the same pose. Make all four photographs independently believable while clearly depicting the exact same person.',
+  'Keep skin texture realistic and avoid beauty-filter, plastic-skin, illustration, collage-art or poster styling.'
 ].join(' ');
 
 function runFfmpeg(args, label) {
