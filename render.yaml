@@ -1,8 +1,10 @@
 services:
   - type: keyvalue
     name: innvikta-deepfake-queue
+    plan: starter
     ipAllowList: []
     maxmemoryPolicy: noeviction
+    persistenceMode: journal-snapshot
 
   - type: web
     name: innvikta-deepfake-awareness
@@ -101,6 +103,7 @@ services:
   - type: worker
     name: innvikta-deepfake-generation-worker
     runtime: docker
+    plan: standard
     dockerfilePath: ./Dockerfile
     dockerCommand: node server/worker.js
     autoDeployTrigger: checksPass
