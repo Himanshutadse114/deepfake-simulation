@@ -1,10 +1,18 @@
+const crypto = require('node:crypto');
 const fs = require('node:fs/promises');
+const fsSync = require('node:fs');
 const path = require('node:path');
 const multer = require('multer');
 const config = require('./config');
+const { persistInputFile } = require('./storage');
+
+fsSync.mkdirSync(config.stagingRoot, { recursive: true });
 
 const upload = multer({
-  storage: multer.memoryStorage(),
+  storage: multer.diskStorage({
+    destination: (_req, _file, callback) => callback(null, config.stagingRoot),
+    filename: (_req, _file, callback) => callback(null, `${Date.now()}-${crypto.randomUUID()}.upload`)
+  }),
   limits: { fileSize: Math.max(config.maxImageBytes, config.maxAudioBytes), files: 1 }
 });
 
@@ -78,26 +86,65 @@ function validateLocalImage(buffer, detected) {
   return dimensions;
 }
 
-async function persistParticipantFile(sessionId, kind, file) {
-  if (!file?.buffer?.length) throw new Error(`No ${kind} file was received.`);
-  const detected = kind === 'face' ? detectImage(file.buffer) : detectAudio(file.buffer);
-  if (!detected) throw new Error(kind === 'face' ? 'Only genuine JPEG or PNG images are accepted.' : 'Only supported audio recordings (MP3, WAV, WebM or M4A) are accepted.');
-  const max = kind === 'face' ? config.maxImageBytes : config.maxAudioBytes;
-  if (file.buffer.length > max) throw new Error(`${kind === 'face' ? 'Image' : 'Audio'} exceeds the configured upload limit.`);
-
-  const dimensions = kind === 'face' ? validateLocalImage(file.buffer, detected) : undefined;
-  const directory = path.join(config.uploadRoot, sessionId);
-  await fs.mkdir(directory, { recursive: true });
-  const output = path.join(directory, `${kind}.${detected.ext}`);
-  await fs.writeFile(output, file.buffer, { mode: 0o600 });
-
-  return {
-    path: output,
-    mime: detected.mime,
-    size: file.buffer.length,
-    originalName: path.basename(file.originalname || `${kind}.${detected.ext}`),
-    ...(dimensions ? { width: dimensions.width, height: dimensions.height } : {})
-  };
+async function readHeader(filePath, maxBytes = 1024 * 1024) {
+  const handle = await fs.open(filePath, 'r');
+  try {
+    const stat = await handle.stat();
+    const size = Math.min(stat.size, maxBytes);
+    const buffer = Buffer.alloc(size);
+    const { bytesRead } = await handle.read(buffer, 0, size, 0);
+    return buffer.subarray(0, bytesRead);
+  } finally {
+    await handle.close();
+  }
 }
 
-module.exports = { upload, persistParticipantFile, detectImage, detectAudio, getImageDimensions, validateLocalImage };
+async function ensureStagedFile(file) {
+  if (file?.path) return file.path;
+  if (!file?.buffer?.length) throw new Error('No uploaded file data was received.');
+  const temporaryPath = path.join(config.stagingRoot, `${Date.now()}-${crypto.randomUUID()}.upload`);
+  await fs.writeFile(temporaryPath, file.buffer, { mode: 0o600 });
+  return temporaryPath;
+}
+
+async function persistParticipantFile(sessionId, kind, file) {
+  const stagedPath = await ensureStagedFile(file);
+  let moved = false;
+  try {
+    const size = Number(file?.size || (await fs.stat(stagedPath)).size);
+    const max = kind === 'face' ? config.maxImageBytes : config.maxAudioBytes;
+    if (size > max) throw new Error(`${kind === 'face' ? 'Image' : 'Audio'} exceeds the configured upload limit.`);
+
+    // Only a bounded header is loaded into Node memory. This keeps a burst of
+    // large corporate uploads from allocating hundreds of megabytes of Buffers.
+    const header = await readHeader(stagedPath);
+    const detected = kind === 'face' ? detectImage(header) : detectAudio(header);
+    if (!detected) throw new Error(kind === 'face'
+      ? 'Only genuine JPEG or PNG images are accepted.'
+      : 'Only supported audio recordings (MP3, WAV, WebM or M4A) are accepted.');
+
+    const dimensions = kind === 'face' ? validateLocalImage(header, detected) : undefined;
+    const persistedPath = await persistInputFile(sessionId, kind, stagedPath, detected.ext, detected.mime);
+    moved = true;
+
+    return {
+      path: persistedPath,
+      mime: detected.mime,
+      size,
+      originalName: path.basename(file?.originalname || `${kind}.${detected.ext}`),
+      ...(dimensions ? { width: dimensions.width, height: dimensions.height } : {})
+    };
+  } finally {
+    if (!moved) await fs.rm(stagedPath, { force: true }).catch(() => {});
+  }
+}
+
+module.exports = {
+  upload,
+  persistParticipantFile,
+  detectImage,
+  detectAudio,
+  getImageDimensions,
+  validateLocalImage,
+  readHeader
+};
