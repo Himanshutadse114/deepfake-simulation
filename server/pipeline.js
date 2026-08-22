@@ -14,7 +14,10 @@ const {
 const { synthesizeScript: synthesizeQwen } = require('./services/qwen');
 const { synthesizeFixedScript: synthesizeChatterbox } = require('./services/chatterbox');
 const { synthesizeFixedScript: synthesizeElevenLabs } = require('./services/elevenlabs');
-const { generateIdentityVariants } = require('./services/flux');
+const {
+  generateIdentityVariants,
+  PROFILE_VARIANT_COUNT
+} = require('./services/flux');
 const { generateAvatarVideo: generateDidVideo } = require('./services/did');
 const { generateAvatarVideo: generateHeyGenVideo } = require('./services/heygen');
 const { generateAvatarVideo: generatePrunaVideo } = require('./services/pruna');
@@ -29,12 +32,23 @@ function heygenConfigured() {
   return config.providers.heygenEnabled && Boolean(config.providers.heygenAccessToken || config.providers.heygenApiKey);
 }
 
+function buildFluxItems(existing = []) {
+  return Array.from({ length: PROFILE_VARIANT_COUNT }, (_, index) => ({
+    status: existing[index]?.status || 'pending',
+    predictionId: existing[index]?.predictionId || null,
+    providerUrl: existing[index]?.providerUrl || null,
+    creationStartedAt: existing[index]?.creationStartedAt || null,
+    predictionCreatedAt: existing[index]?.predictionCreatedAt || null
+  }));
+}
+
 function ensureStages(session) {
   session.stages ||= {};
   session.stages.whatsappAudio ||= { status: 'pending', predictionId: null };
   session.stages.videoAudio ||= { status: 'pending', predictionId: null };
   session.stages.pruna ||= { status: 'pending', predictionId: null, providerUrl: null };
   session.stages.flux ||= { status: 'pending', predictionId: null, providerUrl: null };
+  session.stages.flux.items = buildFluxItems(session.stages.flux.items || []);
   session.provider ||= {};
   session.variants ||= [];
   return session.stages;
@@ -72,6 +86,48 @@ function predictionCallbacks(session, stageKey) {
       stage.predictionId = payload.predictionId || stage.predictionId;
       stage.providerUrl = payload.url || compactProviderOutput(payload.output) || stage.providerUrl || null;
       stage.status = 'provider_succeeded';
+      await persistSession(session);
+    }
+  };
+}
+
+function fluxPredictionCallbacks(session, index) {
+  const stage = ensureStages(session).flux;
+  const item = stage.items[index];
+  if (!item) throw new Error(`FLUX profile item ${index + 1} is unavailable.`);
+
+  return {
+    predictionId: item.predictionId,
+    onBeforePredictionCreate: async () => {
+      if (item.predictionId) return;
+      const now = Date.now();
+      item.status = 'creation_started';
+      item.creationStartedAt = now;
+      stage.status = 'creation_started';
+      stage.predictionId = null;
+      stage.currentItem = index;
+      stage.creationStartedAt = now;
+      await persistSession(session);
+    },
+    onPredictionCreated: async (prediction) => {
+      const now = Date.now();
+      item.predictionId = prediction.id;
+      item.status = 'provider_running';
+      item.predictionCreatedAt = now;
+      stage.status = 'provider_running';
+      stage.predictionId = prediction.id;
+      stage.currentItem = index;
+      stage.predictionCreatedAt = now;
+      await persistSession(session);
+    },
+    onProviderOutput: async (payload) => {
+      item.predictionId = payload.predictionId || item.predictionId;
+      item.providerUrl = payload.url || compactProviderOutput(payload.output) || item.providerUrl || null;
+      item.status = 'provider_succeeded';
+      stage.providerUrl = item.providerUrl || stage.providerUrl || null;
+      stage.predictionId = null;
+      stage.currentItem = null;
+      stage.status = 'generating';
       await persistSession(session);
     }
   };
@@ -269,9 +325,6 @@ async function generateVideoWithFallback(session, speechRef, workspace = path.jo
         updateStatus(session, 'generating_video', 'Decoding facial structure and preparing the impersonation video.');
         await persistSession(session);
 
-        // If a prediction id exists, ask Replicate for the current prediction
-        // output again. This refreshes an expired provider URL after a restart
-        // without creating or paying for another Pruna prediction.
         if (stage.status === 'provider_succeeded' && stage.providerUrl && !stage.predictionId) {
           return { provider: 'pruna', url: stage.providerUrl, predictionId: null };
         }
@@ -359,13 +412,16 @@ async function generateProfileVariants(session, workspace = path.join(config.wor
     return session.variants;
   }
 
-  if (session.stages.flux.status === 'completed' && session.variants?.length === 4) {
-    updateProfileStatus(session, 'completed', 'Four profile images are ready.');
+  if (session.stages.flux.status === 'completed' && session.variants?.length === PROFILE_VARIANT_COUNT) {
+    updateProfileStatus(session, 'completed', 'Three profile images are ready for the Instagram simulation.');
     await persistSession(session);
     return session.variants;
   }
 
-  updateProfileStatus(session, 'generating', 'Creating one identity-consistent profile grid and preparing four photos.');
+  updateProfileStatus(session, 'generating', 'Creating three identity-consistent 1 MP profile photos for the Instagram simulation.');
+  session.stages.flux.status = session.stages.flux.status === 'provider_running'
+    ? session.stages.flux.status
+    : 'generating';
   session.profileError = null;
   await persistSession(session);
 
@@ -374,21 +430,27 @@ async function generateProfileVariants(session, workspace = path.join(config.wor
     if (!config.providers.replicateToken) throw new Error('REPLICATE_API_TOKEN is required for FLUX image generation.');
     if (!session.face?.path) throw new Error('The temporary participant portrait is no longer available for this session.');
 
-    const callbacks = predictionCallbacks(session, 'flux');
     const result = await generateIdentityVariants(session.face, session.id, {
       workspace,
-      ...callbacks,
+      itemCallbacks: (index) => fluxPredictionCallbacks(session, index),
       onRateLimit: rateLimitStatus(session)
     });
-    if (result.variants.length !== 4) throw new Error('The generated profile grid could not be split into four images.');
+    if (result.variants.length !== PROFILE_VARIANT_COUNT) {
+      throw new Error(`Expected ${PROFILE_VARIANT_COUNT} FLUX profile images but received ${result.variants.length}.`);
+    }
 
     session.variants = await Promise.all(result.variants.map((variant, index) =>
       persistGeneratedFile(session.id, `variant-${index + 1}.jpg`, variant, 'image/jpeg')));
-    session.stages.flux.predictionId = result.predictionId || session.stages.flux.predictionId;
-    session.stages.flux.providerUrl = result.providerOutputUrl || session.stages.flux.providerUrl;
+
+    session.stages.flux.items.forEach((item, index) => {
+      if (index < session.variants.length) item.status = 'completed';
+    });
+    session.stages.flux.predictionId = null;
+    session.stages.flux.currentItem = null;
+    session.stages.flux.providerUrl = result.providerOutputUrls?.at(-1) || session.stages.flux.providerUrl || null;
     session.stages.flux.status = 'completed';
-    session.provider.images = 'flux-2-pro-grid';
-    updateProfileStatus(session, 'completed', 'Four profile images are ready.');
+    session.provider.images = 'flux-2-pro-3x-1mp';
+    updateProfileStatus(session, 'completed', 'Three profile images are ready. The generated video will appear as the fourth Instagram post.');
     await persistSession(session);
     return session.variants;
   } catch (error) {
@@ -423,8 +485,6 @@ async function generateSimulation(session) {
       return session;
     }
 
-    // This is local/R2 work only. It deliberately occurs before Qwen so corrupt
-    // or unreasonably long participant audio cannot spend provider credits.
     await validateParticipantVoice(session, workspace);
     await generateCheckedAudioTracks(session, { whatsappPath, videoSpeechPath });
 
@@ -491,5 +551,6 @@ module.exports = {
   runInitialGeneration,
   ensureStages,
   predictionCallbacks,
+  fluxPredictionCallbacks,
   finalizeVideo
 };
