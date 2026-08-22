@@ -2,6 +2,8 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
 const config = require('../config');
+const { isObjectRef, materialize } = require('../storage');
+const { withMediaProcessSlot } = require('./process-limit');
 
 const BASE = 'https://api.elevenlabs.io';
 
@@ -33,13 +35,13 @@ async function elevenFetch(endpoint, options = {}) {
 }
 
 function runFfmpeg(args) {
-  return new Promise((resolve, reject) => {
+  return withMediaProcessSlot(() => new Promise((resolve, reject) => {
     const child = spawn('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', ...args]);
     let stderr = '';
     child.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
     child.on('error', reject);
     child.on('close', (code) => code === 0 ? resolve() : reject(new Error(stderr || `FFmpeg failed (${code}).`)));
-  });
+  }));
 }
 
 async function createTemporaryVoice(voiceFile, sessionId) {
@@ -101,12 +103,20 @@ async function deleteVoice(voiceId) {
 
 async function synthesizeFixedScript(voiceFile, outputPath, sessionId, text = config.awarenessScript) {
   let voiceId;
+  const directory = path.dirname(outputPath);
+  const sourcePath = path.join(directory, `elevenlabs-source-${sessionId}`);
+  const needsMaterialize = isObjectRef(voiceFile.path) || /^https?:\/\//i.test(String(voiceFile.path || ''));
+  const localVoice = needsMaterialize
+    ? { ...voiceFile, path: await materialize(voiceFile.path, sourcePath) }
+    : voiceFile;
+
   try {
-    voiceId = await createTemporaryVoice(voiceFile, sessionId);
+    voiceId = await createTemporaryVoice(localVoice, sessionId);
     await synthesizeWithVoice(voiceId, outputPath, text);
     return outputPath;
   } finally {
     if (voiceId) await deleteVoice(voiceId).catch((error) => console.warn(`ElevenLabs temporary voice cleanup failed: ${error.message}`));
+    if (needsMaterialize) await fs.rm(sourcePath, { force: true }).catch(() => {});
   }
 }
 
