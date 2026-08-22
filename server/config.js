@@ -28,12 +28,12 @@ module.exports = {
   maxVideoSeconds: Math.min(numberEnv('MAX_VIDEO_SECONDS', 10), 10),
   retentionMs: numberEnv('MEDIA_RETENTION_MINUTES', 30) * 60 * 1000,
 
-  // Cost and burst protection. One hundred learners may queue simultaneously,
-  // while only a small fixed number of paid pipelines execute at once.
+  // Single Render service: many learners may queue, while only four complete AI
+  // pipelines and two local FFmpeg/ffprobe processes execute concurrently.
   queueName: String(process.env.AI_QUEUE_NAME || 'deepfake-simulation-generation'),
-  aiWorkerConcurrency: Math.min(numberEnv('AI_WORKER_CONCURRENCY', 5), 20),
+  aiWorkerConcurrency: Math.min(numberEnv('AI_WORKER_CONCURRENCY', 4), 20),
   ffmpegConcurrency: Math.min(numberEnv('FFMPEG_CONCURRENCY', 2), 8),
-  maxQueuedJobs: Math.min(numberEnv('AI_MAX_QUEUED_JOBS', 500), 5000),
+  maxQueuedJobs: Math.min(numberEnv('AI_MAX_QUEUED_JOBS', 250), 5000),
   dailyAiBudgetUsd: numberEnv('AI_DAILY_BUDGET_USD', 50),
   estimatedSimulationCostUsd: numberEnv('ESTIMATED_SIMULATION_COST_USD', 0.35),
 
