@@ -20,16 +20,28 @@ test('WhatsApp flow removes the payment approval-code request', () => {
 test('QR follow-up removes server-timeout wording and uses $500', () => {
   assert.doesNotMatch(flow, /We are facing a server timeout/i);
   assert.match(flow, /Please scan this QR code to complete the processing payment of \$500 urgently\./);
+  assert.match(flow, /Done, I've sent the \$500 payment\./);
   assert.doesNotMatch(flow, /processing payment of \$5 urgently/i);
 });
 
-test('WhatsApp patch loads after every asynchronous WhatsApp polish script', () => {
-  const waFlow = bootstrap.indexOf("/wa-flow-fix.js?v=3");
-  const finalCopy = bootstrap.indexOf("/whatsapp-copy-fix.js?v=qr500-final-20260824-1");
-  assert.ok(waFlow >= 0 && finalCopy > waFlow);
+test('QR flow always creates replay and proceed actions after completion', () => {
+  assert.match(flow, /function ensureCompletionActions/);
+  assert.match(flow, /waSimulationComplete/);
+  assert.match(flow, /waInlineCompletion/);
+  assert.match(flow, /replayWhatsAppSimulation\(\)/);
+  assert.match(flow, /openProfileExperience\(\)/);
+  assert.match(flow, /setTimeout\(\(\) => \{\s*ensureCompletionActions\(\)/);
+});
+
+test('fresh WhatsApp completion patch is loaded explicitly in learner and demo entry points', () => {
+  assert.match(index, /whatsapp-copy-fix\.js\?v=qr500-completion-20260824-1/);
+  assert.match(demo, /whatsapp-copy-fix\.js\?v=qr500-completion-20260824-1/);
   assert.match(flow, /__innviktaQr500Copy/);
+  assert.match(flow, /READY_TIMEOUT_MS = 120000/);
   assert.match(flow, /setInterval/);
-  assert.doesNotMatch(index, /whatsapp-copy-fix\.js/);
-  assert.doesNotMatch(demo, /whatsapp-copy-fix\.js/);
   assert.doesNotThrow(() => new Function(flow));
+});
+
+test('bootstrap may also load the patch, but direct entry loading protects against stale async ordering', () => {
+  assert.match(bootstrap, /whatsapp-copy-fix\.js/);
 });
