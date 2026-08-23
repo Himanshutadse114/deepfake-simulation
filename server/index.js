@@ -113,7 +113,8 @@ app.get('/api/health', async (_req, res) => {
       maxChars: config.scriptPolicy.maxChars,
       blockUrls: config.scriptPolicy.blockUrls,
       requireAwarenessContext: config.scriptPolicy.requireAwarenessContext,
-      sensitiveRequestProtection: true
+      sensitiveRequestProtection: true,
+      exactProviderTextAudit: true
     },
     stack: {
       voice: config.providers.voiceProvider,
@@ -126,6 +127,7 @@ app.get('/api/health', async (_req, res) => {
       chatterbox: replicateConfigured,
       elevenlabs: Boolean(config.providers.elevenLabsApiKey),
       flux: config.providers.fluxEnabled && replicateConfigured,
+      wan: replicateConfigured,
       did: didConfigured,
       heygen: heygenConfigured,
       pruna: replicateConfigured
@@ -136,6 +138,9 @@ app.get('/api/health', async (_req, res) => {
     fluxProfileImages: config.providers.fluxProfileImages,
     fluxProfileResolution: config.providers.fluxProfileResolution,
     fluxGridImages: config.providers.fluxGridImages,
+    wanModel: config.providers.wanModel,
+    wanInterpolate: config.providers.wanInterpolate,
+    wanFramesPerChunk: config.providers.wanFramesPerChunk,
     videoProviderPreference: config.providers.videoProviderPreference
   });
 });
@@ -178,9 +183,6 @@ async function start() {
     startupRecoveryState = { attempted: true, ok: true, error: null, ...recovery };
     console.log(`[startup-recovery] mode=${recovery.mode} sessions=${recovery.recoveredSessions} requeued=${recovery.requeued} blocked=${recovery.blocked} expired=${recovery.expired}`);
   } catch (error) {
-    // Keep the service/admin page online so an operator can use the protected
-    // “Test R2 connection” button to diagnose credentials. Paid generation is
-    // still fail-closed because every session/checkpoint write must reach R2.
     startupRecoveryState = { attempted: true, ok: false, error: error.message };
     console.error(`[startup-recovery] R2 recovery failed: ${error.stack || error.message}`);
   }
