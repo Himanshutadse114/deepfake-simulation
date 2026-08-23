@@ -20,10 +20,16 @@ test('generation loading UI uses generic copy and hides implementation stages', 
   assert.doesNotThrow(() => new Function(privacy));
 });
 
+test('privacy loading mask cannot lock UI bootstrap in a MutationObserver loop', () => {
+  assert.doesNotMatch(privacy, /new MutationObserver/);
+  assert.match(privacy, /setInterval/);
+  assert.match(privacy, /installRuntimeMask/);
+});
+
 test('privacy loading mask is installed before the UI runtime on learner and demo pages', () => {
-  const indexPrivacy = index.indexOf('loading-copy-privacy.js?v=private-loading-20260823-1');
+  const indexPrivacy = index.indexOf('loading-copy-privacy.js?v=private-loading-20260823-2');
   const indexBoot = index.indexOf('ui-bootstrap.js');
-  const demoPrivacy = demo.indexOf('loading-copy-privacy.js?v=private-loading-20260823-1');
+  const demoPrivacy = demo.indexOf('loading-copy-privacy.js?v=private-loading-20260823-2');
   const demoBoot = demo.indexOf('ui-bootstrap.js');
   assert.ok(indexPrivacy >= 0 && indexPrivacy < indexBoot);
   assert.ok(demoPrivacy >= 0 && demoPrivacy < demoBoot);
