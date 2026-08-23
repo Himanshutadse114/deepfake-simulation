@@ -36,7 +36,7 @@ module.exports = {
   ffmpegConcurrency: Math.min(numberEnv('FFMPEG_CONCURRENCY', 2), 8),
   maxQueuedJobs: Math.min(numberEnv('AI_MAX_QUEUED_JOBS', 250), 5000),
   dailyAiBudgetUsd: numberEnv('AI_DAILY_BUDGET_USD', 50),
-  estimatedSimulationCostUsd: numberEnv('ESTIMATED_SIMULATION_COST_USD', 0.35),
+  estimatedSimulationCostUsd: numberEnv('ESTIMATED_SIMULATION_COST_USD', 0.40),
 
   demoMode: String(process.env.DEMO_MODE || 'false').toLowerCase() === 'true',
   adminKey: String(process.env.ADMIN_KEY || '').trim(),
@@ -83,6 +83,16 @@ module.exports = {
     didKey: process.env.DID_API_KEY || '',
     didEnabled: String(process.env.DID_ADAPTER_ENABLED || 'false').toLowerCase() !== 'false',
 
+    wanModel: process.env.WAN_MODEL || 'wan-video/wan-2.2-s2v',
+    wanPrompt: process.env.WAN_PROMPT || [
+      'Natural close-up talking-head security awareness simulation.',
+      'Preserve the exact identity, facial proportions, hairstyle, skin tone and approximate age of the person in the reference image.',
+      'Synchronize the mouth naturally to the supplied audio with realistic lip movement, subtle blinking, small head movements and restrained facial expressions.',
+      'Keep the camera fixed and framing stable. No scene cuts, no other people, no exaggerated gestures, no identity drift, no morphing, no text and no logos.'
+    ].join(' '),
+    wanInterpolate: booleanEnv('WAN_INTERPOLATE', false),
+    wanFramesPerChunk: Math.max(1, Math.min(numberEnv('WAN_NUM_FRAMES_PER_CHUNK', 81), 121)),
+
     prunaModel: process.env.PRUNA_MODEL || 'prunaai/p-video-avatar',
     prunaResolution: process.env.PRUNA_RESOLUTION || '720p',
     heygenApiKey: process.env.HEYGEN_API_KEY || '',
@@ -90,7 +100,7 @@ module.exports = {
     heygenEnabled: String(process.env.HEYGEN_ADAPTER_ENABLED || 'false').toLowerCase() !== 'false',
 
     allowPaidVideoFallback: booleanEnv('ALLOW_PAID_VIDEO_FALLBACK', false),
-    videoProviderPreference: (process.env.VIDEO_PROVIDER_PREFERENCE || 'pruna')
+    videoProviderPreference: (process.env.VIDEO_PROVIDER_PREFERENCE || 'wan,pruna')
       .split(',')
       .map((item) => item.trim().toLowerCase())
       .filter(Boolean)
