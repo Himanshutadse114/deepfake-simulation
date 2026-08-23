@@ -26,8 +26,9 @@ test('generation screen shows a two-minute preparation estimate and countdown', 
   assert.match(queueUi, /usually takes about 2 minutes to prepare/);
   assert.match(queueUi, /id="generationCountdown">02:00/);
   assert.match(queueUi, /Finishing up…/);
+  assert.match(queueUi, /status === 'queued' && !countdownStartedAt/);
 });
 
 test('normal learner page loads the revised queue and timer enhancement', () => {
-  assert.match(index, /queue-status-ui\.js\?v=2min-estimate-20260823-1/);
+  assert.match(index, /queue-status-ui\.js\?v=2min-estimate-20260823-2/);
 });
