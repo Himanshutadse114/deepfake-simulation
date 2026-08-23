@@ -99,7 +99,7 @@ app.get('/api/health', async (_req, res) => {
     costGuard: {
       dailyBudgetUsd: config.dailyAiBudgetUsd,
       estimatedReservationPerSimulationUsd: config.estimatedSimulationCostUsd,
-      paidVideoFallbackEnabled: config.providers.allowPaidVideoFallback
+      paidVideoFallbackEnabled: false
     },
     mediaProcesses: mediaProcessStats(),
     audioTracks: ['whatsapp', 'video'],
@@ -118,8 +118,8 @@ app.get('/api/health', async (_req, res) => {
     },
     stack: {
       voice: config.providers.voiceProvider,
-      images: config.providers.fluxEnabled ? 'flux-2-pro-3x-1mp' : 'disabled',
-      video: config.providers.videoProviderPreference
+      images: config.providers.fluxEnabled ? 'flux-2-pro-3x-1mp-mixed-framing' : 'disabled',
+      video: ['pruna']
     },
     providers: {
       replicate: replicateConfigured,
@@ -127,7 +127,6 @@ app.get('/api/health', async (_req, res) => {
       chatterbox: replicateConfigured,
       elevenlabs: Boolean(config.providers.elevenLabsApiKey),
       flux: config.providers.fluxEnabled && replicateConfigured,
-      wan: replicateConfigured,
       did: didConfigured,
       heygen: heygenConfigured,
       pruna: replicateConfigured
@@ -138,9 +137,8 @@ app.get('/api/health', async (_req, res) => {
     fluxProfileImages: config.providers.fluxProfileImages,
     fluxProfileResolution: config.providers.fluxProfileResolution,
     fluxGridImages: config.providers.fluxGridImages,
-    wanModel: config.providers.wanModel,
-    wanInterpolate: config.providers.wanInterpolate,
-    wanFramesPerChunk: config.providers.wanFramesPerChunk,
+    instagramPostCount: 3,
+    instagramFramings: ['close-portrait', 'half-body', 'near-full-body'],
     videoProviderPreference: config.providers.videoProviderPreference
   });
 });
