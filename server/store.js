@@ -28,7 +28,6 @@ function buildStages() {
   return {
     whatsappAudio: { status: 'pending', predictionId: null },
     videoAudio: { status: 'pending', predictionId: null },
-    wan: { status: 'pending', predictionId: null, providerUrl: null },
     pruna: { status: 'pending', predictionId: null, providerUrl: null },
     flux: { status: 'pending', predictionId: null, providerUrl: null }
   };
