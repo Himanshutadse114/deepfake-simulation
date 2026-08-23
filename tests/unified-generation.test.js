@@ -26,24 +26,25 @@ test('starts paid video and profile work together after audio validation', async
   await running;
 });
 
-test('profile generation is exactly three 1 MP social photos with mixed framing', () => {
-  assert.equal(PROFILE_VARIANT_COUNT, 3);
-  assert.equal(config.providers.fluxProfileImages, 3);
-  assert.equal(config.providers.fluxGridImages, 3);
+test('profile generation is exactly four 1 MP social photos using the original prompt set', () => {
+  assert.equal(PROFILE_VARIANT_COUNT, 4);
+  assert.equal(config.providers.fluxProfileImages, 4);
+  assert.equal(config.providers.fluxGridImages, 4);
   assert.equal(FLUX_PROFILE_RESOLUTION, '1 MP');
-  assert.equal(PROFILE_VARIANT_PROMPTS.length, 3);
-  assert.match(PROFILE_VARIANT_PROMPTS[0], /head-and-shoulders|upper-chest/i);
-  assert.match(PROFILE_VARIANT_PROMPTS[1], /half-body/i);
-  assert.match(PROFILE_VARIANT_PROMPTS[2], /near-full-body|full-body/i);
+  assert.equal(PROFILE_VARIANT_PROMPTS.length, 4);
+  assert.match(PROFILE_VARIANT_PROMPTS[0], /office|coworking/i);
+  assert.match(PROFILE_VARIANT_PROMPTS[1], /cafe/i);
+  assert.match(PROFILE_VARIANT_PROMPTS[2], /city promenade|public plaza/i);
+  assert.match(PROFILE_VARIANT_PROMPTS[3], /green park|outdoor setting/i);
 });
 
 test('legacy result collector remains tolerant of partial helper failures', async () => {
   const failures = [];
-  const results = await collectVariantResults(3, async (index) => {
+  const results = await collectVariantResults(4, async (index) => {
     if (index !== 1) throw new Error(`image ${index + 1} interrupted`);
     return 'variant-2.jpg';
   }, ({ index }) => failures.push(index));
 
   assert.deepEqual(results, ['variant-2.jpg']);
-  assert.deepEqual(failures, [0, 2]);
+  assert.deepEqual(failures, [0, 2, 3]);
 });
