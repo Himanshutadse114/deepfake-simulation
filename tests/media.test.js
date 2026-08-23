@@ -1,6 +1,10 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { detectImage, detectAudio, getImageDimensions, validateLocalImage } = require('../server/media');
+const fs = require('node:fs');
+const path = require('node:path');
+const { detectImage, detectAudio, getImageDimensions, validateLocalImage, normalizeJpegOrientation } = require('../server/media');
+
+const mediaSource = fs.readFileSync(path.join(__dirname, '..', 'server/media.js'), 'utf8');
 
 function pngHeader(width, height) {
   const buffer = Buffer.alloc(24);
@@ -29,6 +33,13 @@ test('local PNG validation reads dimensions and enforces minimum size', () => {
 
   const tooSmall = pngHeader(128, 128);
   assert.throws(() => validateLocalImage(tooSmall, detectImage(tooSmall)), /at least 256/);
+});
+
+test('JPEG uploads are normalized so phone EXIF orientation is baked into pixels', () => {
+  assert.equal(typeof normalizeJpegOrientation, 'function');
+  assert.match(mediaSource, /Portrait orientation normalization/);
+  assert.match(mediaSource, /map_metadata', '-1/);
+  assert.match(mediaSource, /kind === 'face' && detected\.ext === 'jpg'/);
 });
 
 test('detectAudio accepts WAV, MP3 and WebM signatures', () => {
