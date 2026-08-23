@@ -379,7 +379,7 @@ async function completeDemoSession(session) {
   updateStatus(session, 'demo_preparing', 'Internal demo mode: loading the uploaded media.');
   session.whatsappAudioOutput = session.voice.path;
   session.videoAudioOutput = session.voice.path;
-  session.variants = [session.face.path, session.face.path, session.face.path];
+  session.variants = Array.from({ length: PROFILE_VARIANT_COUNT }, () => session.face.path);
   session.provider = {
     voice: 'demo-original-sample',
     video: 'demo-static-preview',
@@ -437,12 +437,12 @@ async function generateProfileVariants(session, workspace = path.join(config.wor
   }
 
   if (session.stages.flux.status === 'completed' && session.variants?.length === PROFILE_VARIANT_COUNT) {
-    updateProfileStatus(session, 'completed', 'Three profile images are ready for the Instagram simulation.');
+    updateProfileStatus(session, 'completed', 'Four profile images are ready for the Instagram simulation.');
     await persistSession(session);
     return session.variants;
   }
 
-  updateProfileStatus(session, 'generating', 'Creating three identity-consistent 1 MP profile photos with close, half-body and near-full-body framing.');
+  updateProfileStatus(session, 'generating', 'Preparing four profile photos for the simulation.');
   session.stages.flux.status = session.stages.flux.status === 'provider_running'
     ? session.stages.flux.status
     : 'generating';
@@ -473,8 +473,8 @@ async function generateProfileVariants(session, workspace = path.join(config.wor
     session.stages.flux.currentItem = null;
     session.stages.flux.providerUrl = result.providerOutputUrls?.at(-1) || session.stages.flux.providerUrl || null;
     session.stages.flux.status = 'completed';
-    session.provider.images = 'flux-2-pro-3x-1mp';
-    updateProfileStatus(session, 'completed', 'Three profile photo posts are ready for the Instagram simulation.');
+    session.provider.images = 'flux-2-pro-4x-1mp-original-prompts';
+    updateProfileStatus(session, 'completed', 'Four profile photo posts are ready for the Instagram simulation.');
     await persistSession(session);
     return session.variants;
   } catch (error) {
@@ -524,17 +524,11 @@ async function generateSimulation(session) {
     ]);
 
     if (results[0].status === 'rejected') throw results[0].reason;
-    if (results[1].status === 'rejected') {
-      console.warn(`[profile:${session.id}] continuing with the core simulation after profile generation failed: ${results[1].reason.message}`);
-    }
+    // A completed paid simulation must have all four profile images. Do not
+    // silently fall back to the uploaded portrait or mark the session ready.
+    if (results[1].status === 'rejected') throw results[1].reason;
 
-    updateStatus(
-      session,
-      'completed',
-      results[1].status === 'fulfilled'
-        ? 'Your voice, video and three-post profile experience are ready.'
-        : 'Your voice and video experience are ready. The profile image step was unavailable, so the interface will use the consented portrait as a fallback.'
-    );
+    updateStatus(session, 'completed', 'Your simulation is ready.');
 
     const originalFace = session.face?.path;
     const originalVoice = session.voice?.path;
