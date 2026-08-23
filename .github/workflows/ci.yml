@@ -60,6 +60,7 @@ jobs:
           node --check client/public/admin-ui.js
           node --check client/public/voice-recording-prompt.js
           node --check client/public/voice-sample-controls.js
+          node --check client/public/loading-copy-privacy.js
           node --check client/public/queue-status-ui.js
           node --check client/public/instagram-video-grid.js
           node --check client/public/generated-profile-grid-fix.js
