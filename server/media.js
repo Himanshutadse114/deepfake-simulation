@@ -2,9 +2,11 @@ const crypto = require('node:crypto');
 const fs = require('node:fs/promises');
 const fsSync = require('node:fs');
 const path = require('node:path');
+const { spawn } = require('node:child_process');
 const multer = require('multer');
 const config = require('./config');
 const { persistInputFile } = require('./storage');
+const { withMediaProcessSlot } = require('./services/process-limit');
 
 fsSync.mkdirSync(config.stagingRoot, { recursive: true });
 
@@ -99,6 +101,40 @@ async function readHeader(filePath, maxBytes = 1024 * 1024) {
   }
 }
 
+function spawnFfmpeg(args, label) {
+  return withMediaProcessSlot(() => new Promise((resolve, reject) => {
+    const child = spawn('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', ...args], {
+      stdio: ['ignore', 'ignore', 'pipe'],
+      windowsHide: true
+    });
+    let stderr = '';
+    child.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
+    child.on('error', (error) => reject(new Error(`${label} failed to start: ${error.message}`)));
+    child.on('close', (code) => {
+      if (code === 0) return resolve();
+      reject(new Error(`${label} failed${stderr ? `: ${stderr.trim().slice(-900)}` : ` with exit code ${code}`}`));
+    });
+  }));
+}
+
+async function normalizeJpegOrientation(inputPath) {
+  const outputPath = `${inputPath}.upright.jpg`;
+  // FFmpeg autorotation is enabled by default. Re-encoding one still frame bakes
+  // EXIF/display-matrix orientation into the pixels and strips the metadata, so
+  // providers that ignore phone-camera orientation metadata still receive an
+  // upright portrait.
+  await spawnFfmpeg([
+    '-i', inputPath,
+    '-frames:v', '1',
+    '-vf', 'scale=iw:ih',
+    '-q:v', '3',
+    '-map_metadata', '-1',
+    '-an',
+    outputPath
+  ], 'Portrait orientation normalization');
+  return outputPath;
+}
+
 async function ensureStagedFile(file) {
   if (file?.path) return file.path;
   if (!file?.buffer?.length) throw new Error('No uploaded file data was received.');
@@ -110,32 +146,51 @@ async function ensureStagedFile(file) {
 async function persistParticipantFile(sessionId, kind, file) {
   const stagedPath = await ensureStagedFile(file);
   let moved = false;
+  let normalizedPath = null;
   try {
-    const size = Number(file?.size || (await fs.stat(stagedPath)).size);
+    const originalSize = Number(file?.size || (await fs.stat(stagedPath)).size);
     const max = kind === 'face' ? config.maxImageBytes : config.maxAudioBytes;
-    if (size > max) throw new Error(`${kind === 'face' ? 'Image' : 'Audio'} exceeds the configured upload limit.`);
+    if (originalSize > max) throw new Error(`${kind === 'face' ? 'Image' : 'Audio'} exceeds the configured upload limit.`);
 
     // Only a bounded header is loaded into Node memory. This keeps a burst of
     // large corporate uploads from allocating hundreds of megabytes of Buffers.
     const header = await readHeader(stagedPath);
-    const detected = kind === 'face' ? detectImage(header) : detectAudio(header);
+    let detected = kind === 'face' ? detectImage(header) : detectAudio(header);
     if (!detected) throw new Error(kind === 'face'
       ? 'Only genuine JPEG or PNG images are accepted.'
       : 'Only supported audio recordings (MP3, WAV, WebM or M4A) are accepted.');
 
-    const dimensions = kind === 'face' ? validateLocalImage(header, detected) : undefined;
-    const persistedPath = await persistInputFile(sessionId, kind, stagedPath, detected.ext, detected.mime);
+    let dimensions = kind === 'face' ? validateLocalImage(header, detected) : undefined;
+    let persistPath = stagedPath;
+
+    if (kind === 'face' && detected.ext === 'jpg') {
+      normalizedPath = await normalizeJpegOrientation(stagedPath);
+      const normalizedHeader = await readHeader(normalizedPath);
+      detected = detectImage(normalizedHeader);
+      if (!detected || detected.ext !== 'jpg') throw new Error('The normalized portrait could not be validated as JPEG.');
+      dimensions = validateLocalImage(normalizedHeader, detected);
+      persistPath = normalizedPath;
+    }
+
+    const finalSize = Number((await fs.stat(persistPath)).size);
+    const persistedPath = await persistInputFile(sessionId, kind, persistPath, detected.ext, detected.mime);
     moved = true;
+    if (normalizedPath) await fs.rm(stagedPath, { force: true }).catch(() => {});
 
     return {
       path: persistedPath,
       mime: detected.mime,
-      size,
+      size: finalSize,
       originalName: path.basename(file?.originalname || `${kind}.${detected.ext}`),
       ...(dimensions ? { width: dimensions.width, height: dimensions.height } : {})
     };
   } finally {
-    if (!moved) await fs.rm(stagedPath, { force: true }).catch(() => {});
+    if (!moved) {
+      await Promise.allSettled([
+        fs.rm(stagedPath, { force: true }),
+        normalizedPath ? fs.rm(normalizedPath, { force: true }) : Promise.resolve()
+      ]);
+    }
   }
 }
 
@@ -146,5 +201,6 @@ module.exports = {
   detectAudio,
   getImageDimensions,
   validateLocalImage,
-  readHeader
+  readHeader,
+  normalizeJpegOrientation
 };
