@@ -74,13 +74,7 @@ services:
         value: black-forest-labs/flux-2-pro
 
       - key: VIDEO_PROVIDER_PREFERENCE
-        value: wan,pruna
-      - key: WAN_MODEL
-        value: wan-video/wan-2.2-s2v
-      - key: WAN_INTERPOLATE
-        value: "false"
-      - key: WAN_NUM_FRAMES_PER_CHUNK
-        value: 81
+        value: pruna
       - key: PRUNA_MODEL
         value: prunaai/p-video-avatar
       - key: PRUNA_RESOLUTION
