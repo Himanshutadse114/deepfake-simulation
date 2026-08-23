@@ -10,6 +10,7 @@ const {
 } = require('./store');
 const { upload, persistParticipantFile } = require('./media');
 const { getActiveScripts } = require('./admin-settings');
+const { describeScript } = require('./script-audit');
 const { sendAsset } = require('./storage');
 const { launchIdentityFromRequest } = require('./launch-token');
 const { reserveEstimatedCost, reserveLaunchEntitlement } = require('./cost-guard');
@@ -27,9 +28,22 @@ function cleanName(value, fallback) {
   return text || fallback;
 }
 
-function unsafePaidRetryReason(session) {
+function paidStageEntries(session) {
+  const entries = [];
   for (const [stageName, stage] of Object.entries(session?.stages || {})) {
     if (!stage) continue;
+    entries.push([stageName, stage]);
+    if (Array.isArray(stage.items)) {
+      stage.items.forEach((item, index) => {
+        if (item) entries.push([`${stageName}.items[${index}]`, item]);
+      });
+    }
+  }
+  return entries;
+}
+
+function unsafePaidRetryReason(session) {
+  for (const [stageName, stage] of paidStageEntries(session)) {
     if (stage.status === 'provider_failed') return `${stageName} ended in a terminal provider failure.`;
     if (stage.status === 'validation_failed') return `${stageName} produced output that failed the local safety/quality validation.`;
     if (stage.status === 'creation_ambiguous') return `${stageName} may already have been purchased, but its prediction ID could not be confirmed.`;
@@ -67,6 +81,15 @@ router.post('/session', async (req, res) => {
     };
     const mode = config.demoMode ? 'demo' : requestedMode;
     const session = await createSession(req.body.consents, { mode, participant, scripts, identity });
+    session.scriptAudit = {
+      source: 'admin-settings-snapshot',
+      capturedAt: Date.now(),
+      adminSnapshot: {
+        whatsapp: describeScript(scripts.whatsapp),
+        video: describeScript(scripts.video)
+      }
+    };
+    await saveSession(session);
     await scheduleSessionCleanup(session.id, config.retentionMs).catch((error) => {
       console.warn(`[cleanup-schedule:${session.id}] ${error.message}`);
     });
