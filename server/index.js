@@ -29,7 +29,7 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      imgSrc: ["'self'", 'data:', 'blob:', 'https://upload.wikimedia.org'],
+      imgSrc: ["'self'", 'data:', 'blob:'],
       mediaSrc: ["'self'", 'blob:'],
       connectSrc: ["'self'"],
       scriptSrc: ["'self'", 'blob:', "'wasm-unsafe-eval'"],
@@ -118,7 +118,7 @@ app.get('/api/health', async (_req, res) => {
     },
     stack: {
       voice: config.providers.voiceProvider,
-      images: config.providers.fluxEnabled ? 'flux-2-pro-3x-1mp-mixed-framing' : 'disabled',
+      images: config.providers.fluxEnabled ? 'flux-2-pro-4x-1mp-original-prompts' : 'disabled',
       video: ['pruna']
     },
     providers: {
@@ -138,9 +138,8 @@ app.get('/api/health', async (_req, res) => {
     fluxProfileResolution: config.providers.fluxProfileResolution,
     fluxGridImages: config.providers.fluxGridImages,
     instagramPostCount: 4,
-    instagramGeneratedPostCount: 3,
-    instagramSceneryPost: 'wikimedia-commons-cc0-mountain-lake-sunset',
-    instagramFramings: ['close-portrait', 'half-body', 'near-full-body', 'real-scenery'],
+    instagramGeneratedPostCount: 4,
+    instagramFramings: ['office', 'cafe', 'city-promenade', 'park-lifestyle'],
     videoProviderPreference: config.providers.videoProviderPreference
   });
 });
