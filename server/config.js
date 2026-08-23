@@ -25,8 +25,8 @@ module.exports = {
   maxImageBytes: numberEnv('MAX_IMAGE_SIZE_MB', 8) * 1024 * 1024,
   maxAudioBytes: numberEnv('MAX_AUDIO_SIZE_MB', 20) * 1024 * 1024,
   maxReferenceAudioSeconds: Math.min(numberEnv('MAX_REFERENCE_AUDIO_SECONDS', 60), 120),
-  maxGeneratedAudioSeconds: 12,
-  maxVideoSeconds: Math.min(numberEnv('MAX_VIDEO_SECONDS', 10), 10),
+  maxGeneratedAudioSeconds: Math.min(numberEnv('MAX_GENERATED_AUDIO_SECONDS', 20), 30),
+  maxVideoSeconds: Math.min(numberEnv('MAX_VIDEO_SECONDS', 20), 20),
   retentionMs: numberEnv('MEDIA_RETENTION_MINUTES', 30) * 60 * 1000,
 
   // Single Render service: many learners may queue, while only four complete AI
@@ -36,7 +36,7 @@ module.exports = {
   ffmpegConcurrency: Math.min(numberEnv('FFMPEG_CONCURRENCY', 2), 8),
   maxQueuedJobs: Math.min(numberEnv('AI_MAX_QUEUED_JOBS', 250), 5000),
   dailyAiBudgetUsd: numberEnv('AI_DAILY_BUDGET_USD', 50),
-  estimatedSimulationCostUsd: numberEnv('ESTIMATED_SIMULATION_COST_USD', 0.40),
+  estimatedSimulationCostUsd: numberEnv('ESTIMATED_SIMULATION_COST_USD', 0.70),
 
   demoMode: String(process.env.DEMO_MODE || 'false').toLowerCase() === 'true',
   adminKey: String(process.env.ADMIN_KEY || '').trim(),
@@ -75,10 +75,10 @@ module.exports = {
 
     fluxEnabled: String(process.env.FLUX_ENABLED || 'true').toLowerCase() !== 'false',
     fluxModel: process.env.FLUX_MODEL || 'black-forest-labs/flux-2-pro',
-    fluxProfileImages: 3,
+    fluxProfileImages: 4,
     fluxProfileResolution: '1 MP',
     // Backwards-compatible health/config field kept for older clients.
-    fluxGridImages: 3,
+    fluxGridImages: 4,
 
     didKey: process.env.DID_API_KEY || '',
     didEnabled: String(process.env.DID_ADAPTER_ENABLED || 'false').toLowerCase() !== 'false',
