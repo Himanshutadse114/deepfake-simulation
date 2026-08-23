@@ -44,7 +44,7 @@ services:
       - key: AI_DAILY_BUDGET_USD
         value: 50
       - key: ESTIMATED_SIMULATION_COST_USD
-        value: 0.40
+        value: 0.70
       - key: ALLOW_PAID_VIDEO_FALLBACK
         value: "false"
 
@@ -65,8 +65,10 @@ services:
         value: auto
       - key: MAX_REFERENCE_AUDIO_SECONDS
         value: 60
+      - key: MAX_GENERATED_AUDIO_SECONDS
+        value: 20
       - key: MAX_VIDEO_SECONDS
-        value: 10
+        value: 20
 
       - key: FLUX_ENABLED
         value: "true"
