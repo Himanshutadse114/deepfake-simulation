@@ -29,7 +29,7 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      imgSrc: ["'self'", 'data:', 'blob:'],
+      imgSrc: ["'self'", 'data:', 'blob:', 'https://upload.wikimedia.org'],
       mediaSrc: ["'self'", 'blob:'],
       connectSrc: ["'self'"],
       scriptSrc: ["'self'", 'blob:', "'wasm-unsafe-eval'"],
@@ -137,8 +137,10 @@ app.get('/api/health', async (_req, res) => {
     fluxProfileImages: config.providers.fluxProfileImages,
     fluxProfileResolution: config.providers.fluxProfileResolution,
     fluxGridImages: config.providers.fluxGridImages,
-    instagramPostCount: 3,
-    instagramFramings: ['close-portrait', 'half-body', 'near-full-body'],
+    instagramPostCount: 4,
+    instagramGeneratedPostCount: 3,
+    instagramSceneryPost: 'wikimedia-commons-cc0-mountain-lake-sunset',
+    instagramFramings: ['close-portrait', 'half-body', 'near-full-body', 'real-scenery'],
     videoProviderPreference: config.providers.videoProviderPreference
   });
 });
