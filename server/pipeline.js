@@ -21,7 +21,6 @@ const {
 } = require('./services/flux');
 const { generateAvatarVideo: generateDidVideo } = require('./services/did');
 const { generateAvatarVideo: generateHeyGenVideo } = require('./services/heygen');
-const { generateAvatarVideo: generateWanVideo } = require('./services/wan');
 const { generateAvatarVideo: generatePrunaVideo } = require('./services/pruna');
 const { createWatermarkedVideo } = require('./services/watermark');
 const { assertAudioDuration } = require('./services/audio-duration');
@@ -48,7 +47,6 @@ function ensureStages(session) {
   session.stages ||= {};
   session.stages.whatsappAudio ||= { status: 'pending', predictionId: null };
   session.stages.videoAudio ||= { status: 'pending', predictionId: null };
-  session.stages.wan ||= { status: 'pending', predictionId: null, providerUrl: null };
   session.stages.pruna ||= { status: 'pending', predictionId: null, providerUrl: null };
   session.stages.flux ||= { status: 'pending', predictionId: null, providerUrl: null };
   session.stages.flux.items = buildFluxItems(session.stages.flux.items || []);
@@ -306,7 +304,7 @@ async function materializeLegacyVideoInputs(session, speechRef, workspace) {
 async function generateVideoWithFallback(session, speechRef, workspace = path.join(config.workRoot, session.id || 'test')) {
   ensureStages(session);
   if (session.output) {
-    return { provider: session.provider.video || 'wan', output: session.output };
+    return { provider: session.provider.video || 'pruna', output: session.output };
   }
 
   const failures = [];
@@ -337,30 +335,6 @@ async function generateVideoWithFallback(session, speechRef, workspace = path.jo
         return await generateHeyGenVideo(local.faceFile, local.speechPath, session.id);
       }
 
-      if (provider === 'wan') {
-        if (!config.providers.replicateToken) {
-          failures.push('wan: REPLICATE_API_TOKEN is not configured');
-          continue;
-        }
-        providerAttempted = true;
-        const stage = session.stages.wan;
-        updateStatus(session, 'generating_video', 'Generating natural facial motion and lip-sync with Wan 2.2 S2V.');
-        await persistSession(session);
-
-        if (stage.status === 'provider_succeeded' && stage.providerUrl && !stage.predictionId) {
-          return { provider: 'wan', url: stage.providerUrl, predictionId: null };
-        }
-
-        const callbacks = predictionCallbacks(session, 'wan');
-        const result = await generateWanVideo(session.face, speechRef, {
-          ...callbacks,
-          onRateLimit: rateLimitStatus(session)
-        });
-        session.provider.video = 'wan-2.2-s2v';
-        await persistSession(session);
-        return result;
-      }
-
       if (provider === 'pruna') {
         if (!config.providers.replicateToken) {
           failures.push('pruna: REPLICATE_API_TOKEN is not configured');
@@ -368,7 +342,7 @@ async function generateVideoWithFallback(session, speechRef, workspace = path.jo
         }
         providerAttempted = true;
         const stage = session.stages.pruna;
-        updateStatus(session, 'generating_video', 'Decoding facial structure and preparing the impersonation video.');
+        updateStatus(session, 'generating_video', 'Generating the Pruna talking-head video from your portrait and cloned audio.');
         await persistSession(session);
 
         if (stage.status === 'provider_succeeded' && stage.providerUrl && !stage.predictionId) {
@@ -388,8 +362,8 @@ async function generateVideoWithFallback(session, speechRef, workspace = path.jo
       failures.push(`${provider}: unsupported video provider`);
     } catch (error) {
       failures.push(`${provider}: ${error.message}`);
-      if (provider === 'wan' || provider === 'pruna') {
-        session.stages[provider].status = error.code === 'REPLICATE_CREATE_AMBIGUOUS'
+      if (provider === 'pruna') {
+        session.stages.pruna.status = error.code === 'REPLICATE_CREATE_AMBIGUOUS'
           ? 'creation_ambiguous'
           : error.nonRetryable ? 'provider_failed' : 'interrupted';
         await persistSession(session);
@@ -405,7 +379,7 @@ async function completeDemoSession(session) {
   updateStatus(session, 'demo_preparing', 'Internal demo mode: loading the uploaded media.');
   session.whatsappAudioOutput = session.voice.path;
   session.videoAudioOutput = session.voice.path;
-  session.variants = [session.face.path, session.face.path, session.face.path, session.face.path];
+  session.variants = [session.face.path, session.face.path, session.face.path];
   session.provider = {
     voice: 'demo-original-sample',
     video: 'demo-static-preview',
@@ -429,14 +403,12 @@ async function runInitialGeneration(mediaTask, profileTask) {
   if (failure) throw failure.reason;
 }
 
-function videoStageKey(video, session) {
-  if (video?.provider === 'wan' || String(session.provider?.video || '').startsWith('wan')) return 'wan';
+function videoStageKey() {
   return 'pruna';
 }
 
 async function finalizeVideo(session, video, workspace) {
-  const stageKey = videoStageKey(video, session);
-  const stage = ensureStages(session)[stageKey];
+  const stage = ensureStages(session).pruna;
   const rawVideoPath = path.join(workspace, 'raw.mp4');
   const outputPath = path.join(workspace, 'simulation.mp4');
 
@@ -470,7 +442,7 @@ async function generateProfileVariants(session, workspace = path.join(config.wor
     return session.variants;
   }
 
-  updateProfileStatus(session, 'generating', 'Creating three identity-consistent 1 MP profile photos for the Instagram simulation.');
+  updateProfileStatus(session, 'generating', 'Creating three identity-consistent 1 MP profile photos with close, half-body and near-full-body framing.');
   session.stages.flux.status = session.stages.flux.status === 'provider_running'
     ? session.stages.flux.status
     : 'generating';
@@ -502,7 +474,7 @@ async function generateProfileVariants(session, workspace = path.join(config.wor
     session.stages.flux.providerUrl = result.providerOutputUrls?.at(-1) || session.stages.flux.providerUrl || null;
     session.stages.flux.status = 'completed';
     session.provider.images = 'flux-2-pro-3x-1mp';
-    updateProfileStatus(session, 'completed', 'Three profile images are ready. The generated video will appear as the fourth Instagram post.');
+    updateProfileStatus(session, 'completed', 'Three profile photo posts are ready for the Instagram simulation.');
     await persistSession(session);
     return session.variants;
   } catch (error) {
@@ -560,7 +532,7 @@ async function generateSimulation(session) {
       session,
       'completed',
       results[1].status === 'fulfilled'
-        ? 'Your voice, video and profile experience are ready.'
+        ? 'Your voice, video and three-post profile experience are ready.'
         : 'Your voice and video experience are ready. The profile image step was unavailable, so the interface will use the consented portrait as a fallback.'
     );
 
@@ -574,7 +546,7 @@ async function generateSimulation(session) {
   } catch (error) {
     console.warn(`[generation:${session.id}] ${error.stack || error.message || error}`);
     if (error.code === 'REPLICATE_CREATE_AMBIGUOUS') {
-      for (const stageKey of ['whatsappAudio', 'videoAudio', 'wan', 'pruna']) {
+      for (const stageKey of ['whatsappAudio', 'videoAudio', 'pruna']) {
         const stage = session.stages?.[stageKey];
         if (stage?.status === 'creation_started' && !stage.predictionId) stage.status = 'creation_ambiguous';
       }
