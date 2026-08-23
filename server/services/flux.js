@@ -18,30 +18,30 @@ const FLUX_PROFILE_RESOLUTION = '1 MP';
 const PROFILE_VARIANT_PROMPTS = [
   [
     'Using image 1 only as the identity reference, create one photorealistic square social-media photograph of the same single person.',
-    'Identity consistency is the highest priority: preserve the same distinctive facial features, facial proportions, approximate age, skin tone, hairstyle, hair colour, eye shape and overall appearance.',
-    'Show the person in a modern office or coworking environment in a natural near-front-facing head-and-shoulders pose, looking generally toward the camera with a relaxed everyday expression.',
-    'Use casual-professional clothing and soft natural daylight or ordinary ambient indoor light.',
-    'The image should look like an ordinary smartphone photo that could realistically appear on a personal Instagram post, with realistic skin texture, normal lighting and a candid social-media feel.',
-    'Do not make it look like a studio portrait, glamour image, beauty-filter image, cinematic still, or AI artwork. Do not over-polish the face.',
+    'Identity consistency is the highest priority. Preserve the same distinctive face, facial proportions, approximate age, skin tone, hairstyle, hair colour, eye shape and overall appearance. Do not beautify, stylise or change the identity.',
+    'FRAMING: a natural head-and-shoulders or upper-chest portrait, near-front-facing, with both eyes clearly visible and the face large enough for strong identity fidelity.',
+    'SCENE: an ordinary modern office or coworking environment. Use casual-professional clothing, soft natural daylight and a relaxed everyday expression.',
+    'The photograph must feel like a normal smartphone photo someone would casually post to Instagram: believable composition, realistic skin texture, normal depth of field, no perfect studio symmetry and no cinematic grading.',
+    'Do not make it look like a studio portrait, glamour campaign, beauty-filter image, influencer shoot, illustration or obvious AI artwork.',
     'Include exactly one person. Keep the background generic and free of readable text, credentials, documents, money, logos or recognisable brand marks.'
   ].join(' '),
   [
     'Using image 1 only as the identity reference, create one photorealistic square social-media photograph of the same single person.',
-    'Identity consistency is the highest priority: preserve the same distinctive facial features, facial proportions, approximate age, skin tone, hairstyle, hair colour, eye shape and overall appearance.',
-    'Place the person in a bright everyday cafe setting with a clear natural three-quarter-right head angle and both eyes reasonably visible.',
-    'Use a relaxed expression, casual clothing and warm natural window light or ordinary indoor cafe lighting.',
-    'The image should feel like a spontaneous real Instagram post captured on a phone, not like a professional photoshoot. Use a slightly different crop and shoulder orientation from a straight portrait so the post feels independently captured and natural.',
-    'Do not make it look like a polished influencer shoot, commercial photo, cinematic frame, or AI artwork. Avoid exaggerated blur, dramatic lighting and beauty-filter skin.',
-    'Include exactly one person. Keep the scene free of readable text, credentials, documents, money, logos or recognisable brand marks.'
+    'Identity consistency is the highest priority. Preserve the same distinctive face, facial proportions, approximate age, skin tone, hairstyle, hair colour, eye shape and overall appearance. The face must remain recognisably the same person as image 1.',
+    'FRAMING: a natural half-body photograph from approximately the waist or upper hips upward. Use a relaxed three-quarter angle, with the face turned enough toward the camera that both eyes and key facial features remain clearly visible.',
+    'SCENE: a bright everyday cafe, office lounge or casual indoor setting. Use ordinary casual clothing, natural posture, realistic hands if visible and warm window light.',
+    'The image should feel like an independently captured phone photo from a real personal Instagram account, not a repeated portrait. Use a slightly wider camera distance and different shoulder orientation from the first image.',
+    'Avoid model poses, fashion photography, exaggerated background blur, dramatic lighting, excessive skin smoothing, distorted hands, additional people or an over-polished AI look.',
+    'Keep the scene free of readable text, credentials, documents, money, logos or recognisable brand marks.'
   ].join(' '),
   [
     'Using image 1 only as the identity reference, create one photorealistic square social-media photograph of the same single person.',
-    'Identity consistency is the highest priority: preserve the same distinctive facial features, facial proportions, approximate age, skin tone, hairstyle, hair colour, eye shape and overall appearance.',
-    'Place the person in a green park or generic outdoor public setting with a natural three-quarter-left angle or soft arm-length selfie angle, with both eyes visible.',
-    'Use a relaxed everyday expression, casual clothing and natural daylight.',
-    'The image should look like a believable smartphone social-media post, with a natural everyday feel rather than a professional portrait. Use a slightly wider framing and a different camera height from the other profile photos so the image feels independently captured.',
-    'Do not make it look like a travel campaign, fashion editorial, cinematic portrait, or AI artwork. Avoid heavy retouching, dramatic lighting and an over-polished finish.',
-    'Include exactly one person. Keep the background generic and free of readable text, credentials, documents, money, logos or recognisable landmarks.'
+    'Identity consistency is the highest priority. Preserve the exact recognisable facial identity, approximate age, skin tone, hairstyle, hair colour and key facial features from image 1. Do not alter the face to fit the wider composition.',
+    'FRAMING: a natural near-full-body or full-body lifestyle photograph, showing the person standing from head to at least below the knees and preferably to the feet. The person should occupy roughly 65 to 80 percent of the frame so the face remains clear, sharp and recognisable.',
+    'POSE: relaxed everyday standing posture, shoulders natural, both eyes visible, no extreme profile and no fashion-model pose.',
+    'SCENE: a generic park path, pedestrian area, building entrance or other ordinary outdoor public setting in natural daylight. Use believable casual clothing and realistic body proportions.',
+    'The result should look like a genuine smartphone Instagram post taken by a friend: casual framing, small natural imperfections and an everyday lifestyle feeling. It must not look like an editorial, travel campaign or professional photoshoot.',
+    'Avoid identity drift, face replacement, warped limbs, distorted hands, extra people, dramatic cinematic lighting, heavy retouching, readable text, logos or recognisable landmarks.'
   ].join(' ')
 ];
 
@@ -87,8 +87,8 @@ async function saveOutput(output, targetPath, label = 'FLUX profile image') {
   return downloadWithRetry(url, targetPath, { label, timeoutMs: 90_000 });
 }
 
-// Kept exported for backwards-compatible tests/helpers. Production now creates
-// three independent 1 MP photos rather than one composite contact sheet.
+// Kept exported for backwards-compatible tests/helpers. Production creates
+// three independent 1 MP photos with deliberately different social framings.
 async function collectVariantResults(count, runVariant, onFailure = () => {}) {
   const results = [];
   for (let index = 0; index < count; index += 1) {
@@ -131,10 +131,8 @@ async function generateIdentityVariants(faceFile, sessionId, options = {}) {
     const predictionIds = [];
     const providerOutputUrls = [];
 
-    // Deliberately run the three image predictions sequentially. This keeps one
-    // FLUX prediction active per simulation, reduces burst rate-limit pressure,
-    // and lets the durable stage checkpoint represent exactly one paid creation
-    // boundary at a time.
+    // Run sequentially to avoid burst rate limits and keep each paid creation
+    // independently resumable from its durable R2 prediction checkpoint.
     for (let index = 0; index < PROFILE_VARIANT_COUNT; index += 1) {
       const callbacks = typeof options.itemCallbacks === 'function'
         ? options.itemCallbacks(index)
