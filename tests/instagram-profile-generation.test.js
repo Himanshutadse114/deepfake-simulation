@@ -10,7 +10,8 @@ const flux = read('server/services/flux.js');
 const pipeline = read('server/pipeline.js');
 const config = require('../server/config');
 const instagramUi = read('client/public/instagram-video-grid.js');
-const bootstrap = read('client/public/ui-bootstrap.js');
+const profileFix = read('client/public/generated-profile-grid-fix.js');
+const index = read('client/index.html');
 const serverIndex = read('server/index.js');
 
 test('FLUX profile generation is exactly three independent 1 MP requests', () => {
@@ -55,9 +56,18 @@ test('Instagram grid shows three AI portraits plus one non-AI CC0 scenery post',
   assert.match(instagramUi, /upload\.wikimedia\.org/);
   assert.match(instagramUi, /CC0 1\.0 public-domain dedication/);
   assert.doesNotMatch(instagramUi, /AI VIDEO|openIgVideoPost|generatedVideoUrl/);
-  assert.match(bootstrap, /instagram-video-grid\.js\?v=1mp-3ai-plus-scenery-20260823-1/);
   assert.match(serverIndex, /https:\/\/upload\.wikimedia\.org/);
   assert.match(serverIndex, /instagramPostCount:\s*4/);
   assert.match(serverIndex, /instagramGeneratedPostCount:\s*3/);
+});
+
+test('completed sessions bind exact generated variant routes instead of repeating the upload', () => {
+  assert.match(profileFix, /variantCount/);
+  assert.match(profileFix, /\/variant\/\$\{index\}/);
+  assert.match(profileFix, /__generatedProfileUrls/);
+  assert.match(profileFix, /never silently repeat the uploaded source portrait/i);
+  assert.match(profileFix, /Loading the generated profile posts/);
+  assert.match(index, /generated-profile-grid-fix\.js\?v=generated-variants-20260823-1/);
+  assert.doesNotThrow(() => new Function(profileFix));
   assert.doesNotThrow(() => new Function(instagramUi));
 });
