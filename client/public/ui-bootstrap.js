@@ -78,7 +78,10 @@
     await loadScript('/final-flow-polish.js?v=2');
     await loadScript('/wa-call-ringtone.js?v=1');
     await loadScript('/camera-face-guide.js?v=2');
-    await loadScript('/instagram-video-grid.js?v=1mp-3ai-plus-scenery-20260823-1');
+    // These two must load LAST. Loading them from index.html allowed the base
+    // runtime and later polish scripts to overwrite the fixes asynchronously.
+    await loadScript('/generated-profile-grid-fix.js?v=four-generated-posts-20260824-1');
+    await loadScript('/whatsapp-copy-fix.js?v=qr500-final-20260824-1');
     const enforceScreenVisibility=(name)=>{
       document.querySelectorAll('.screen').forEach(screen=>{
         const active=screen.dataset.screen===name;
