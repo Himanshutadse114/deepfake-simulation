@@ -62,6 +62,8 @@ jobs:
           node --check client/public/voice-sample-controls.js
           node --check client/public/queue-status-ui.js
           node --check client/public/instagram-video-grid.js
+          node --check client/public/generated-profile-grid-fix.js
+          node --check client/public/whatsapp-copy-fix.js
           node --check client/public/wa-polish.js
           node --check client/public/wa-flow-fix.js
           node --check client/public/wa-replay-reset.js
