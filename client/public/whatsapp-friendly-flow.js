@@ -59,8 +59,8 @@
       if (!chatBody) return;
       chatBody.innerHTML = '<span class="wa-date">TODAY</span>';
 
-      await incoming('Hey, sorry to bother you — are you free for a minute?', 900, 520);
-      await incoming('I could really use your help with something.', 760, 700);
+      await incoming('Hey, I really need you for a minute. Please don\'t ignore this.', 900, 520);
+      await incoming('I\'ve got myself into a bit of a mess and I\'m starting to panic.', 850, 720);
 
       window.showWaTyping(true);
       await wait(950);
@@ -70,19 +70,20 @@
 
     window.onVoiceNoteCompleted = async function friendlyVoiceNoteCompleted() {
       await wait(700);
-      await outgoing('Yeah, of course. What\'s going on?', 700);
-      await incoming('Thank you 🙏 I knew I could ask you.', 850, 520);
-      await incoming('I\'m trying to sort something out and I\'m a bit stuck. Can I call you for a minute? It\'s easier to explain.', 1150, 1100);
+      await outgoing('Okay, I\'m here. What happened?', 700);
+      await incoming('Thank you. They\'re saying if I don\'t sort this out in the next few minutes, they\'ll cancel it and I could lose the money.', 1100, 700);
+      await incoming('Can I call you quickly? I don\'t want to type all of this here.', 950, 1000);
       window.triggerIncomingVideoCall();
     };
 
     window.receiveQrCodePaymentRequest = async function friendlyQrFollowUp() {
-      await incoming('Thanks for picking up. I really appreciate it.', 820, 560);
-      await incoming('One last thing — this QR came up on my screen and I can\'t open it from the same phone.', 1050, 560);
-      await incoming('Could you scan it for me and tell me what you see? No rush.', 950, 650);
+      await incoming('Please stay with me for one more minute. I really need your help finishing this.', 900, 560);
+      await incoming('This QR is the last step, but I can\'t scan it from the same phone.', 950, 520);
+      await incoming('If I miss this window, they said it\'ll be cancelled and I\'ll still be charged.', 1000, 560);
+      await incoming('Can you scan it now and just tell me what comes up?', 900, 650);
 
       const contactLastMsg = document.getElementById('waContactLastMsg');
-      if (contactLastMsg) contactLastMsg.textContent = 'Could you scan it for me?';
+      if (contactLastMsg) contactLastMsg.textContent = 'Can you scan it now?';
 
       window.showWaTyping(true);
       await wait(900);
