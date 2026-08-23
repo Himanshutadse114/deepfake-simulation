@@ -33,9 +33,14 @@ function buildFfmpegArgs(inputPath, outputPath, maxSeconds) {
     '-t', String(maxSeconds),
     '-vf', buildWatermarkFilter(),
     '-c:v', 'libx264',
-    '-preset', 'veryfast',
-    '-crf', '20',
+    // This is a short awareness clip rendered on a CPU-only Render service.
+    // Ultrafast removes the long post-provider encoding tail while keeping the
+    // permanent disclosure burned into every frame.
+    '-preset', 'ultrafast',
+    '-crf', '22',
+    '-threads', '0',
     '-c:a', 'aac',
+    '-b:a', '128k',
     '-movflags', '+faststart',
     outputPath
   ];
