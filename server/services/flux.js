@@ -12,42 +12,16 @@ const { downloadWithRetry } = require('./download');
 const { withMediaProcessSlot } = require('./process-limit');
 const { runOfficialPrediction } = require('./replicate-prediction');
 
-const PROFILE_VARIANT_COUNT = 3;
+const PROFILE_VARIANT_COUNT = 4;
 const FLUX_PROFILE_RESOLUTION = '1 MP';
 
+// Restored from the earlier four-post implementation. These are intentionally
+// simple, realistic social-photo prompts: office, cafe, city/travel and park.
 const PROFILE_VARIANT_PROMPTS = [
-  [
-    'Using image 1 only as the identity reference, create one photorealistic square social-media photograph of the same single person.',
-    'Identity consistency is the highest priority. Preserve the same distinctive face, facial proportions, approximate age, skin tone, hairstyle, hair colour, eye shape and overall appearance. Do not beautify, stylise or change the identity.',
-    'POST 1 MUST BE VISUALLY DISTINCT FROM THE OTHER PROFILE POSTS.',
-    'FRAMING: a close head-and-shoulders or upper-chest portrait, near-front-facing, with both eyes clearly visible and the face large in frame for maximum identity fidelity.',
-    'SCENE: a modern office or coworking environment with soft daylight. Use a simple casual-professional top and a relaxed everyday expression.',
-    'CAMERA FEEL: ordinary handheld smartphone portrait at eye level, slightly imperfect but believable composition, realistic skin texture and normal depth of field.',
-    'Do not use a cafe, outdoor park, full-body framing, fashion pose, studio lighting, glamour styling, cinematic grading, beauty filters or obvious AI-art styling for this post.',
-    'Include exactly one person. Keep the background generic and free of readable text, credentials, documents, money, logos or recognisable brand marks.'
-  ].join(' '),
-  [
-    'Using image 1 only as the identity reference, create one photorealistic square social-media photograph of the same single person.',
-    'Identity consistency is the highest priority. Preserve the same distinctive face, facial proportions, approximate age, skin tone, hairstyle, hair colour, eye shape and overall appearance. The face must remain recognisably the same person as image 1.',
-    'POST 2 MUST LOOK LIKE A DIFFERENT REAL-LIFE MOMENT, NOT A RECROP OR REPEAT OF POST 1.',
-    'FRAMING: a natural half-body photograph from approximately the waist or upper hips upward. Use a relaxed three-quarter angle, with the face turned toward the camera so both eyes and key facial features stay clearly visible.',
-    'SCENE: a bright everyday cafe or casual indoor lounge with warm window light. Use a clearly different casual outfit style from the office portrait, while keeping the person believable and natural.',
-    'POSE: seated or casually standing with relaxed shoulders and natural posture; no object needs to be held. Use a wider camera distance and different camera height from the close portrait.',
-    'CAMERA FEEL: spontaneous smartphone lifestyle post, normal perspective, natural skin, modest background blur and realistic indoor lighting.',
-    'Do not use an office-style headshot, outdoor park scene, full-body fashion pose, influencer photoshoot, dramatic lighting, heavy retouching, distorted hands, extra people or an over-polished AI look.',
-    'Keep the scene free of readable text, credentials, documents, money, logos or recognisable brand marks.'
-  ].join(' '),
-  [
-    'Using image 1 only as the identity reference, create one photorealistic square social-media photograph of the same single person.',
-    'Identity consistency is the highest priority. Preserve the exact recognisable facial identity, approximate age, skin tone, hairstyle, hair colour and key facial features from image 1. Do not alter the face to fit the wider composition.',
-    'POST 3 MUST BE OBVIOUSLY DIFFERENT FROM BOTH THE CLOSE OFFICE PORTRAIT AND THE HALF-BODY CAFE POST.',
-    'FRAMING: a natural near-full-body or full-body lifestyle photograph, showing the person from head to at least below the knees and preferably to the feet. The person should occupy roughly 65 to 80 percent of the frame so the face remains clear and recognisable.',
-    'POSE: relaxed everyday standing posture, shoulders natural, both eyes visible, no extreme profile and no fashion-model pose.',
-    'SCENE: an outdoor park path, pedestrian area or generic building entrance in natural daylight. Use a weekend-casual outfit that is visually different from the first two posts and believable body proportions.',
-    'CAMERA FEEL: genuine smartphone photo taken by a friend from a few steps away, casual framing, small natural imperfections and an everyday lifestyle feeling.',
-    'Do not use an indoor cafe, office headshot, close portrait crop, editorial travel campaign, cinematic lighting, heavy retouching, warped limbs, distorted hands, extra people, readable text, logos or recognisable landmarks.',
-    'The face must remain the same person as the reference even at the wider framing.'
-  ].join(' ')
+  'Using image 1 as the identity reference, preserve the same person and distinctive facial features. Create a realistic square social-media photo of the same person in a modern office or coworking space, three-quarter left camera angle, natural expression, soft daylight, casual-professional clothing, realistic smartphone photography. Keep identity, approximate age, skin tone, hairstyle and facial structure consistent. No text, logos, badges, documents or other people.',
+  'Using image 1 as the identity reference, preserve the same person and distinctive facial features. Create a realistic square social-media photo of the same person in a bright cafe setting, three-quarter right camera angle, natural expression, warm window light, everyday clothing, realistic smartphone photography. Keep identity, approximate age, skin tone, hairstyle and facial structure consistent. No text, logos, badges, documents or other people.',
+  'Using image 1 as the identity reference, preserve the same person and distinctive facial features. Create a realistic square travel-style social photo of the same person outdoors in a generic city promenade or public plaza, front-facing to slight angle, natural daylight, relaxed expression, realistic smartphone photography. Keep identity, approximate age, skin tone, hairstyle and facial structure consistent. Do not depict a specific landmark. No text, logos, documents or other people.',
+  'Using image 1 as the identity reference, preserve the same person and distinctive facial features. Create a realistic square lifestyle social photo of the same person in a green park or neutral outdoor setting, slightly wider waist-up framing, natural expression, soft late-afternoon light, realistic smartphone photography. Keep identity, approximate age, skin tone, hairstyle and facial structure consistent. No text, logos, badges, documents or other people.'
 ];
 
 function runFfmpeg(args, label) {
@@ -66,9 +40,8 @@ function runFfmpeg(args, label) {
 }
 
 async function createFluxReference(sourcePath, targetPath) {
-  // FLUX.2 Pro bills reference images by megapixels. Keep the original portrait
-  // for the video provider and create a dedicated reference bounded to 1024px
-  // on both axes so every profile request stays in the 1 MP reference tier.
+  // Keep the provider reference in the 1 MP billing tier while preserving the
+  // original portrait separately for the video provider.
   await runFfmpeg([
     '-i', sourcePath,
     '-vf', 'scale=min(1024\\,iw):min(1024\\,ih):force_original_aspect_ratio=decrease',
@@ -92,8 +65,6 @@ async function saveOutput(output, targetPath, label = 'FLUX profile image') {
   return downloadWithRetry(url, targetPath, { label, timeoutMs: 90_000 });
 }
 
-// Kept exported for backwards-compatible tests/helpers. Production creates
-// three independent 1 MP photos with deliberately different social framings.
 async function collectVariantResults(count, runVariant, onFailure = () => {}) {
   const results = [];
   for (let index = 0; index < count; index += 1) {
@@ -136,8 +107,8 @@ async function generateIdentityVariants(faceFile, sessionId, options = {}) {
     const predictionIds = [];
     const providerOutputUrls = [];
 
-    // Run sequentially to avoid burst rate limits and keep each paid creation
-    // independently resumable from its durable R2 prediction checkpoint.
+    // Keep the four paid requests independent and resumable through their R2
+    // checkpoints instead of combining them into one grid image.
     for (let index = 0; index < PROFILE_VARIANT_COUNT; index += 1) {
       const callbacks = typeof options.itemCallbacks === 'function'
         ? options.itemCallbacks(index)
@@ -151,7 +122,7 @@ async function generateIdentityVariants(faceFile, sessionId, options = {}) {
           resolution: FLUX_PROFILE_RESOLUTION,
           aspect_ratio: '1:1',
           output_format: 'jpg',
-          output_quality: 90,
+          output_quality: 85,
           safety_tolerance: 2,
           prompt_upsampling: false
         };
