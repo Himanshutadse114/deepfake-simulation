@@ -15,13 +15,38 @@ const { runOfficialPrediction } = require('./replicate-prediction');
 const PROFILE_VARIANT_COUNT = 4;
 const FLUX_PROFILE_RESOLUTION = '1 MP';
 
-// Restored from the earlier four-post implementation. These are intentionally
-// simple, realistic social-photo prompts: office, cafe, city/travel and park.
+// Restored from the earlier four-post implementation, with stronger wardrobe
+// diversity so every post looks like a separate real-life moment. Clothing is
+// deliberately matched to each environment while identity remains consistent.
 const PROFILE_VARIANT_PROMPTS = [
-  'Using image 1 as the identity reference, preserve the same person and distinctive facial features. Create a realistic square social-media photo of the same person in a modern office or coworking space, three-quarter left camera angle, natural expression, soft daylight, casual-professional clothing, realistic smartphone photography. Keep identity, approximate age, skin tone, hairstyle and facial structure consistent. No text, logos, badges, documents or other people.',
-  'Using image 1 as the identity reference, preserve the same person and distinctive facial features. Create a realistic square social-media photo of the same person in a bright cafe setting, three-quarter right camera angle, natural expression, warm window light, everyday clothing, realistic smartphone photography. Keep identity, approximate age, skin tone, hairstyle and facial structure consistent. No text, logos, badges, documents or other people.',
-  'Using image 1 as the identity reference, preserve the same person and distinctive facial features. Create a realistic square travel-style social photo of the same person outdoors in a generic city promenade or public plaza, front-facing to slight angle, natural daylight, relaxed expression, realistic smartphone photography. Keep identity, approximate age, skin tone, hairstyle and facial structure consistent. Do not depict a specific landmark. No text, logos, documents or other people.',
-  'Using image 1 as the identity reference, preserve the same person and distinctive facial features. Create a realistic square lifestyle social photo of the same person in a green park or neutral outdoor setting, slightly wider waist-up framing, natural expression, soft late-afternoon light, realistic smartphone photography. Keep identity, approximate age, skin tone, hairstyle and facial structure consistent. No text, logos, badges, documents or other people.'
+  [
+    'Using image 1 as the identity reference, preserve the same person and distinctive facial features.',
+    'Create a realistic square social-media photo of the same person in a modern office or coworking space, three-quarter left camera angle, natural expression, soft daylight and realistic smartphone photography.',
+    'CLOTHING: use a smart-casual office-appropriate outfit, such as a neat shirt, blouse, subtle blazer or cardigan. The clothing must look professional and must be clearly different from the clothing in the other three generated posts.',
+    'Do not reuse the same top, jacket, garment combination or overall colour palette used in any other post.',
+    'Keep identity, approximate age, skin tone, hairstyle and facial structure consistent. No text, logos, badges, documents or other people.'
+  ].join(' '),
+  [
+    'Using image 1 as the identity reference, preserve the same person and distinctive facial features.',
+    'Create a realistic square social-media photo of the same person in a bright cafe setting, three-quarter right camera angle, natural expression, warm window light and realistic smartphone photography.',
+    'CLOTHING: use a relaxed everyday cafe outfit, such as comfortable knitwear, a casual top, denim layer or other laid-back casual clothing. The outfit must be visibly different from the office look and from the other generated posts.',
+    'Use a different garment style and a different overall colour palette from all other posts. Do not repeat the office blazer, shirt or equivalent clothing combination.',
+    'Keep identity, approximate age, skin tone, hairstyle and facial structure consistent. No text, logos, badges, documents or other people.'
+  ].join(' '),
+  [
+    'Using image 1 as the identity reference, preserve the same person and distinctive facial features.',
+    'Create a realistic square travel-style social photo of the same person outdoors in a generic city promenade or public plaza, front-facing to slight angle, natural daylight, relaxed expression and realistic smartphone photography.',
+    'CLOTHING: use an urban outdoor outfit suitable for going out in the city, such as a light jacket, overshirt, casual streetwear layer or smart-casual outdoor combination. The outfit must clearly differ from both the office and cafe looks.',
+    'Use a visibly different silhouette, outer layer and overall colour feel from the other three posts. Do not repeat the same top or jacket used elsewhere.',
+    'Keep identity, approximate age, skin tone, hairstyle and facial structure consistent. Do not depict a specific landmark. No text, logos, documents or other people.'
+  ].join(' '),
+  [
+    'Using image 1 as the identity reference, preserve the same person and distinctive facial features.',
+    'Create a realistic square lifestyle social photo of the same person in a green park or neutral outdoor setting, slightly wider waist-up framing, natural expression, soft late-afternoon light and realistic smartphone photography.',
+    'CLOTHING: use a relaxed weekend or park outfit appropriate for the outdoor setting, such as a comfortable casual top with trousers or jeans, light weekend layers or another easygoing outdoor combination. The outfit must not repeat the clothing from any of the other three posts.',
+    'Use a clearly distinct garment combination, style and overall colour palette from the office, cafe and city posts.',
+    'Keep identity, approximate age, skin tone, hairstyle and facial structure consistent. No text, logos, badges, documents or other people.'
+  ].join(' ')
 ];
 
 function runFfmpeg(args, label) {
