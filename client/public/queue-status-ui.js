@@ -162,6 +162,15 @@
     return `${minutes}:${remainder}`;
   }
 
+  function resetCountdownDisplay() {
+    const estimate = ensureEstimate();
+    const countdown = document.getElementById('generationCountdown');
+    const bar = document.querySelector('#generationEstimateBar>i');
+    estimate?.classList.remove('finishing');
+    if (countdown) countdown.textContent = '02:00';
+    if (bar) bar.style.transform = 'scaleX(1)';
+  }
+
   function renderCountdown() {
     const estimate = ensureEstimate();
     if (!estimate || !countdownStartedAt) return;
@@ -223,7 +232,8 @@
       if (!terminal && window.runMode !== 'demo') {
         const estimate = ensureEstimate();
         if (estimate) estimate.style.display = 'grid';
-        startCountdown();
+        if (status === 'queued' && !countdownStartedAt) resetCountdownDisplay();
+        else startCountdown();
       } else {
         stopCountdown({ hide: true });
       }
