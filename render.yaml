@@ -22,8 +22,6 @@ services:
       - key: REQUIRE_LAUNCH_TOKEN
         value: "false"
 
-      # Cloudflare R2 / S3-compatible private storage. In single-service mode R2
-      # stores both media and durable session/queue checkpoints across deploys.
       - key: S3_BUCKET
         sync: false
       - key: S3_REGION
@@ -37,8 +35,6 @@ services:
       - key: S3_FORCE_PATH_STYLE
         value: "false"
 
-      # One Render process accepts many learners but runs only four paid AI
-      # pipelines and two FFmpeg/ffprobe processes simultaneously.
       - key: AI_WORKER_CONCURRENCY
         value: 4
       - key: FFMPEG_CONCURRENCY
@@ -48,7 +44,7 @@ services:
       - key: AI_DAILY_BUDGET_USD
         value: 50
       - key: ESTIMATED_SIMULATION_COST_USD
-        value: 0.35
+        value: 0.40
       - key: ALLOW_PAID_VIDEO_FALLBACK
         value: "false"
 
@@ -78,7 +74,13 @@ services:
         value: black-forest-labs/flux-2-pro
 
       - key: VIDEO_PROVIDER_PREFERENCE
-        value: pruna
+        value: wan,pruna
+      - key: WAN_MODEL
+        value: wan-video/wan-2.2-s2v
+      - key: WAN_INTERPOLATE
+        value: "false"
+      - key: WAN_NUM_FRAMES_PER_CHUNK
+        value: 81
       - key: PRUNA_MODEL
         value: prunaai/p-video-avatar
       - key: PRUNA_RESOLUTION
