@@ -5,9 +5,10 @@ const { downloadWithRetry } = require('./download');
 const { runOfficialPrediction } = require('./replicate-prediction');
 
 const EXACT_SCRIPT_STYLE = [
-  'Read only the provided text exactly as written.',
-  'Do not add, omit, repeat, paraphrase, preface, append, or improvise any words.',
-  'Speak naturally, calmly and clearly for an authorised cybersecurity awareness demonstration.'
+  'Read the entire provided text verbatim from the first word through the final word.',
+  'Do not add, omit, repeat, paraphrase, preface, append, shorten, summarize, or improvise any words.',
+  'Do not stop early. Finish only after speaking the final word of the provided text.',
+  'Speak naturally, clearly and at a steady pace.'
 ].join(' ');
 
 function outputUrl(output) {
@@ -18,6 +19,8 @@ function outputUrl(output) {
 }
 
 function buildVoiceCloneInput({ text, language, referenceAudio, referenceText = '' }) {
+  // Preserve the complete administrator script exactly. No trimming, slicing,
+  // summarising or client-supplied replacement is performed here.
   const exactText = String(text ?? '');
   if (!exactText.trim()) throw new Error('Qwen3-TTS text is empty.');
   if (!referenceAudio) throw new Error('Qwen3-TTS reference audio is missing.');
@@ -30,6 +33,9 @@ function buildVoiceCloneInput({ text, language, referenceAudio, referenceText = 
     style_instruction: EXACT_SCRIPT_STYLE
   };
 
+  // Replicate/Qwen recommends supplying the transcript when it is known. We
+  // only send it for the guided in-app recording where the transcript is exact;
+  // arbitrary uploads are still accepted without inspecting/verifying speech.
   const transcript = String(referenceText || '').trim();
   if (transcript) input.reference_text = transcript.slice(0, 1200);
   return input;
