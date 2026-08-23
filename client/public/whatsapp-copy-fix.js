@@ -1,6 +1,7 @@
 (function installWhatsappCopyFix() {
   const startedAt = Date.now();
   const READY_TIMEOUT_MS = 120000;
+  const COMPLETION_VERSION = 2;
   let completionTimer = null;
   let completionBackupTimer = null;
 
@@ -100,7 +101,7 @@
   function installQrCompletionHook() {
     const current = window.appendQrBubble;
     if (typeof current !== 'function') return false;
-    if (current.__innviktaQrCompletionHook) return true;
+    if (current.__innviktaQrCompletionHook === COMPLETION_VERSION) return true;
 
     const wrapped = function appendQrBubbleWithCompletion(...args) {
       try {
@@ -111,7 +112,7 @@
         scheduleCompletionAfterQr();
       }
     };
-    wrapped.__innviktaQrCompletionHook = true;
+    wrapped.__innviktaQrCompletionHook = COMPLETION_VERSION;
     wrapped.__innviktaOriginalQrBubble = current;
     window.appendQrBubble = wrapped;
     return true;
@@ -126,6 +127,7 @@
     }, 1000);
   }
   revisedVoiceNoteCompleted.__innviktaQr500Copy = true;
+  revisedVoiceNoteCompleted.__innviktaCompletionVersion = COMPLETION_VERSION;
 
   function revisedQrCodePaymentRequest() {
     window.showWaTyping(true);
@@ -152,6 +154,7 @@
     }, 1800);
   }
   revisedQrCodePaymentRequest.__innviktaQr500Copy = true;
+  revisedQrCodePaymentRequest.__innviktaCompletionVersion = COMPLETION_VERSION;
 
   function install() {
     if (
@@ -165,10 +168,12 @@
 
     installQrCompletionHook();
 
-    if (!window.onVoiceNoteCompleted.__innviktaQr500Copy) {
+    // Version checks deliberately replace older cached WhatsApp helpers even
+    // when they carry the old __innviktaQr500Copy marker.
+    if (window.onVoiceNoteCompleted.__innviktaCompletionVersion !== COMPLETION_VERSION) {
       window.onVoiceNoteCompleted = revisedVoiceNoteCompleted;
     }
-    if (!window.receiveQrCodePaymentRequest.__innviktaQr500Copy) {
+    if (window.receiveQrCodePaymentRequest.__innviktaCompletionVersion !== COMPLETION_VERSION) {
       window.receiveQrCodePaymentRequest = revisedQrCodePaymentRequest;
     }
     window.__innviktaWhatsappCopyFixInstalled = true;
