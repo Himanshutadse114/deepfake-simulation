@@ -11,6 +11,7 @@ const {
   materialize,
   deleteRef
 } = require('./storage');
+const { describeScript, sameScript } = require('./script-audit');
 const { synthesizeScript: synthesizeQwen } = require('./services/qwen');
 const { synthesizeFixedScript: synthesizeChatterbox } = require('./services/chatterbox');
 const { synthesizeFixedScript: synthesizeElevenLabs } = require('./services/elevenlabs');
@@ -20,6 +21,7 @@ const {
 } = require('./services/flux');
 const { generateAvatarVideo: generateDidVideo } = require('./services/did');
 const { generateAvatarVideo: generateHeyGenVideo } = require('./services/heygen');
+const { generateAvatarVideo: generateWanVideo } = require('./services/wan');
 const { generateAvatarVideo: generatePrunaVideo } = require('./services/pruna');
 const { createWatermarkedVideo } = require('./services/watermark');
 const { assertAudioDuration } = require('./services/audio-duration');
@@ -46,6 +48,7 @@ function ensureStages(session) {
   session.stages ||= {};
   session.stages.whatsappAudio ||= { status: 'pending', predictionId: null };
   session.stages.videoAudio ||= { status: 'pending', predictionId: null };
+  session.stages.wan ||= { status: 'pending', predictionId: null, providerUrl: null };
   session.stages.pruna ||= { status: 'pending', predictionId: null, providerUrl: null };
   session.stages.flux ||= { status: 'pending', predictionId: null, providerUrl: null };
   session.stages.flux.items = buildFluxItems(session.stages.flux.items || []);
@@ -140,12 +143,31 @@ function rateLimitStatus(session) {
   };
 }
 
+async function auditVoiceScript(session, stageKey, text) {
+  const stage = ensureStages(session)[stageKey];
+  const kind = stageKey === 'videoAudio' ? 'video' : 'whatsapp';
+  const sent = describeScript(text);
+  const expected = session.scriptAudit?.adminSnapshot?.[kind] || null;
+  stage.scriptAudit = {
+    ...sent,
+    source: 'admin-session-snapshot',
+    matchesAdminSnapshot: expected ? sameScript(sent, expected) : null,
+    referenceTranscriptProvided: Boolean(session.voice?.referenceText)
+  };
+  console.log(
+    `[script-audit:${session.id?.slice(0, 8) || 'test'}:${kind}] ` +
+    `length=${sent.length} sha256=${sent.sha256.slice(0, 16)} ` +
+    `matchesAdminSnapshot=${stage.scriptAudit.matchesAdminSnapshot === null ? 'unknown' : stage.scriptAudit.matchesAdminSnapshot}`
+  );
+  await persistSession(session);
+}
+
 async function generateVoice(session, speechPath, text, status = 'cloning_voice', stageKey = 'whatsappAudio') {
   const provider = config.providers.voiceProvider;
   updateStatus(session, status, status === 'cloning_whatsapp'
     ? 'Cloning your voice for the WhatsApp experience.'
     : 'Cloning your voice for the video experience.');
-  await persistSession(session);
+  await auditVoiceScript(session, stageKey, text);
 
   if (provider === 'qwen') {
     if (!config.providers.replicateToken) throw new Error('REPLICATE_API_TOKEN is required when VOICE_PROVIDER=qwen.');
@@ -240,7 +262,7 @@ async function validateParticipantVoice(session, workspace) {
   if (session.voicePreflight?.status === 'completed') return session.voicePreflight;
   if (!session.voice?.path) throw new Error('Participant voice sample is missing.');
 
-  updateStatus(session, 'validating', 'Checking the voice sample locally before any paid AI request.');
+  updateStatus(session, 'validating', 'Preparing the voice sample locally before the paid AI request.');
   await persistSession(session);
 
   const localPath = path.join(workspace, `reference-voice.${extensionForAudioMime(session.voice.mime)}`);
@@ -257,7 +279,7 @@ async function validateParticipantVoice(session, workspace) {
   } catch (cause) {
     session.voicePreflight = { status: 'failed', error: cause.message };
     await persistSession(session);
-    const error = new Error(`Voice sample validation failed before paid AI work: ${cause.message}`);
+    const error = new Error(`Voice sample preparation failed before paid AI work: ${cause.message}`);
     error.code = 'REFERENCE_AUDIO_INVALID';
     error.nonRetryable = true;
     error.cause = cause;
@@ -283,8 +305,8 @@ async function materializeLegacyVideoInputs(session, speechRef, workspace) {
 
 async function generateVideoWithFallback(session, speechRef, workspace = path.join(config.workRoot, session.id || 'test')) {
   ensureStages(session);
-  if (session.stages.pruna.status === 'completed' && session.output) {
-    return { provider: session.provider.video || 'pruna', output: session.output };
+  if (session.output) {
+    return { provider: session.provider.video || 'wan', output: session.output };
   }
 
   const failures = [];
@@ -315,6 +337,30 @@ async function generateVideoWithFallback(session, speechRef, workspace = path.jo
         return await generateHeyGenVideo(local.faceFile, local.speechPath, session.id);
       }
 
+      if (provider === 'wan') {
+        if (!config.providers.replicateToken) {
+          failures.push('wan: REPLICATE_API_TOKEN is not configured');
+          continue;
+        }
+        providerAttempted = true;
+        const stage = session.stages.wan;
+        updateStatus(session, 'generating_video', 'Generating natural facial motion and lip-sync with Wan 2.2 S2V.');
+        await persistSession(session);
+
+        if (stage.status === 'provider_succeeded' && stage.providerUrl && !stage.predictionId) {
+          return { provider: 'wan', url: stage.providerUrl, predictionId: null };
+        }
+
+        const callbacks = predictionCallbacks(session, 'wan');
+        const result = await generateWanVideo(session.face, speechRef, {
+          ...callbacks,
+          onRateLimit: rateLimitStatus(session)
+        });
+        session.provider.video = 'wan-2.2-s2v';
+        await persistSession(session);
+        return result;
+      }
+
       if (provider === 'pruna') {
         if (!config.providers.replicateToken) {
           failures.push('pruna: REPLICATE_API_TOKEN is not configured');
@@ -342,8 +388,8 @@ async function generateVideoWithFallback(session, speechRef, workspace = path.jo
       failures.push(`${provider}: unsupported video provider`);
     } catch (error) {
       failures.push(`${provider}: ${error.message}`);
-      if (provider === 'pruna') {
-        session.stages.pruna.status = error.code === 'REPLICATE_CREATE_AMBIGUOUS'
+      if (provider === 'wan' || provider === 'pruna') {
+        session.stages[provider].status = error.code === 'REPLICATE_CREATE_AMBIGUOUS'
           ? 'creation_ambiguous'
           : error.nonRetryable ? 'provider_failed' : 'interrupted';
         await persistSession(session);
@@ -383,8 +429,14 @@ async function runInitialGeneration(mediaTask, profileTask) {
   if (failure) throw failure.reason;
 }
 
+function videoStageKey(video, session) {
+  if (video?.provider === 'wan' || String(session.provider?.video || '').startsWith('wan')) return 'wan';
+  return 'pruna';
+}
+
 async function finalizeVideo(session, video, workspace) {
-  const stage = session.stages.pruna;
+  const stageKey = videoStageKey(video, session);
+  const stage = ensureStages(session)[stageKey];
   const rawVideoPath = path.join(workspace, 'raw.mp4');
   const outputPath = path.join(workspace, 'simulation.mp4');
 
@@ -522,7 +574,7 @@ async function generateSimulation(session) {
   } catch (error) {
     console.warn(`[generation:${session.id}] ${error.stack || error.message || error}`);
     if (error.code === 'REPLICATE_CREATE_AMBIGUOUS') {
-      for (const stageKey of ['whatsappAudio', 'videoAudio']) {
+      for (const stageKey of ['whatsappAudio', 'videoAudio', 'wan', 'pruna']) {
         const stage = session.stages?.[stageKey];
         if (stage?.status === 'creation_started' && !stage.predictionId) stage.status = 'creation_ambiguous';
       }
@@ -552,5 +604,7 @@ module.exports = {
   ensureStages,
   predictionCallbacks,
   fluxPredictionCallbacks,
-  finalizeVideo
+  finalizeVideo,
+  auditVoiceScript,
+  videoStageKey
 };
