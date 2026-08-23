@@ -45,7 +45,6 @@ jobs:
           node --check server/services/flux.js
           node --check server/services/did.js
           node --check server/services/heygen.js
-          node --check server/services/wan.js
           node --check server/services/pruna.js
           node --check server/services/replicate-retry.js
           node --check server/services/replicate-prediction.js
