@@ -19,29 +19,34 @@ const PROFILE_VARIANT_PROMPTS = [
   [
     'Using image 1 only as the identity reference, create one photorealistic square social-media photograph of the same single person.',
     'Identity consistency is the highest priority. Preserve the same distinctive face, facial proportions, approximate age, skin tone, hairstyle, hair colour, eye shape and overall appearance. Do not beautify, stylise or change the identity.',
-    'FRAMING: a natural head-and-shoulders or upper-chest portrait, near-front-facing, with both eyes clearly visible and the face large enough for strong identity fidelity.',
-    'SCENE: an ordinary modern office or coworking environment. Use casual-professional clothing, soft natural daylight and a relaxed everyday expression.',
-    'The photograph must feel like a normal smartphone photo someone would casually post to Instagram: believable composition, realistic skin texture, normal depth of field, no perfect studio symmetry and no cinematic grading.',
-    'Do not make it look like a studio portrait, glamour campaign, beauty-filter image, influencer shoot, illustration or obvious AI artwork.',
+    'POST 1 MUST BE VISUALLY DISTINCT FROM THE OTHER PROFILE POSTS.',
+    'FRAMING: a close head-and-shoulders or upper-chest portrait, near-front-facing, with both eyes clearly visible and the face large in frame for maximum identity fidelity.',
+    'SCENE: a modern office or coworking environment with soft daylight. Use a simple casual-professional top and a relaxed everyday expression.',
+    'CAMERA FEEL: ordinary handheld smartphone portrait at eye level, slightly imperfect but believable composition, realistic skin texture and normal depth of field.',
+    'Do not use a cafe, outdoor park, full-body framing, fashion pose, studio lighting, glamour styling, cinematic grading, beauty filters or obvious AI-art styling for this post.',
     'Include exactly one person. Keep the background generic and free of readable text, credentials, documents, money, logos or recognisable brand marks.'
   ].join(' '),
   [
     'Using image 1 only as the identity reference, create one photorealistic square social-media photograph of the same single person.',
     'Identity consistency is the highest priority. Preserve the same distinctive face, facial proportions, approximate age, skin tone, hairstyle, hair colour, eye shape and overall appearance. The face must remain recognisably the same person as image 1.',
-    'FRAMING: a natural half-body photograph from approximately the waist or upper hips upward. Use a relaxed three-quarter angle, with the face turned enough toward the camera that both eyes and key facial features remain clearly visible.',
-    'SCENE: a bright everyday cafe, office lounge or casual indoor setting. Use ordinary casual clothing, natural posture, realistic hands if visible and warm window light.',
-    'The image should feel like an independently captured phone photo from a real personal Instagram account, not a repeated portrait. Use a slightly wider camera distance and different shoulder orientation from the first image.',
-    'Avoid model poses, fashion photography, exaggerated background blur, dramatic lighting, excessive skin smoothing, distorted hands, additional people or an over-polished AI look.',
+    'POST 2 MUST LOOK LIKE A DIFFERENT REAL-LIFE MOMENT, NOT A RECROP OR REPEAT OF POST 1.',
+    'FRAMING: a natural half-body photograph from approximately the waist or upper hips upward. Use a relaxed three-quarter angle, with the face turned toward the camera so both eyes and key facial features stay clearly visible.',
+    'SCENE: a bright everyday cafe or casual indoor lounge with warm window light. Use a clearly different casual outfit style from the office portrait, while keeping the person believable and natural.',
+    'POSE: seated or casually standing with relaxed shoulders and natural posture; no object needs to be held. Use a wider camera distance and different camera height from the close portrait.',
+    'CAMERA FEEL: spontaneous smartphone lifestyle post, normal perspective, natural skin, modest background blur and realistic indoor lighting.',
+    'Do not use an office-style headshot, outdoor park scene, full-body fashion pose, influencer photoshoot, dramatic lighting, heavy retouching, distorted hands, extra people or an over-polished AI look.',
     'Keep the scene free of readable text, credentials, documents, money, logos or recognisable brand marks.'
   ].join(' '),
   [
     'Using image 1 only as the identity reference, create one photorealistic square social-media photograph of the same single person.',
     'Identity consistency is the highest priority. Preserve the exact recognisable facial identity, approximate age, skin tone, hairstyle, hair colour and key facial features from image 1. Do not alter the face to fit the wider composition.',
-    'FRAMING: a natural near-full-body or full-body lifestyle photograph, showing the person standing from head to at least below the knees and preferably to the feet. The person should occupy roughly 65 to 80 percent of the frame so the face remains clear, sharp and recognisable.',
+    'POST 3 MUST BE OBVIOUSLY DIFFERENT FROM BOTH THE CLOSE OFFICE PORTRAIT AND THE HALF-BODY CAFE POST.',
+    'FRAMING: a natural near-full-body or full-body lifestyle photograph, showing the person from head to at least below the knees and preferably to the feet. The person should occupy roughly 65 to 80 percent of the frame so the face remains clear and recognisable.',
     'POSE: relaxed everyday standing posture, shoulders natural, both eyes visible, no extreme profile and no fashion-model pose.',
-    'SCENE: a generic park path, pedestrian area, building entrance or other ordinary outdoor public setting in natural daylight. Use believable casual clothing and realistic body proportions.',
-    'The result should look like a genuine smartphone Instagram post taken by a friend: casual framing, small natural imperfections and an everyday lifestyle feeling. It must not look like an editorial, travel campaign or professional photoshoot.',
-    'Avoid identity drift, face replacement, warped limbs, distorted hands, extra people, dramatic cinematic lighting, heavy retouching, readable text, logos or recognisable landmarks.'
+    'SCENE: an outdoor park path, pedestrian area or generic building entrance in natural daylight. Use a weekend-casual outfit that is visually different from the first two posts and believable body proportions.',
+    'CAMERA FEEL: genuine smartphone photo taken by a friend from a few steps away, casual framing, small natural imperfections and an everyday lifestyle feeling.',
+    'Do not use an indoor cafe, office headshot, close portrait crop, editorial travel campaign, cinematic lighting, heavy retouching, warped limbs, distorted hands, extra people, readable text, logos or recognisable landmarks.',
+    'The face must remain the same person as the reference even at the wider framing.'
   ].join(' ')
 ];
 
