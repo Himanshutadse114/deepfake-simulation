@@ -21,8 +21,17 @@
   const originalBuildInstagramGrid = typeof window.buildInstagramGrid === 'function'
     ? window.buildInstagramGrid
     : null;
+  const originalOpenIgPost = typeof window.openIgPost === 'function'
+    ? window.openIgPost
+    : null;
 
   const labels = ['Office portrait', 'Coffee moment', 'Weekend walk'];
+  const captions = {
+    'Office portrait': 'A busy day, but a good one. ✨',
+    'Coffee moment': 'Slow coffee, clear head. ☕',
+    'Weekend walk': 'Out for some fresh air. 🌿',
+    'Mountain sunset': 'Worth stopping for this view. 🌄'
+  };
 
   function setPostCount() {
     const count = document.querySelector('.ig-stats span:first-child b');
@@ -76,6 +85,15 @@
     if (originalBuildInstagramGrid) originalBuildInstagramGrid(src);
     setPostCount();
   };
+
+  if (originalOpenIgPost) {
+    window.openIgPost = function openLifestylePost(label, src) {
+      const result = originalOpenIgPost(label, src);
+      const description = document.getElementById('igPostDesc');
+      if (description && captions[label]) description.textContent = captions[label];
+      return result;
+    };
+  }
 
   setPostCount();
 })();
