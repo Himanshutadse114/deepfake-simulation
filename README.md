@@ -10,7 +10,7 @@ Video   prunaai/p-video-avatar
 Images  black-forest-labs/flux-2-pro
 ```
 
-All three active AI paths use the server-side `REPLICATE_API_TOKEN`.
+All active AI paths use the server-side `REPLICATE_API_TOKEN`.
 
 ## Production architecture
 
@@ -44,7 +44,60 @@ Cloudflare R2 (private)
 
 There is no Redis requirement in the one-service deployment. The in-process queue provides bounded concurrency; R2 is the durable source of truth used to reconstruct unfinished sessions after a Render restart or deploy.
 
-## Cost-safety behavior
+## Active AI flow
+
+The simulation uses two Qwen voice-clone predictions, three FLUX profile-image predictions and one Pruna talking-head prediction.
+
+```text
+Admin WhatsApp script ──→ Qwen3-TTS ──→ WhatsApp cloned audio ≤12 s
+
+Admin video script ─────→ Qwen3-TTS ──→ video cloned audio ≤10 s
+                                             │
+Consented portrait ──────────────────────────┤
+                                             ▼
+                                           Pruna
+                                             │
+                                             ▼
+                                 talking-head awareness video
+                                             │
+                                             ▼
+                                   permanent disclosure
+
+Consented portrait ──→ FLUX.2 Pro × 3 at 1 MP
+                        ├── close portrait
+                        ├── half-body lifestyle post
+                        └── near-full-body lifestyle post
+```
+
+The Instagram simulation displays **exactly three photo posts**. The deepfake video remains in the video-call part of the experience and is not reused as a social-media post.
+
+## Instagram realism
+
+Each FLUX generation is an independent square `1 MP` request using the same private identity reference. The reference is resized to no more than 1024 px on either side before provider use.
+
+The three prompts deliberately use different framing while prioritising the same recognisable face:
+
+1. close head-and-shoulders / upper-chest portrait;
+2. natural waist-up / half-body social photo;
+3. near-full-body or full-body lifestyle photo, with the person kept large enough in frame for the face to remain clear.
+
+Prompts avoid studio, fashion-editorial and cinematic styling so the results resemble ordinary smartphone Instagram posts rather than three repeated AI portraits.
+
+## Generation-time UI
+
+When a learner starts generation, the loading screen explains that the complete simulation **usually takes about two minutes to prepare** and shows an estimated `02:00` countdown.
+
+The timer is an expectation aid rather than a hard provider timeout. If generation takes longer, the UI changes to `Finishing up…` and continues polling normally. Queueing and provider rate limits can make real completion time longer than two minutes.
+
+## Script integrity
+
+Learners do not directly control the generated cloned-speech text. New sessions snapshot the two scripts saved through the protected admin page.
+
+Before Qwen is called, the server records a privacy-safe script audit containing the script length and SHA-256 hash. The exact session script is passed to Replicate as Qwen's `text` input. The TTS style instruction explicitly asks Qwen not to add, omit, repeat, paraphrase, preface, append or improvise words.
+
+For browser-recorded reference audio, the matching teleprompter transcript is also supplied as `reference_text`.
+
+## Cost-safety behaviour
 
 The server is deliberately conservative because provider calls are billable.
 
@@ -53,18 +106,18 @@ The server is deliberately conservative because provider calls are billable.
 - Default FFmpeg/ffprobe concurrency is `2`.
 - Default queue admission limit is `250` jobs.
 - Each AI simulation reserves a configurable estimated amount before entering the paid queue.
+- The current default reservation is `$0.40` per simulation.
 - Daily reservations are persisted in R2 so a Render restart does not reset the budget counter.
-- Pruna receives video audio capped at **10 seconds**, matching the final 10-second video cap.
+- Pruna receives video audio capped at **10 seconds**, matching the final video cap.
 - WhatsApp cloned audio may be up to **12 seconds**.
-- FLUX uses **one** 2 MP 2x2 contact-sheet prediction, not four separate predictions.
-- The FLUX-only identity reference is resized to no more than 1024 px per side before the paid request.
-- The 2x2 FLUX sheet is split locally into four profile images.
-- Paid video fallback is disabled by default, preventing one failed video provider from automatically spilling into another paid provider.
+- FLUX makes exactly **three independent 1 MP predictions**.
+- Each FLUX prediction has its own durable creation/prediction checkpoint so a restart does not blindly repurchase successful sibling images.
+- Paid video fallback is disabled.
+- Production video selection is locked to **Pruna only**, even if a stale hosting environment still contains an older provider preference.
 - Provider-result downloads are retried without purchasing another prediction.
-- A persisted Replicate prediction ID is reused after a safe interruption/restart.
-- Immediately before a new paid Replicate creation request, the stage is saved as `creation_started` in R2.
-- If Render stops after that boundary but before a prediction ID is safely stored, automatic recovery fails closed rather than guessing and potentially paying twice.
-- Ambiguous provider-creation failures cannot be triggered through the learner's “Retry safely” action.
+- Existing Replicate prediction IDs are reused after a safe interruption/restart.
+- Immediately before each new paid Replicate creation request, its stage is persisted as `creation_started` in R2.
+- Ambiguous provider-creation failures fail closed rather than automatically purchasing another attempt.
 
 ## Restart recovery
 
@@ -80,11 +133,9 @@ On startup the single Render service:
 2. removes already-expired sessions;
 3. restores collecting/completed/failed sessions for browser continuity;
 4. identifies unfinished AI jobs;
-5. blocks any stage whose paid-creation state is ambiguous;
+5. blocks paid stages whose creation state is ambiguous;
 6. requeues safe unfinished sessions;
 7. reuses existing Qwen, FLUX and Pruna prediction IDs whenever available.
-
-The browser can therefore continue polling the same session ID/token after a Render restart.
 
 ## Safety boundary
 
@@ -92,9 +143,9 @@ This project is restricted to authorised participant-facing awareness training.
 
 - All consent confirmations are required before media processing.
 - The participant confirms the photograph and voice sample are their own.
-- Learners do not control the generated cloned-speech scripts; sessions snapshot the scripts configured by the protected admin page.
+- Learners do not control the generated cloned-speech scripts; sessions snapshot scripts configured by the protected admin page.
 - Server-side script policy rejects direct instructions to send/approve money or disclose passwords, OTPs, credentials, PINs, verification codes or similar secrets.
-- Scripts are capped at 180 characters.
+- Scripts are capped at 180 characters in production.
 - Generated video carries the permanent disclosure `AI-GENERATED SECURITY AWARENESS SIMULATION`.
 - Generated social images remain inside the awareness module and are not published to a real social network.
 - Provider credentials stay server-side.
@@ -109,65 +160,20 @@ This project is restricted to authorised participant-facing awareness training.
    - first name and surname
    - JPEG/PNG portrait upload or camera capture
    - voice upload or browser recording
-4. Generation queue
+4. Generation queue and approximately two-minute loading estimate
 5. Qwen WhatsApp voice generation and duration validation
 6. Qwen video voice generation and 10-second duration validation
-7. Pruna video + one FLUX 2x2 profile-grid prediction
-8. Local video watermarking + local FLUX-grid split
+7. Pruna talking-head video + three independent FLUX 1 MP profile images
+8. Local video watermarking
 9. WhatsApp impersonation simulation
 10. Incoming WhatsApp video-call simulation
 11. Follow-on QR/payment scam simulation
-12. Synthetic Instagram profile simulation
+12. Three-post synthetic Instagram profile simulation
 13. Analysis/learning
 14. Nine-question knowledge check
 15. Completion score and cleanup
 
 Questions remain at the end of the simulation.
-
-## WhatsApp replay behavior
-
-Replay is UI-only.
-
-- The learner can play the cloned voice note repeatedly.
-- Only the first completed playback in a WhatsApp run advances the story.
-- Only the explicit **Replay** button restarts the WhatsApp story.
-- Replay does not call `/generate` and does not purchase new Qwen, FLUX or Pruna predictions.
-- Completion controls are removed while the replay is running and return only after the fresh conversation completes.
-
-## Active generation flow
-
-```text
-Admin WhatsApp script
-        │
-        ▼
-     Qwen3-TTS
-        │
-        ▼
-WhatsApp audio ≤12 s
-
-Admin video script
-        │
-        ▼
-     Qwen3-TTS
-        │
-        ▼
- Video audio ≤10 s
-        │
-        ├────────────────────┐
-        │                    │
-        ▼                    ▼
-      Pruna                FLUX.2 Pro
-        │                 one 2 MP grid
-        ▼                    │
-  AI talking head            ▼
-        │                local 2x2 split
-        ▼                    │
- FFmpeg disclosure       four profile tiles
-        │                    │
-        └──────────┬─────────┘
-                   ▼
-             Learner flow
-```
 
 ## Required production environment
 
@@ -188,7 +194,7 @@ AI_WORKER_CONCURRENCY=4
 FFMPEG_CONCURRENCY=2
 AI_MAX_QUEUED_JOBS=250
 AI_DAILY_BUDGET_USD=50
-ESTIMATED_SIMULATION_COST_USD=0.35
+ESTIMATED_SIMULATION_COST_USD=0.40
 
 VOICE_PROVIDER=qwen
 QWEN_MODEL=qwen/qwen3-tts
@@ -204,9 +210,7 @@ MAX_VIDEO_SECONDS=10
 ALLOW_PAID_VIDEO_FALLBACK=false
 ```
 
-Do not commit real provider or R2 credentials.
-
-`REDIS_URL` should be left unset in the one-service production architecture.
+Do not commit real provider or R2 credentials. `REDIS_URL` should be left unset in the one-service production architecture.
 
 ## Signed platform launch
 
@@ -260,6 +264,8 @@ GET /api/simulation/:id/audio/whatsapp?token=...
 GET /api/simulation/:id/audio/video?token=...
 GET /api/simulation/:id/video?token=...
 GET /api/simulation/:id/variant/0?token=...
+GET /api/simulation/:id/variant/1?token=...
+GET /api/simulation/:id/variant/2?token=...
 ```
 
 Explicit cleanup:
@@ -268,7 +274,7 @@ Explicit cleanup:
 DELETE /api/simulation/:id
 ```
 
-All media responses use `private, no-store`.
+All media responses use private/no-store delivery.
 
 ## Data lifecycle
 
@@ -281,7 +287,9 @@ sessions/<id>/state/session.json
 sessions/<id>/generated/whatsapp-speech.wav
 sessions/<id>/generated/video-speech.wav
 sessions/<id>/generated/simulation.mp4
-sessions/<id>/generated/variant-1.jpg ... variant-4.jpg
+sessions/<id>/generated/variant-1.jpg
+sessions/<id>/generated/variant-2.jpg
+sessions/<id>/generated/variant-3.jpg
 ```
 
 Original participant media is deleted after successful provider work. Generated assets and session state remain only for the configured retention period. Expired session prefixes are deleted server-side.
@@ -301,4 +309,4 @@ CI additionally performs Node syntax checks, a Docker build and an FFmpeg waterm
 
 ## Deployment
 
-Render currently deploys the `feature/consent-aware-simulator` branch. The repository `render.yaml` describes a single Docker web service. The current Render service can be kept; configure the R2/S3 and Replicate secrets directly in that service's Environment settings.
+Render deploys the `feature/consent-aware-simulator` branch. The repository `render.yaml` describes a single Docker web service. Configure the R2/S3 and Replicate secrets directly in that service's Environment settings.
