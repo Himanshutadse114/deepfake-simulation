@@ -1,7 +1,12 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const config = require('../server/config');
-const { GRID_PROMPT, collectVariantResults } = require('../server/services/flux');
+const {
+  PROFILE_VARIANT_COUNT,
+  FLUX_PROFILE_RESOLUTION,
+  PROFILE_VARIANT_PROMPTS,
+  collectVariantResults
+} = require('../server/services/flux');
 const { runInitialGeneration } = require('../server/pipeline');
 
 test('starts paid video and profile work together after audio validation', async () => {
@@ -21,24 +26,24 @@ test('starts paid video and profile work together after audio validation', async
   await running;
 });
 
-test('profile grid still resolves to exactly four learner images', () => {
-  assert.equal(config.providers.fluxGridImages, 4);
-  assert.match(GRID_PROMPT, /exactly four equal square photographs/i);
-  assert.match(GRID_PROMPT, /TOP LEFT:/);
-  assert.match(GRID_PROMPT, /TOP RIGHT:/);
-  assert.match(GRID_PROMPT, /BOTTOM LEFT:/);
-  assert.match(GRID_PROMPT, /BOTTOM RIGHT:/);
-  assert.match(GRID_PROMPT, /same single person/i);
-  assert.match(GRID_PROMPT, /No gutters, no borders/i);
+test('profile generation is exactly three 1 MP social photos with mixed framing', () => {
+  assert.equal(PROFILE_VARIANT_COUNT, 3);
+  assert.equal(config.providers.fluxProfileImages, 3);
+  assert.equal(config.providers.fluxGridImages, 3);
+  assert.equal(FLUX_PROFILE_RESOLUTION, '1 MP');
+  assert.equal(PROFILE_VARIANT_PROMPTS.length, 3);
+  assert.match(PROFILE_VARIANT_PROMPTS[0], /head-and-shoulders|upper-chest/i);
+  assert.match(PROFILE_VARIANT_PROMPTS[1], /half-body/i);
+  assert.match(PROFILE_VARIANT_PROMPTS[2], /near-full-body|full-body/i);
 });
 
 test('legacy result collector remains tolerant of partial helper failures', async () => {
   const failures = [];
-  const results = await collectVariantResults(4, async (index) => {
-    if (index !== 2) throw new Error(`image ${index + 1} interrupted`);
-    return 'variant-3.jpg';
+  const results = await collectVariantResults(3, async (index) => {
+    if (index !== 1) throw new Error(`image ${index + 1} interrupted`);
+    return 'variant-2.jpg';
   }, ({ index }) => failures.push(index));
 
-  assert.deepEqual(results, ['variant-3.jpg']);
-  assert.deepEqual(failures, [0, 1, 3]);
+  assert.deepEqual(results, ['variant-2.jpg']);
+  assert.deepEqual(failures, [0, 2]);
 });
