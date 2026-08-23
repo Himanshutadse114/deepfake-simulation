@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { generateCheckedAudioTracks } = require('../server/pipeline');
 
-test('keeps WhatsApp at twelve seconds but blocks video audio above the ten-second Pruna cap', async () => {
+test('allows full scripts up to twenty seconds but blocks video audio above the Pruna cap', async () => {
   const session = {
     scripts: {
       whatsapp: 'Administrator WhatsApp script',
@@ -23,21 +23,21 @@ test('keeps WhatsApp at twelve seconds but blocks video audio above the ten-seco
       generateVoice: async (_session, outputPath, script) => generated.push([outputPath, script]),
       assertAudioDuration: async (outputPath, options) => {
         checked.push([outputPath, options.maxSeconds]);
-        if (outputPath === 'video.wav') throw new Error('Generated video audio exceeds 10 seconds');
+        if (outputPath === 'video.wav') throw new Error('Generated video audio exceeds 20 seconds');
       }
     });
 
     // This represents the next pipeline step and must remain unreachable.
     prunaCalls += 1;
-  }, /exceeds 10 seconds/);
+  }, /exceeds 20 seconds/);
 
   assert.deepEqual(generated, [
     ['whatsapp.wav', 'Administrator WhatsApp script'],
     ['video.wav', 'Administrator video script']
   ]);
   assert.deepEqual(checked, [
-    ['whatsapp.wav', 12],
-    ['video.wav', 10]
+    ['whatsapp.wav', 20],
+    ['video.wav', 20]
   ]);
   assert.equal(prunaCalls, 0);
   assert.equal(session.whatsappAudioOutput, 'whatsapp.wav');
