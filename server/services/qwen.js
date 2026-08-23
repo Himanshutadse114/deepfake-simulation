@@ -4,11 +4,35 @@ const { toProviderUri } = require('../storage');
 const { downloadWithRetry } = require('./download');
 const { runOfficialPrediction } = require('./replicate-prediction');
 
+const EXACT_SCRIPT_STYLE = [
+  'Read only the provided text exactly as written.',
+  'Do not add, omit, repeat, paraphrase, preface, append, or improvise any words.',
+  'Speak naturally, calmly and clearly for an authorised cybersecurity awareness demonstration.'
+].join(' ');
+
 function outputUrl(output) {
   if (typeof output === 'string') return output;
   if (typeof output?.url === 'string') return output.url;
   if (Array.isArray(output) && typeof output[0] === 'string') return output[0];
   return null;
+}
+
+function buildVoiceCloneInput({ text, language, referenceAudio, referenceText = '' }) {
+  const exactText = String(text ?? '');
+  if (!exactText.trim()) throw new Error('Qwen3-TTS text is empty.');
+  if (!referenceAudio) throw new Error('Qwen3-TTS reference audio is missing.');
+
+  const input = {
+    mode: 'voice_clone',
+    text: exactText,
+    language: language || 'auto',
+    reference_audio: referenceAudio,
+    style_instruction: EXACT_SCRIPT_STYLE
+  };
+
+  const transcript = String(referenceText || '').trim();
+  if (transcript) input.reference_text = transcript.slice(0, 1200);
+  return input;
 }
 
 async function saveOutput(output, targetPath) {
@@ -32,15 +56,13 @@ async function synthesizeScript(voiceFile, outputPath, referenceText = '', text 
 
   let input;
   if (!options.predictionId) {
-    input = {
-      mode: 'voice_clone',
-      text: String(text || config.awarenessScript),
+    const referenceAudio = await toProviderUri(voiceFile.path, voiceFile.mime || 'audio/webm');
+    input = buildVoiceCloneInput({
+      text,
       language: config.providers.qwenLanguage,
-      reference_audio: await toProviderUri(voiceFile.path, voiceFile.mime || 'audio/webm'),
-      style_instruction: 'Speak naturally, calmly and clearly. Keep the delivery suitable for an authorised cybersecurity awareness demonstration.'
-    };
-    const transcript = String(referenceText || '').trim();
-    if (transcript) input.reference_text = transcript.slice(0, 1200);
+      referenceAudio,
+      referenceText
+    });
     await options.onBeforePredictionCreate?.();
   }
 
@@ -65,4 +87,11 @@ async function synthesizeScript(voiceFile, outputPath, referenceText = '', text 
 const synthesizeFixedScript = (voiceFile, outputPath, referenceText = '') =>
   synthesizeScript(voiceFile, outputPath, referenceText, config.awarenessScript);
 
-module.exports = { synthesizeScript, synthesizeFixedScript, saveOutput, outputUrl };
+module.exports = {
+  synthesizeScript,
+  synthesizeFixedScript,
+  buildVoiceCloneInput,
+  saveOutput,
+  outputUrl,
+  EXACT_SCRIPT_STYLE
+};
