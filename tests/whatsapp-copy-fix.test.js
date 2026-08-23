@@ -24,24 +24,38 @@ test('QR follow-up removes server-timeout wording and uses $500', () => {
   assert.doesNotMatch(flow, /processing payment of \$5 urgently/i);
 });
 
-test('QR flow always creates replay and proceed actions after completion', () => {
-  assert.match(flow, /function ensureCompletionActions/);
+test('QR rendering itself guarantees completion and navigation recovery', () => {
+  assert.match(flow, /function installQrCompletionHook/);
+  assert.match(flow, /finally \{[\s\S]*scheduleCompletionAfterQr\(\)/);
+  assert.match(flow, /function scheduleCompletionAfterQr/);
+  assert.match(flow, /ensureCompletionActions\(\)/);
+  assert.match(flow, /completionBackupTimer/);
+  assert.match(flow, /waVictimPayment500/);
   assert.match(flow, /waSimulationComplete/);
   assert.match(flow, /waInlineCompletion/);
-  assert.match(flow, /replayWhatsAppSimulation\(\)/);
-  assert.match(flow, /openProfileExperience\(\)/);
-  assert.match(flow, /setTimeout\(\(\) => \{\s*ensureCompletionActions\(\)/);
+  assert.match(flow, /replayWhatsAppSimulation/);
+  assert.match(flow, /openProfileExperience/);
 });
 
-test('fresh WhatsApp completion patch is loaded explicitly in learner and demo entry points', () => {
-  assert.match(index, /whatsapp-copy-fix\.js\?v=qr500-completion-20260824-1/);
-  assert.match(demo, /whatsapp-copy-fix\.js\?v=qr500-completion-20260824-1/);
-  assert.match(flow, /__innviktaQr500Copy/);
+test('completion controls are forced visible and sticky inside the scrollable chat', () => {
+  assert.match(flow, /wa-inline-completion-forced/);
+  assert.match(flow, /position:sticky!important/);
+  assert.match(flow, /visibility:visible!important/);
+  assert.match(flow, /block\.style\.display = 'block'/);
+  assert.match(flow, /scrollChatToBottom\(\)/);
+});
+
+test('new completion patch replaces older cached WhatsApp overrides', () => {
+  assert.match(flow, /const COMPLETION_VERSION = 2/);
+  assert.match(flow, /__innviktaCompletionVersion/);
+  assert.match(flow, /!== COMPLETION_VERSION/);
+  assert.match(index, /whatsapp-copy-fix\.js\?v=qr500-completion-20260824-2/);
+  assert.match(demo, /whatsapp-copy-fix\.js\?v=qr500-completion-20260824-2/);
   assert.match(flow, /READY_TIMEOUT_MS = 120000/);
   assert.match(flow, /setInterval/);
   assert.doesNotThrow(() => new Function(flow));
 });
 
-test('bootstrap may also load the patch, but direct entry loading protects against stale async ordering', () => {
+test('bootstrap still contains a late WhatsApp patch load while direct entry loading provides the newest guard', () => {
   assert.match(bootstrap, /whatsapp-copy-fix\.js/);
 });
