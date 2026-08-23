@@ -28,6 +28,7 @@ function buildStages() {
   return {
     whatsappAudio: { status: 'pending', predictionId: null },
     videoAudio: { status: 'pending', predictionId: null },
+    wan: { status: 'pending', predictionId: null, providerUrl: null },
     pruna: { status: 'pending', predictionId: null, providerUrl: null },
     flux: { status: 'pending', predictionId: null, providerUrl: null }
   };
@@ -58,9 +59,8 @@ async function writeSessionState(session) {
 async function saveSession(session) {
   if (!session?.id) throw new Error('Session id is required.');
 
-  // FLUX and Pruna intentionally run in parallel. Serialize persistence for the
-  // same session so an older R2 PUT can never finish after a newer checkpoint
-  // and overwrite a prediction id/status with stale state.
+  // FLUX and the video provider can run in parallel. Serialize persistence for
+  // the same session so an older R2 PUT can never overwrite a newer checkpoint.
   const previous = saveChains.get(session.id) || Promise.resolve();
   const current = previous.catch(() => {}).then(() => writeSessionState(session));
   saveChains.set(session.id, current);
@@ -88,6 +88,7 @@ async function createSession(consents, {
     participant,
     identity,
     scripts,
+    scriptAudit: null,
     createdAt: now,
     updatedAt: now,
     expiresAt: now + config.retentionMs,
