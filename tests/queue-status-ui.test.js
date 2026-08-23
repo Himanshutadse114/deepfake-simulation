@@ -21,6 +21,13 @@ test('queue notice disappears automatically when generation status advances', ()
   assert.match(queueUi, /currentGenerationStatus !== 'queued'/);
 });
 
-test('normal learner page loads queue status enhancement', () => {
-  assert.match(index, /queue-status-ui\.js\?v=1/);
+test('generation screen shows a two-minute preparation estimate and countdown', () => {
+  assert.match(queueUi, /const ESTIMATE_SECONDS = 120/);
+  assert.match(queueUi, /usually takes about 2 minutes to prepare/);
+  assert.match(queueUi, /id="generationCountdown">02:00/);
+  assert.match(queueUi, /Finishing up…/);
+});
+
+test('normal learner page loads the revised queue and timer enhancement', () => {
+  assert.match(index, /queue-status-ui\.js\?v=2min-estimate-20260823-1/);
 });
