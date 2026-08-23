@@ -23,12 +23,23 @@ test('FLUX profile generation is exactly four independent 1 MP requests', () => 
   assert.equal(config.providers.fluxProfileResolution, '1 MP');
 });
 
-test('the original four-post prompts are restored', () => {
+test('the four social-photo environments remain the restored original set', () => {
   assert.match(flux, /modern office or coworking space, three-quarter left camera angle/i);
   assert.match(flux, /bright cafe setting, three-quarter right camera angle/i);
   assert.match(flux, /generic city promenade or public plaza/i);
   assert.match(flux, /green park or neutral outdoor setting, slightly wider waist-up framing/i);
   assert.match(flux, /realistic smartphone photography/i);
+});
+
+test('each Instagram image requests distinct clothing matched to its environment', () => {
+  assert.match(flux, /smart-casual office-appropriate outfit/i);
+  assert.match(flux, /relaxed everyday cafe outfit/i);
+  assert.match(flux, /urban outdoor outfit suitable for going out in the city/i);
+  assert.match(flux, /relaxed weekend or park outfit/i);
+  assert.match(flux, /clearly different from the clothing in the other three generated posts/i);
+  assert.match(flux, /different garment style and a different overall colour palette/i);
+  assert.match(flux, /different silhouette, outer layer and overall colour feel/i);
+  assert.match(flux, /must not repeat the clothing from any of the other three posts/i);
 });
 
 test('FLUX reference image is bounded to the 1 MP billing tier', () => {
