@@ -35,6 +35,7 @@ jobs:
           node --check server/cost-guard.js
           node --check server/launch-token.js
           node --check server/script-policy.js
+          node --check server/script-audit.js
           node --check server/admin.js
           node --check server/admin-settings.js
           node --check server/demo.js
@@ -44,6 +45,7 @@ jobs:
           node --check server/services/flux.js
           node --check server/services/did.js
           node --check server/services/heygen.js
+          node --check server/services/wan.js
           node --check server/services/pruna.js
           node --check server/services/replicate-retry.js
           node --check server/services/replicate-prediction.js
