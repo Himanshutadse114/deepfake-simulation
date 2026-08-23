@@ -23,6 +23,7 @@ function renderDemoPage() {
 <script src="/voice-sample-controls.js?v=voice-replace-20260822-1" defer></script>
 <script src="/loading-copy-privacy.js?v=private-loading-20260823-2" defer></script>
 <script src="/ui-bootstrap.js?v=four-post-runtime-20260824-1" defer></script>
+<script src="/whatsapp-copy-fix.js?v=qr500-completion-20260824-1" defer></script>
 </body>
 </html>`;
 }
