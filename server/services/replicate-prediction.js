@@ -153,8 +153,6 @@ async function runOfficialPrediction({
   let prediction;
 
   if (predictionId) {
-    // GET-only resume. It is safe to retry lookup failures because no new paid
-    // prediction can be created on this path.
     prediction = await getPredictionWithRetry(predictionId);
   } else {
     prediction = await runWithReplicateRetry(
@@ -165,17 +163,24 @@ async function runOfficialPrediction({
   }
 
   const completed = await waitForPrediction(prediction, { label });
-  return {
-    prediction: completed,
-    output: completed.output
-  };
+  return { prediction: completed, output: completed.output };
 }
 
 function collectPredictionIds(session) {
   const ids = new Set();
-  for (const stage of Object.values(session?.stages || {})) {
-    if (stage?.predictionId) ids.add(stage.predictionId);
-  }
+  const visit = (value) => {
+    if (!value) return;
+    if (Array.isArray(value)) {
+      value.forEach(visit);
+      return;
+    }
+    if (typeof value !== 'object') return;
+    if (value.predictionId) ids.add(value.predictionId);
+    for (const [key, nested] of Object.entries(value)) {
+      if (key !== 'predictionId') visit(nested);
+    }
+  };
+  visit(session?.stages || {});
   return [...ids];
 }
 
