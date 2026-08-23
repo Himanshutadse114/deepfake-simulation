@@ -9,34 +9,31 @@
   `;
   document.head.appendChild(style);
 
+  function setText(node, value) {
+    if (node && node.textContent !== value) node.textContent = value;
+  }
+
   function sanitizeGenerationCopy() {
     const screen = document.querySelector('.screen[data-screen="generate"]');
     if (!screen) return false;
 
-    const kicker = screen.querySelector('.generate-copy .kicker');
-    if (kicker) kicker.textContent = 'Simulation preparation in progress';
+    setText(screen.querySelector('.generate-copy .kicker'), 'Simulation preparation in progress');
 
     const heading = screen.querySelector('.generate-copy h2');
-    if (heading) heading.innerHTML = 'Preparing your <em>simulation.</em>';
+    const safeHeading = 'Preparing your <em>simulation.</em>';
+    if (heading && heading.innerHTML !== safeHeading) heading.innerHTML = safeHeading;
 
-    const eta = document.getElementById('genEta');
-    if (eta) eta.textContent = GENERIC_STATUS;
+    setText(document.getElementById('genEta'), GENERIC_STATUS);
 
     const status = document.getElementById('genStatus');
     if (status) {
-      status.style.display = 'none';
-      status.setAttribute('aria-hidden', 'true');
+      if (status.style.display !== 'none') status.style.display = 'none';
+      if (status.getAttribute('aria-hidden') !== 'true') status.setAttribute('aria-hidden', 'true');
     }
 
-    const scanLabel = screen.querySelector('.scan-label span');
-    if (scanLabel) scanLabel.textContent = 'Secure simulation';
-
+    setText(screen.querySelector('.scan-label span'), 'Secure simulation');
     return true;
   }
-
-  const observer = new MutationObserver(() => sanitizeGenerationCopy());
-  observer.observe(document.documentElement, { childList: true, subtree: true });
-  sanitizeGenerationCopy();
 
   function installRuntimeMask() {
     if (window.__innviktaLoadingCopyPrivacyInstalled) return true;
@@ -65,8 +62,13 @@
     return true;
   }
 
+  // Do not observe the entire DOM. The previous MutationObserver could trigger
+  // repeatedly while the large UI bootstrap was being inserted, locking the
+  // browser before the first screen rendered. Poll only until the runtime exists,
+  // then sanitize after the two generation update functions run.
   if (installRuntimeMask()) return;
   const timer = setInterval(() => {
+    sanitizeGenerationCopy();
     if (installRuntimeMask() || Date.now() - STARTED_AT > READY_TIMEOUT_MS) clearInterval(timer);
-  }, 50);
+  }, 100);
 })();
