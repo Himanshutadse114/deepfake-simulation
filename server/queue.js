@@ -36,9 +36,22 @@ function getQueue() {
   return queue;
 }
 
-function unsafeAutomaticResumeReason(session) {
+function paidStageEntries(session) {
+  const entries = [];
   for (const [name, stage] of Object.entries(session?.stages || {})) {
     if (!stage) continue;
+    entries.push([name, stage]);
+    if (Array.isArray(stage.items)) {
+      stage.items.forEach((item, index) => {
+        if (item) entries.push([`${name}.items[${index}]`, item]);
+      });
+    }
+  }
+  return entries;
+}
+
+function unsafeAutomaticResumeReason(session) {
+  for (const [name, stage] of paidStageEntries(session)) {
     if (stage.status === 'provider_failed') {
       return `${name} ended in a terminal provider failure.`;
     }
