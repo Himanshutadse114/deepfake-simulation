@@ -1,8 +1,16 @@
 (() => {
+  const REPLAY_VERSION = 2;
+  if (window.__innviktaWhatsappReplayVersion === REPLAY_VERSION) return;
+  window.__innviktaWhatsappReplayVersion = REPLAY_VERSION;
+
   let storyAdvancedForCurrentRun = false;
 
   function chatBody() {
     return document.getElementById('waChatBody');
+  }
+
+  function syncParticipantIdentity() {
+    try { window.__innviktaSyncParticipantIdentity?.(); } catch (_) {}
   }
 
   function resetVisibleWhatsAppState() {
@@ -13,8 +21,12 @@
     }
 
     document.getElementById('waTypingBubble')?.remove();
+    document.getElementById('waVictimPayment500')?.remove();
     document.getElementById('waSimulationComplete')?.remove();
     document.getElementById('waInlineCompletion')?.remove();
+
+    const dock = document.getElementById('waProceedDock');
+    if (dock) dock.style.display = 'none';
 
     const status = document.getElementById('waStatus');
     if (status) status.textContent = 'online';
@@ -29,23 +41,23 @@
     }
 
     document.querySelectorAll('.wa-wave.playing').forEach((wave) => wave.classList.remove('playing'));
+    document.getElementById('callEndedOverlay')?.classList.remove('show');
+    document.getElementById('videoExperience')?.classList.remove('video-playing');
   }
 
-  // Every explicit WhatsApp start is a fresh UI run. This does not create a
-  // backend session and does not call Qwen, Pruna or FLUX; it only reuses the
-  // already-generated assets that remain attached to the active simulation.
+  // Every explicit WhatsApp start is a fresh UI run. Generated media is reused;
+  // replay never creates another paid AI request.
   const originalStartWhatsAppSimulation = window.startWhatsAppSimulation;
   if (typeof originalStartWhatsAppSimulation === 'function') {
     window.startWhatsAppSimulation = function startWhatsAppSimulationFresh(...args) {
       storyAdvancedForCurrentRun = false;
+      syncParticipantIdentity();
       return originalStartWhatsAppSimulation.apply(this, args);
     };
   }
 
-  // The generated voice note may be played as many times as the learner wants.
-  // Only the first completed playback in each WhatsApp run advances the story.
-  // Previously every playback called onVoiceNoteCompleted(), which could launch
-  // another call/payment sequence and re-append completion controls.
+  // The generated voice note can be replayed without launching duplicate story
+  // branches. Only its first completed playback in each run advances the story.
   window.playVoiceSimulation = function playVoiceSimulationWithoutReplaySideEffects(btnId, waveId) {
     btnId = btnId || 'waVoiceBtn';
     waveId = waveId || 'waWave';
@@ -72,8 +84,6 @@
       return;
     }
 
-    // Defensive fallback for the demo/local path. This fallback still keeps
-    // progression one-shot for the current WhatsApp run.
     const preview = document.getElementById('audioPreview');
     if (!preview?.src) {
       finishPlayback();
@@ -93,6 +103,10 @@
   };
 
   window.replayWhatsAppSimulation = function replayWhatsAppSimulationCleanly() {
+    // Invalidate every delayed callback from the completed run before clearing
+    // the chat. This prevents an old QR/completion timer from leaking into the
+    // fresh replay.
+    try { window.__innviktaResetWhatsappCompletion?.(); } catch (_) {}
     try { window.stopGeneratedPlayback?.(); } catch (_) {}
     try { window.speechSynthesis?.cancel?.(); } catch (_) {}
 
@@ -100,18 +114,23 @@
       try {
         audio.pause();
         audio.currentTime = 0;
+        audio.onended = null;
       } catch (_) {}
     });
 
-    // Remove the completed-run marker and buttons before the conversation is
-    // rebuilt. wa-flow-fix will add them again only when the fresh run reaches
-    // its real completion marker.
     storyAdvancedForCurrentRun = false;
     resetVisibleWhatsAppState();
+    syncParticipantIdentity();
 
+    // Rebuild from the first WhatsApp message only after the old DOM has been
+    // fully cleared. The normal voice-note -> video call -> QR story then runs
+    // again and the completion buttons are recreated only at the new ending.
     requestAnimationFrame(() => {
       resetVisibleWhatsAppState();
-      window.startWhatsAppSimulation?.();
+      requestAnimationFrame(() => {
+        syncParticipantIdentity();
+        window.startWhatsAppSimulation?.();
+      });
     });
   };
 })();
