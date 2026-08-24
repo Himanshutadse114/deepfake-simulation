@@ -7,6 +7,7 @@ const root = path.join(__dirname, '..');
 const read = (relative) => fs.readFileSync(path.join(root, relative), 'utf8');
 
 const fixes = read('client/public/desktop-experience-fixes.js');
+const whatsapp = read('client/public/whatsapp-copy-fix.js');
 const bootstrap = read('client/public/ui-bootstrap.js');
 const index = read('client/index.html');
 const demo = read('server/demo.js');
@@ -34,6 +35,7 @@ test('WhatsApp sidebar uses a wordmark and incoming messages have a notification
   assert.match(fixes, /direction === 'in'/);
   assert.match(fixes, /window\.appendWaBubble = wrappedAppend/);
   assert.match(fixes, /window\.appendQrBubble = wrappedQr/);
+  assert.match(whatsapp, /if \(current\.__innviktaNotificationSound\) wrapped\.__innviktaNotificationSound = true/);
 });
 
 test('generation screen adds pictorial deepfake awareness facts without exposing provider stages', () => {
@@ -60,14 +62,19 @@ test('Simulation Daily has final desktop/laptop anti-clipping rules after respon
   assert.match(fixes, /@media\(min-width:901px\) and \(max-height:760px\)/);
 });
 
-test('bootstrap loads reference carousel and desktop fixes last and entry pages cache-bust the bootstrap', () => {
+test('bootstrap loads reference carousel and desktop fixes last and entry pages cache-bust current assets', () => {
   const baseCarousel = bootstrap.indexOf('/profile-carousel-experience.js?v=cloned-profiles-20260824-2');
   const referenceCarousel = bootstrap.indexOf('/profile-carousel-reference-ui.js?v=reference-ui-20260824-2');
   const desktopFixes = bootstrap.indexOf('/desktop-experience-fixes.js?v=desktop-polish-20260824-1');
   assert.ok(baseCarousel >= 0);
   assert.ok(referenceCarousel > baseCarousel);
   assert.ok(desktopFixes > referenceCarousel);
-  assert.match(index, /ui-bootstrap\.js\?v=desktop-polish-20260824-5/);
-  assert.match(demo, /ui-bootstrap\.js\?v=desktop-polish-20260824-5/);
+  assert.match(bootstrap, /whatsapp-copy-fix\.js\?v=whatsapp-final-flow-20260824-4/);
+  assert.match(index, /ui-bootstrap\.js\?v=desktop-polish-20260824-6/);
+  assert.match(index, /whatsapp-copy-fix\.js\?v=whatsapp-final-flow-20260824-4/);
+  assert.match(demo, /ui-bootstrap\.js\?v=desktop-polish-20260824-6/);
+  assert.match(demo, /whatsapp-copy-fix\.js\?v=whatsapp-final-flow-20260824-4/);
+  assert.doesNotMatch(index, /profile-carousel-reference-ui\.js/);
+  assert.doesNotMatch(demo, /profile-carousel-reference-ui\.js/);
   assert.doesNotThrow(() => new Function(fixes));
 });
