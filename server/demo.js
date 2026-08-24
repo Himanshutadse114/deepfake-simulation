@@ -22,7 +22,7 @@ function renderDemoPage() {
 <script src="/voice-recording-prompt.js?v=teleprompter-20260822-1" defer></script>
 <script src="/voice-sample-controls.js?v=voice-replace-20260822-1" defer></script>
 <script src="/loading-copy-privacy.js?v=private-loading-20260823-2" defer></script>
-<script src="/ui-bootstrap.js?v=whatsapp-replay-name-20260824-3" defer></script>
+<script src="/ui-bootstrap.js?v=profile-carousel-20260824-4" defer></script>
 <script src="/whatsapp-copy-fix.js?v=whatsapp-final-flow-20260824-3" defer></script>
 </body>
 </html>`;
