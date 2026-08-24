@@ -14,23 +14,12 @@ services:
       - key: DEMO_MODE
         value: "false"
 
-      # Project login: private access code first, then Google OAuth.
-      - key: APP_BASE_URL
+      # Temporary private project login. The built-in strong password hash works
+      # immediately; set AUTH_PASSWORD later to rotate it without a code change.
+      - key: AUTH_USERNAME
+        value: innvikta
+      - key: AUTH_PASSWORD
         sync: false
-      - key: AUTH_ACCESS_CODE
-        sync: false
-      - key: AUTH_SESSION_SECRET
-        sync: false
-      - key: GOOGLE_CLIENT_ID
-        sync: false
-      - key: GOOGLE_CLIENT_SECRET
-        sync: false
-      - key: AUTH_ALLOWED_EMAILS
-        sync: false
-      - key: AUTH_ALLOWED_DOMAIN
-        sync: false
-      - key: AUTH_GATE_MINUTES
-        value: 10
       - key: AUTH_SESSION_HOURS
         value: 12
 
