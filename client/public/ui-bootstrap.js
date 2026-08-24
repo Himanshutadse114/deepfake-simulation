@@ -73,15 +73,16 @@
     await loadScript('/responsive-polish.js?v=2');
     await loadScript('/qr-polish.js?v=1');
     await loadScript('/wa-flow-fix.js?v=3');
-    await loadScript('/wa-replay-reset.js?v=1');
+    await loadScript('/wa-replay-reset.js?v=replay-clean-20260824-2');
     await loadScript('/editorial-cta-fix.js?v=1');
     await loadScript('/final-flow-polish.js?v=2');
     await loadScript('/wa-call-ringtone.js?v=1');
     await loadScript('/camera-face-guide.js?v=2');
-    // These two must load LAST. Loading them from index.html allowed the base
-    // runtime and later polish scripts to overwrite the fixes asynchronously.
+    // Final runtime overrides. Keep these after every WhatsApp/profile helper so
+    // older polish code cannot replace the current story/navigation behavior.
     await loadScript('/generated-profile-grid-fix.js?v=four-generated-posts-20260824-1');
-    await loadScript('/whatsapp-copy-fix.js?v=qr500-final-20260824-1');
+    await loadScript('/whatsapp-copy-fix.js?v=whatsapp-final-flow-20260824-3');
+    await loadScript('/participant-name-fix.js?v=participant-name-20260824-1');
     const enforceScreenVisibility=(name)=>{
       document.querySelectorAll('.screen').forEach(screen=>{
         const active=screen.dataset.screen===name;
