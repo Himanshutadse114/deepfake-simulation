@@ -65,6 +65,7 @@ jobs:
           node --check client/public/instagram-video-grid.js
           node --check client/public/generated-profile-grid-fix.js
           node --check client/public/profile-carousel-experience.js
+          node --check client/public/profile-carousel-reference-ui.js
           node --check client/public/whatsapp-copy-fix.js
           node --check client/public/wa-polish.js
           node --check client/public/wa-flow-fix.js
