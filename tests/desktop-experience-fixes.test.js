@@ -58,12 +58,12 @@ test('the rejected LinkedIn Facebook and newspaper polish is no longer applied',
 test('retained polish loads after the existing carousel and WhatsApp runtime', () => {
   const baseCarousel = bootstrap.indexOf('/profile-carousel-experience.js?v=cloned-profiles-20260824-2');
   const referenceCarousel = bootstrap.indexOf('/profile-carousel-reference-ui.js?v=reference-ui-20260824-2');
-  const desktopFixes = bootstrap.indexOf('/desktop-experience-fixes.js?v=desktop-polish-20260824-1');
+  const desktopFixes = bootstrap.indexOf('/desktop-experience-fixes.js?v=desktop-polish-20260824-2');
   assert.ok(baseCarousel >= 0);
   assert.ok(referenceCarousel > baseCarousel);
   assert.ok(desktopFixes > referenceCarousel);
   assert.match(bootstrap, /whatsapp-copy-fix\.js\?v=whatsapp-final-flow-20260824-4/);
-  assert.match(index, /ui-bootstrap\.js\?v=desktop-polish-20260824-6/);
-  assert.match(demo, /ui-bootstrap\.js\?v=desktop-polish-20260824-6/);
+  assert.match(index, /ui-bootstrap\.js\?v=retained-polish-20260824-7/);
+  assert.match(demo, /ui-bootstrap\.js\?v=retained-polish-20260824-7/);
   assert.doesNotThrow(() => new Function(fixes));
 });
