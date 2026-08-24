@@ -11,6 +11,7 @@ const multer = require('multer');
 const config = require('./config');
 const simulationRoutes = require('./routes');
 const { router: adminRouter, renderAdminPage } = require('./admin');
+const { router: authRouter, requireProjectAuth, isAuthConfigured } = require('./auth');
 const { renderDemoPage } = require('./demo');
 const { startExpiryCleanup } = require('./store');
 const { redisConfigured, closeRedisClient } = require('./redis-client');
@@ -62,6 +63,9 @@ const createLimiter = rateLimit({
 
 app.use('/api/simulation/session', createLimiter);
 
+// Keep the health endpoint public so Render can continue checking the service.
+// Every learner/admin/demo route below this point is protected by two steps:
+// private access code first, then Google OAuth.
 app.get('/api/health', async (_req, res) => {
   const heygenConfigured = config.providers.heygenEnabled && Boolean(config.providers.heygenAccessToken || config.providers.heygenApiKey);
   const didConfigured = config.providers.didEnabled && Boolean(config.providers.didKey);
@@ -74,6 +78,12 @@ app.get('/api/health', async (_req, res) => {
   res.json({
     ok: true,
     service: 'deepfake-awareness-simulation',
+    authentication: {
+      required: true,
+      configured: isAuthConfigured(),
+      accessCodeRequired: true,
+      googleRequired: true
+    },
     demoMode: config.demoMode,
     sessionDemoMode: true,
     demoInstancePath: '/demo',
@@ -143,6 +153,10 @@ app.get('/api/health', async (_req, res) => {
     videoProviderPreference: config.providers.videoProviderPreference
   });
 });
+
+// Authentication endpoints must remain reachable before the project guard.
+app.use('/auth', authRouter);
+app.use(requireProjectAuth);
 
 app.use('/api/admin', adminRouter);
 app.get('/admin', (_req, res) => res.type('html').send(renderAdminPage()));
