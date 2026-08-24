@@ -142,9 +142,12 @@
       window.resetSimulation=async function(...args){const result=await originalReset.apply(this,args);applyInternalScriptPlaceholders();if(demoInstance)window.runMode='demo';enforceScreenVisibility('intro');return result};
     }
 
-    // Install participant identity first, then the cloned-profile stage so the
-    // cross-platform cards always inherit the learner-entered name.
+    // Install participant identity first, then the cloned-profile stage and its
+    // reference-file visual treatment. Desktop fixes are deliberately last so
+    // older polish files cannot override the final responsive behaviour.
     await loadScript('/participant-name-fix.js?v=participant-name-20260824-1');
     await loadScript('/profile-carousel-experience.js?v=cloned-profiles-20260824-2');
+    await loadScript('/profile-carousel-reference-ui.js?v=reference-ui-20260824-2');
+    await loadScript('/desktop-experience-fixes.js?v=desktop-polish-20260824-1');
   }catch(error){console.error(error);document.body.innerHTML='<main style="font-family:system-ui;background:#06080d;color:white;min-height:100vh;display:grid;place-items:center;padding:24px"><div><h1>UI could not load</h1><p>Please refresh the page.</p></div></main>'}
 })();
