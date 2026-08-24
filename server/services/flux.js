@@ -42,10 +42,10 @@ const PROFILE_VARIANT_PROMPTS = [
   ].join(' '),
   [
     'Using image 1 as the identity reference, preserve the same person and distinctive facial features.',
-    'Create a realistic square lifestyle social photo of the same person in a green park or neutral outdoor setting, slightly wider waist-up framing, natural expression, soft late-afternoon light and realistic smartphone photography.',
-    'CLOTHING: use a relaxed weekend or park outfit appropriate for the outdoor setting, such as a comfortable casual top with trousers or jeans, light weekend layers or another easygoing outdoor combination. The outfit must not repeat the clothing from any of the other three posts.',
-    'Use a clearly distinct garment combination, style and overall colour palette from the office, cafe and city posts.',
-    'Keep identity, approximate age, skin tone, hairstyle and facial structure consistent. No text, logos, badges, documents or other people.'
+    'Create a realistic square smartphone selfie of the same person in a green park or neutral outdoor setting. The camera should feel naturally handheld at arm length, with a close head-and-shoulders composition only, showing the face, neck and shoulders and at most the very top of the upper chest.',
+    'Do NOT create a full-body, half-body, waist-up or wide portrait. Do not show the person below the upper chest. Keep the face clearly visible and recognisable, with a natural selfie angle, relaxed expression and soft late-afternoon outdoor light.',
+    'CLOTHING: use a relaxed weekend or park top or light outdoor layer appropriate for the setting. The visible clothing around the shoulders and neckline must be clearly different from the office, cafe and city outfits, with a distinct garment style and colour palette.',
+    'Keep identity, approximate age, skin tone, hairstyle and facial structure consistent. Make it look like a believable personal Instagram selfie, not a studio portrait or fashion shoot. No text, logos, badges, documents or other people.'
   ].join(' ')
 ];
 
