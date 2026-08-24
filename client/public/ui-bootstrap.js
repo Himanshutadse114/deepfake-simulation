@@ -82,7 +82,6 @@
     // older polish code cannot replace the current story/navigation behavior.
     await loadScript('/generated-profile-grid-fix.js?v=four-generated-posts-20260824-1');
     await loadScript('/whatsapp-copy-fix.js?v=whatsapp-final-flow-20260824-3');
-    await loadScript('/participant-name-fix.js?v=participant-name-20260824-1');
     const enforceScreenVisibility=(name)=>{
       document.querySelectorAll('.screen').forEach(screen=>{
         const active=screen.dataset.screen===name;
@@ -142,5 +141,10 @@
       const originalReset=window.resetSimulation;
       window.resetSimulation=async function(...args){const result=await originalReset.apply(this,args);applyInternalScriptPlaceholders();if(demoInstance)window.runMode='demo';enforceScreenVisibility('intro');return result};
     }
+
+    // Install the participant-name guard after all bootstrap wrappers. This way
+    // a rejected credential autofill can return to Media setup without another
+    // wrapper forcing the generation screen back on top.
+    await loadScript('/participant-name-fix.js?v=participant-name-20260824-1');
   }catch(error){console.error(error);document.body.innerHTML='<main style="font-family:system-ui;background:#06080d;color:white;min-height:100vh;display:grid;place-items:center;padding:24px"><div><h1>UI could not load</h1><p>Please refresh the page.</p></div></main>'}
 })();
