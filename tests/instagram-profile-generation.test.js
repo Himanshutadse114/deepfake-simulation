@@ -23,11 +23,11 @@ test('FLUX profile generation is exactly four independent 1 MP requests', () => 
   assert.equal(config.providers.fluxProfileResolution, '1 MP');
 });
 
-test('the four social-photo environments remain the restored original set', () => {
+test('the four social-photo environments remain office, cafe, city and park', () => {
   assert.match(flux, /modern office or coworking space, three-quarter left camera angle/i);
   assert.match(flux, /bright cafe setting, three-quarter right camera angle/i);
   assert.match(flux, /generic city promenade or public plaza/i);
-  assert.match(flux, /green park or neutral outdoor setting, slightly wider waist-up framing/i);
+  assert.match(flux, /green park or neutral outdoor setting/i);
   assert.match(flux, /realistic smartphone photography/i);
 });
 
@@ -35,11 +35,19 @@ test('each Instagram image requests distinct clothing matched to its environment
   assert.match(flux, /smart-casual office-appropriate outfit/i);
   assert.match(flux, /relaxed everyday cafe outfit/i);
   assert.match(flux, /urban outdoor outfit suitable for going out in the city/i);
-  assert.match(flux, /relaxed weekend or park outfit/i);
+  assert.match(flux, /relaxed weekend or park top or light outdoor layer/i);
   assert.match(flux, /clearly different from the clothing in the other three generated posts/i);
   assert.match(flux, /different garment style and a different overall colour palette/i);
   assert.match(flux, /different silhouette, outer layer and overall colour feel/i);
-  assert.match(flux, /must not repeat the clothing from any of the other three posts/i);
+  assert.match(flux, /clearly different from the office, cafe and city outfits/i);
+});
+
+test('fourth Instagram photo is a close shoulder selfie, never a full-body image', () => {
+  assert.match(flux, /realistic square smartphone selfie/i);
+  assert.match(flux, /close head-and-shoulders composition only/i);
+  assert.match(flux, /face, neck and shoulders/i);
+  assert.match(flux, /Do NOT create a full-body, half-body, waist-up or wide portrait/i);
+  assert.match(flux, /Do not show the person below the upper chest/i);
 });
 
 test('FLUX reference image is bounded to the 1 MP billing tier', () => {
