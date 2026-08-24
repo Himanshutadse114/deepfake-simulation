@@ -1,9 +1,13 @@
-(function installWhatsappCopyFix() {
+(function installWhatsappFlowFix() {
+  const FLOW_VERSION = 3;
+  const existing = window.__innviktaWhatsappFlowController;
+  if (existing?.version === FLOW_VERSION) return;
+
   const startedAt = Date.now();
   const READY_TIMEOUT_MS = 120000;
-  const COMPLETION_VERSION = 2;
   let completionTimer = null;
   let completionBackupTimer = null;
+  let flowEpoch = 0;
 
   function chatBody() {
     return document.getElementById('waChatBody');
@@ -19,6 +23,27 @@
     });
   }
 
+  function clearCompletionTimers() {
+    clearTimeout(completionTimer);
+    clearTimeout(completionBackupTimer);
+    completionTimer = null;
+    completionBackupTimer = null;
+  }
+
+  function removeCompletionUi() {
+    document.getElementById('waVictimPayment500')?.remove();
+    document.getElementById('waSimulationComplete')?.remove();
+    document.getElementById('waInlineCompletion')?.remove();
+    const dock = document.getElementById('waProceedDock');
+    if (dock) dock.style.display = 'none';
+  }
+
+  function resetFlowState() {
+    flowEpoch += 1;
+    clearCompletionTimers();
+    removeCompletionUi();
+  }
+
   function appendVictimPaymentBubble() {
     const body = chatBody();
     if (!body || document.getElementById('waVictimPayment500')) return;
@@ -32,7 +57,8 @@
     body.appendChild(bubble);
   }
 
-  function ensureCompletionActions() {
+  function ensureCompletionActions(epoch = flowEpoch) {
+    if (epoch !== flowEpoch) return false;
     const body = chatBody();
     if (!body) return false;
 
@@ -51,7 +77,7 @@
     if (!block) {
       block = document.createElement('div');
       block.id = 'waInlineCompletion';
-      block.className = 'wa-inline-completion wa-inline-completion-forced';
+      block.className = 'wa-inline-completion wa-inline-completion-final';
       block.innerHTML = `
         <div class="wa-inline-completion-copy">
           <strong>You saw the scam succeed.</strong>
@@ -62,7 +88,7 @@
           <button class="primary wa-inline-next" type="button">Convinced? Let’s move further →</button>
         </div>
       `;
-      marker.insertAdjacentElement('afterend', block);
+      body.appendChild(block);
       block.querySelector('.wa-inline-replay')?.addEventListener('click', () => {
         window.replayWhatsAppSimulation?.();
       });
@@ -76,6 +102,8 @@
     const status = document.getElementById('waStatus');
     if (status) status.textContent = 'online';
 
+    // Keep Replay / Convinced as the literal final content in the conversation.
+    if (body.lastElementChild !== block) body.appendChild(block);
     block.style.display = 'block';
     block.removeAttribute('hidden');
     block.setAttribute('aria-hidden', 'false');
@@ -83,78 +111,80 @@
     return true;
   }
 
-  function scheduleCompletionAfterQr() {
-    clearTimeout(completionTimer);
-    clearTimeout(completionBackupTimer);
+  function scheduleCompletionAfterQr(epoch = flowEpoch) {
+    clearCompletionTimers();
 
     completionTimer = setTimeout(() => {
-      ensureCompletionActions();
+      ensureCompletionActions(epoch);
     }, 700);
 
-    // Defensive second pass: even if another UI helper mutates the chat right
-    // after the QR is inserted, navigation is restored automatically.
+    // A second pass protects navigation if another WhatsApp helper mutates the
+    // chat immediately after the QR is rendered.
     completionBackupTimer = setTimeout(() => {
-      ensureCompletionActions();
+      ensureCompletionActions(epoch);
     }, 2200);
   }
 
   function installQrCompletionHook() {
     const current = window.appendQrBubble;
     if (typeof current !== 'function') return false;
-    if (current.__innviktaQrCompletionHook === COMPLETION_VERSION) return true;
+    if (current.__innviktaQrCompletionHook === FLOW_VERSION) return true;
 
     const wrapped = function appendQrBubbleWithCompletion(...args) {
+      const epoch = flowEpoch;
       try {
         return current.apply(this, args);
       } finally {
-        // Register completion even if the QR renderer throws after appending its
-        // DOM. This prevents a learner from ever being stranded after the QR.
-        scheduleCompletionAfterQr();
+        scheduleCompletionAfterQr(epoch);
       }
     };
-    wrapped.__innviktaQrCompletionHook = COMPLETION_VERSION;
+    wrapped.__innviktaQrCompletionHook = FLOW_VERSION;
     wrapped.__innviktaOriginalQrBubble = current;
     window.appendQrBubble = wrapped;
     return true;
   }
 
   function revisedVoiceNoteCompleted() {
+    const epoch = flowEpoch;
     setTimeout(() => {
+      if (epoch !== flowEpoch) return;
       window.appendWaBubble('That sounds exactly like you.', 'out');
       setTimeout(() => {
+        if (epoch !== flowEpoch) return;
         window.triggerIncomingVideoCall();
       }, 1500);
     }, 1000);
   }
   revisedVoiceNoteCompleted.__innviktaQr500Copy = true;
-  revisedVoiceNoteCompleted.__innviktaCompletionVersion = COMPLETION_VERSION;
+  revisedVoiceNoteCompleted.__innviktaCompletionVersion = FLOW_VERSION;
 
   function revisedQrCodePaymentRequest() {
+    const epoch = flowEpoch;
     window.showWaTyping(true);
     setTimeout(() => {
+      if (epoch !== flowEpoch) return;
       window.showWaTyping(false);
       window.appendWaBubble('Please scan this QR code to complete the processing payment of $500 urgently.', 'in');
       const contactLastMsg = document.getElementById('waContactLastMsg');
       if (contactLastMsg) contactLastMsg.textContent = 'Please scan this QR code...';
 
       setTimeout(() => {
+        if (epoch !== flowEpoch) return;
         window.showWaTyping(true);
         setTimeout(() => {
+          if (epoch !== flowEpoch) return;
           window.showWaTyping(false);
-          // The appendQrBubble wrapper owns completion scheduling. The explicit
-          // finally below is an additional guard in case another script swaps
-          // the QR renderer between installation and this call.
           try {
             window.appendQrBubble();
           } finally {
-            scheduleCompletionAfterQr();
+            scheduleCompletionAfterQr(epoch);
           }
         }, 1500);
       }, 1500);
     }, 1800);
   }
   revisedQrCodePaymentRequest.__innviktaQr500Copy = true;
-  revisedQrCodePaymentRequest.__innviktaCompletionVersion = COMPLETION_VERSION;
+  revisedQrCodePaymentRequest.__innviktaCompletionVersion = FLOW_VERSION;
 
   function install() {
     if (
@@ -168,30 +198,39 @@
 
     installQrCompletionHook();
 
-    // Version checks deliberately replace older cached WhatsApp helpers even
-    // when they carry the old __innviktaQr500Copy marker.
-    if (window.onVoiceNoteCompleted.__innviktaCompletionVersion !== COMPLETION_VERSION) {
+    if (window.onVoiceNoteCompleted.__innviktaCompletionVersion !== FLOW_VERSION) {
       window.onVoiceNoteCompleted = revisedVoiceNoteCompleted;
     }
-    if (window.receiveQrCodePaymentRequest.__innviktaCompletionVersion !== COMPLETION_VERSION) {
+    if (window.receiveQrCodePaymentRequest.__innviktaCompletionVersion !== FLOW_VERSION) {
       window.receiveQrCodePaymentRequest = revisedQrCodePaymentRequest;
     }
+
     window.__innviktaWhatsappCopyFixInstalled = true;
     window.__innviktaForceWhatsappCompletion = ensureCompletionActions;
+    window.__innviktaResetWhatsappCompletion = resetFlowState;
     return true;
   }
 
+  window.__innviktaWhatsappFlowController = {
+    version: FLOW_VERSION,
+    reset: resetFlowState,
+    ensureCompletion: ensureCompletionActions
+  };
+
   const style = document.createElement('style');
   style.textContent = `
-    #waInlineCompletion.wa-inline-completion-forced{
+    #waInlineCompletion.wa-inline-completion-final{
       display:block!important;
       visibility:visible!important;
       opacity:1!important;
-      position:sticky!important;
-      bottom:8px!important;
-      z-index:25!important;
+      position:static!important;
+      inset:auto!important;
+      z-index:auto!important;
+      flex:none!important;
+      width:min(620px,94%)!important;
+      margin:8px auto 24px!important;
     }
-    #waInlineCompletion.wa-inline-completion-forced .wa-inline-actions{
+    #waInlineCompletion.wa-inline-completion-final .wa-inline-actions{
       display:flex!important;
     }
   `;
