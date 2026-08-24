@@ -81,7 +81,7 @@
     // Final runtime overrides. Keep these after every WhatsApp/profile helper so
     // older polish code cannot replace the current story/navigation behavior.
     await loadScript('/generated-profile-grid-fix.js?v=four-generated-posts-20260824-1');
-    await loadScript('/whatsapp-copy-fix.js?v=whatsapp-final-flow-20260824-3');
+    await loadScript('/whatsapp-copy-fix.js?v=whatsapp-final-flow-20260824-4');
     const enforceScreenVisibility=(name)=>{
       document.querySelectorAll('.screen').forEach(screen=>{
         const active=screen.dataset.screen===name;
