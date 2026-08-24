@@ -140,6 +140,7 @@
     };
     wrapped.__innviktaQrCompletionHook = FLOW_VERSION;
     wrapped.__innviktaOriginalQrBubble = current;
+    if (current.__innviktaNotificationSound) wrapped.__innviktaNotificationSound = true;
     window.appendQrBubble = wrapped;
     return true;
   }
