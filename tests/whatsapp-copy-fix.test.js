@@ -7,6 +7,7 @@ const root = path.join(__dirname, '..');
 const read = (relative) => fs.readFileSync(path.join(root, relative), 'utf8');
 
 const flow = read('client/public/whatsapp-copy-fix.js');
+const replay = read('client/public/wa-replay-reset.js');
 const bootstrap = read('client/public/ui-bootstrap.js');
 const index = read('client/index.html');
 const demo = read('server/demo.js');
@@ -24,38 +25,46 @@ test('QR follow-up removes server-timeout wording and uses $500', () => {
   assert.doesNotMatch(flow, /processing payment of \$5 urgently/i);
 });
 
-test('QR rendering itself guarantees completion and navigation recovery', () => {
-  assert.match(flow, /function installQrCompletionHook/);
-  assert.match(flow, /finally \{[\s\S]*scheduleCompletionAfterQr\(\)/);
-  assert.match(flow, /function scheduleCompletionAfterQr/);
-  assert.match(flow, /ensureCompletionActions\(\)/);
-  assert.match(flow, /completionBackupTimer/);
-  assert.match(flow, /waVictimPayment500/);
-  assert.match(flow, /waSimulationComplete/);
-  assert.match(flow, /waInlineCompletion/);
+test('Replay and Convinced controls are appended only as the final chat content', () => {
+  assert.match(flow, /wa-inline-completion-final/);
+  assert.match(flow, /if \(body\.lastElementChild !== block\) body\.appendChild\(block\)/);
+  assert.match(flow, /position:static!important/);
+  assert.doesNotMatch(flow, /position:sticky!important/);
   assert.match(flow, /replayWhatsAppSimulation/);
   assert.match(flow, /openProfileExperience/);
-});
-
-test('completion controls are forced visible and sticky inside the scrollable chat', () => {
-  assert.match(flow, /wa-inline-completion-forced/);
-  assert.match(flow, /position:sticky!important/);
-  assert.match(flow, /visibility:visible!important/);
-  assert.match(flow, /block\.style\.display = 'block'/);
   assert.match(flow, /scrollChatToBottom\(\)/);
 });
 
-test('new completion patch replaces older cached WhatsApp overrides', () => {
-  assert.match(flow, /const COMPLETION_VERSION = 2/);
-  assert.match(flow, /__innviktaCompletionVersion/);
-  assert.match(flow, /!== COMPLETION_VERSION/);
-  assert.match(index, /whatsapp-copy-fix\.js\?v=qr500-completion-20260824-2/);
-  assert.match(demo, /whatsapp-copy-fix\.js\?v=qr500-completion-20260824-2/);
+test('QR rendering guarantees completion and prevents stale timers leaking into replay', () => {
+  assert.match(flow, /const FLOW_VERSION = 3/);
+  assert.match(flow, /let flowEpoch = 0/);
+  assert.match(flow, /function resetFlowState/);
+  assert.match(flow, /flowEpoch \+= 1/);
+  assert.match(flow, /clearCompletionTimers\(\)/);
+  assert.match(flow, /function scheduleCompletionAfterQr/);
+  assert.match(flow, /completionBackupTimer/);
+  assert.match(flow, /epoch !== flowEpoch/);
+  assert.match(flow, /__innviktaResetWhatsappCompletion/);
+});
+
+test('Replay clears the conversation and restarts the complete WhatsApp story', () => {
+  assert.match(replay, /chat\.replaceChildren\(\)/);
+  assert.match(replay, /__innviktaResetWhatsappCompletion/);
+  assert.match(replay, /storyAdvancedForCurrentRun = false/);
+  assert.match(replay, /window\.startWhatsAppSimulation\?\.\(\)/);
+  assert.match(replay, /requestAnimationFrame/);
+  assert.match(replay, /waVictimPayment500/);
+  assert.match(replay, /waSimulationComplete/);
+  assert.match(replay, /waInlineCompletion/);
+  assert.doesNotThrow(() => new Function(replay));
+});
+
+test('fresh WhatsApp flow is cache-busted in learner, demo and bootstrap', () => {
+  assert.match(index, /whatsapp-copy-fix\.js\?v=whatsapp-final-flow-20260824-3/);
+  assert.match(demo, /whatsapp-copy-fix\.js\?v=whatsapp-final-flow-20260824-3/);
+  assert.match(bootstrap, /whatsapp-copy-fix\.js\?v=whatsapp-final-flow-20260824-3/);
+  assert.match(bootstrap, /wa-replay-reset\.js\?v=replay-clean-20260824-2/);
   assert.match(flow, /READY_TIMEOUT_MS = 120000/);
   assert.match(flow, /setInterval/);
   assert.doesNotThrow(() => new Function(flow));
-});
-
-test('bootstrap still contains a late WhatsApp patch load while direct entry loading provides the newest guard', () => {
-  assert.match(bootstrap, /whatsapp-copy-fix\.js/);
 });
