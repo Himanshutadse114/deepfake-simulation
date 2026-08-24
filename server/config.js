@@ -11,11 +11,6 @@ const booleanEnv = (name, fallback) => {
   return String(raw).toLowerCase() === 'true';
 };
 
-const csvEnv = (name) => String(process.env[name] || '')
-  .split(',')
-  .map((value) => value.trim().toLowerCase())
-  .filter(Boolean);
-
 const ROOT = path.resolve(__dirname, '..');
 const UPLOAD_ROOT = path.join(ROOT, 'uploads');
 
@@ -34,17 +29,11 @@ module.exports = {
   maxVideoSeconds: Math.min(numberEnv('MAX_VIDEO_SECONDS', 20), 20),
   retentionMs: numberEnv('MEDIA_RETENTION_MINUTES', 30) * 60 * 1000,
 
-  // Project access is fail-closed: the app stays behind the access-code +
-  // Google sign-in window until all required server-side credentials exist.
+  // Temporary project login: username defaults to "innvikta". A Render
+  // AUTH_PASSWORD value can override the built-in strong password hash.
   auth: {
-    accessCode: String(process.env.AUTH_ACCESS_CODE || '').trim(),
-    sessionSecret: String(process.env.AUTH_SESSION_SECRET || process.env.SESSION_SECRET || '').trim(),
-    googleClientId: String(process.env.GOOGLE_CLIENT_ID || '').trim(),
-    googleClientSecret: String(process.env.GOOGLE_CLIENT_SECRET || '').trim(),
-    appBaseUrl: String(process.env.APP_BASE_URL || '').trim().replace(/\/$/, ''),
-    allowedEmails: csvEnv('AUTH_ALLOWED_EMAILS'),
-    allowedDomain: String(process.env.AUTH_ALLOWED_DOMAIN || '').trim().toLowerCase(),
-    gateMinutes: Math.min(numberEnv('AUTH_GATE_MINUTES', 10), 60),
+    username: String(process.env.AUTH_USERNAME || 'innvikta').trim(),
+    password: String(process.env.AUTH_PASSWORD || ''),
     sessionHours: Math.min(numberEnv('AUTH_SESSION_HOURS', 12), 168)
   },
 
