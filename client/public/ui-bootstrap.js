@@ -143,11 +143,11 @@
     }
 
     // Install participant identity first, then the cloned-profile stage and its
-    // reference-file visual treatment. Desktop fixes are deliberately last so
-    // older polish files cannot override the final responsive behaviour.
+    // existing reference-file visual treatment. The retained polish only adds
+    // the requested teleprompter, WhatsApp sound/wordmark and generation facts.
     await loadScript('/participant-name-fix.js?v=participant-name-20260824-1');
     await loadScript('/profile-carousel-experience.js?v=cloned-profiles-20260824-2');
     await loadScript('/profile-carousel-reference-ui.js?v=reference-ui-20260824-2');
-    await loadScript('/desktop-experience-fixes.js?v=desktop-polish-20260824-1');
+    await loadScript('/desktop-experience-fixes.js?v=desktop-polish-20260824-2');
   }catch(error){console.error(error);document.body.innerHTML='<main style="font-family:system-ui;background:#06080d;color:white;min-height:100vh;display:grid;place-items:center;padding:24px"><div><h1>UI could not load</h1><p>Please refresh the page.</p></div></main>'}
 })();
