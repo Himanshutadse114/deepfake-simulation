@@ -1,5 +1,5 @@
 (() => {
-  const VERSION = 1;
+  const VERSION = 2;
   if (window.__innviktaProfileCarouselVersion === VERSION) return;
   window.__innviktaProfileCarouselVersion = VERSION;
 
@@ -51,8 +51,13 @@
       .slice(0, 4);
     if (fromGrid.length === 4) return fromGrid;
 
-    const fallback = window.uploadedPhotoUrl || document.querySelector('.shared-face')?.src || '';
-    return fallback ? Array.from({ length: 4 }, () => fallback) : [];
+    // Only the internal demo may fall back to the local preview portrait.
+    // Paid simulations must use the four images already created for Instagram.
+    if (window.runMode === 'demo') {
+      const fallback = window.uploadedPhotoUrl || document.querySelector('.shared-face')?.src || '';
+      return fallback ? Array.from({ length: 4 }, () => fallback) : [];
+    }
+    return [];
   }
 
   function cardMarkup() {
@@ -177,7 +182,16 @@
 
   function assignRandomGeneratedPhotos() {
     const source = collectInstagramImages();
-    if (!source.length) return false;
+    const button = document.getElementById('profileCarouselAnalyze');
+    const hint = document.getElementById('profileCarouselHint');
+    if (source.length !== 4) {
+      if (hint) hint.textContent = 'Waiting for the four Instagram images';
+      if (button) {
+        button.disabled = true;
+        button.textContent = 'Preparing cloned profiles…';
+      }
+      return false;
+    }
     const ordered = shuffle(source.slice(0, 4));
     document.querySelectorAll('[data-carousel-photo]').forEach((image) => {
       const index = Number(image.getAttribute('data-carousel-photo') || 0);
@@ -193,6 +207,12 @@
     const counter = document.getElementById('profileCarouselCounter');
     if (counter) counter.textContent = `Profile ${currentIndex + 1} of ${TOTAL_CARDS}`;
     if (!button || !hint) return;
+    if (!window.__profileCarouselImageOrder?.length) {
+      button.disabled = true;
+      button.textContent = 'Preparing cloned profiles…';
+      hint.textContent = 'Waiting for the four Instagram images';
+      return;
+    }
     if (viewedCards.size >= TOTAL_CARDS) {
       button.disabled = false;
       button.textContent = 'Proceed to analysis →';
@@ -276,6 +296,7 @@
   function resetCarouselRun() {
     currentIndex = 0;
     viewedCards = new Set([0]);
+    window.__profileCarouselImageOrder = [];
     syncIdentity();
     assignRandomGeneratedPhotos();
     document.querySelectorAll('.profile-carousel-card').forEach((card) => { card.scrollTop = 0; });
@@ -288,6 +309,7 @@
   }
 
   function startPlatformAnalysis() {
+    if (viewedCards.size < TOTAL_CARDS || !window.__profileCarouselImageOrder?.length) return;
     const overlay = document.getElementById('profileAnalysisOverlay');
     const progress = document.getElementById('profileAnalysisProgress');
     const status = document.getElementById('profileAnalysisStatus');
@@ -334,9 +356,12 @@
     const mobileButton = profileScreen.querySelector('.ig-mobilebar button.primary');
     [desktopButton, mobileButton].forEach((button) => {
       if (!button) return;
-      button.onclick = openClonedProfiles;
+      button.onclick = null;
       button.removeAttribute('onclick');
-      button.addEventListener('click', openClonedProfiles);
+      if (!button.__profileCarouselRedirect) {
+        button.addEventListener('click', openClonedProfiles);
+        button.__profileCarouselRedirect = true;
+      }
     });
     if (desktopButton) desktopButton.textContent = 'View other cloned profiles →';
     if (mobileButton) mobileButton.textContent = 'Next profiles →';
