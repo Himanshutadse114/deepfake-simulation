@@ -145,6 +145,6 @@
     // Install participant identity first, then the cloned-profile stage so the
     // cross-platform cards always inherit the learner-entered name.
     await loadScript('/participant-name-fix.js?v=participant-name-20260824-1');
-    await loadScript('/profile-carousel-experience.js?v=cloned-profiles-20260824-1');
+    await loadScript('/profile-carousel-experience.js?v=cloned-profiles-20260824-2');
   }catch(error){console.error(error);document.body.innerHTML='<main style="font-family:system-ui;background:#06080d;color:white;min-height:100vh;display:grid;place-items:center;padding:24px"><div><h1>UI could not load</h1><p>Please refresh the page.</p></div></main>'}
 })();
