@@ -64,8 +64,8 @@ const createLimiter = rateLimit({
 app.use('/api/simulation/session', createLimiter);
 
 // Keep the health endpoint public so Render can continue checking the service.
-// Every learner/admin/demo route below this point is protected by two steps:
-// private access code first, then Google OAuth.
+// Every learner/admin/demo route below this point is protected by the private
+// Innvikta username/password login.
 app.get('/api/health', async (_req, res) => {
   const heygenConfigured = config.providers.heygenEnabled && Boolean(config.providers.heygenAccessToken || config.providers.heygenApiKey);
   const didConfigured = config.providers.didEnabled && Boolean(config.providers.didKey);
@@ -81,8 +81,8 @@ app.get('/api/health', async (_req, res) => {
     authentication: {
       required: true,
       configured: isAuthConfigured(),
-      accessCodeRequired: true,
-      googleRequired: true
+      usernamePasswordRequired: true,
+      googleRequired: false
     },
     demoMode: config.demoMode,
     sessionDemoMode: true,
