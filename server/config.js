@@ -20,8 +20,7 @@ module.exports = {
   clientDist: path.join(ROOT, 'client', 'dist'),
   maxImageBytes: numberEnv('MAX_IMAGE_SIZE_MB', 8) * 1024 * 1024,
   maxAudioBytes: numberEnv('MAX_AUDIO_SIZE_MB', 20) * 1024 * 1024,
-  maxReferenceAudioSeconds: numberEnv('MAX_REFERENCE_AUDIO_SECONDS', 45),
-  maxGeneratedAudioSeconds: Math.min(numberEnv('MAX_GENERATED_AUDIO_SECONDS', 10), 10),
+  maxGeneratedAudioSeconds: 12,
   maxVideoSeconds: Math.min(numberEnv('MAX_VIDEO_SECONDS', 10), 10),
   retentionMs: numberEnv('MEDIA_RETENTION_MINUTES', 30) * 60 * 1000,
   demoMode: String(process.env.DEMO_MODE || 'false').toLowerCase() === 'true',
@@ -47,10 +46,10 @@ module.exports = {
     elevenLabsApiKey: process.env.ELEVENLABS_API_KEY || '',
     elevenLabsModel: process.env.ELEVENLABS_MODEL || 'eleven_multilingual_v2',
 
-    // Social-profile awareness images are generated only after the first learning checkpoint.
+    // Four social-profile awareness images are generated with the initial media pipeline.
     fluxEnabled: String(process.env.FLUX_ENABLED || 'true').toLowerCase() !== 'false',
     fluxModel: process.env.FLUX_MODEL || 'black-forest-labs/flux-2-pro',
-    fluxGridImages: Math.min(numberEnv('FLUX_GRID_IMAGES', 4), 4),
+    fluxGridImages: 4,
 
     didKey: process.env.DID_API_KEY || '',
     didEnabled: String(process.env.DID_ADAPTER_ENABLED || 'false').toLowerCase() !== 'false',

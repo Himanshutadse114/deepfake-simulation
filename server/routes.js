@@ -4,7 +4,7 @@ const config = require('./config');
 const { createSession, getSession, publicSession, updateStatus, deleteSession } = require('./store');
 const { upload, persistParticipantFile } = require('./media');
 const { getActiveScripts } = require('./admin-settings');
-const { generateSimulation, generateProfileVariants } = require('./pipeline');
+const { generateSimulation } = require('./pipeline');
 
 const router = express.Router();
 
@@ -79,24 +79,9 @@ router.post('/:id/generate', loadAuthorisedSession, (req, res) => {
   const session = req.simulation;
   if (session.status !== 'collecting') return res.status(409).json({ error: `Simulation is already ${session.status}.` });
   if (!session.face || !session.voice) return res.status(400).json({ error: 'Upload both a validated face image and a voice sample first.' });
-  updateStatus(session, 'queued', session.mode === 'demo' ? 'Internal no-AI demo has been queued.' : 'AI generation has been queued.');
+  updateStatus(session, 'queued', session.mode === 'demo' ? 'Internal demo has been queued.' : 'Simulation preparation has been queued.');
   setImmediate(() => generateSimulation(session));
   res.status(202).json({ status: session.status, mode: session.mode });
-});
-
-router.post('/:id/profile/generate', loadAuthorisedSession, (req, res) => {
-  const session = req.simulation;
-  if (session.status !== 'completed') return res.status(409).json({ error: 'Complete the generation stage first.' });
-  if (session.profileStatus === 'generating') return res.status(202).json({ profileStatus: session.profileStatus });
-  if (session.profileStatus === 'completed') return res.json({ profileStatus: session.profileStatus, variantCount: session.variants.length });
-
-  session.profileStatus = 'queued';
-  session.profileDetail = 'Synthetic profile generation has been queued.';
-  session.profileError = null;
-  setImmediate(() => generateProfileVariants(session).catch((error) => {
-    console.warn(`[profile-generation] ${error.message}`);
-  }));
-  res.status(202).json({ profileStatus: session.profileStatus });
 });
 
 router.get('/:id/status', loadAuthorisedSession, (req, res) => {

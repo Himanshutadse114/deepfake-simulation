@@ -37,6 +37,29 @@
     .wa-real-qr{width:148px!important;height:148px!important;max-width:none!important;max-height:none!important;display:block!important;flex:none!important}
     .wa-qr-caption{font-size:9.5px!important;margin-top:7px!important}
 
+    /* Laptop landing: scale with available height and keep the action visible. */
+    .screen[data-screen="intro"] .screen-inner{min-height:0!important}
+    .screen[data-screen="intro"] .viewport{min-height:0!important;overflow-y:auto!important}
+    .screen[data-screen="intro"] .intro-actions{flex:none!important;margin-top:0!important}
+    @media(min-width:701px) and (max-height:820px){
+      .screen[data-screen="intro"] .viewport{padding-top:clamp(14px,2.5vh,26px)!important;padding-bottom:10px!important}
+      .screen[data-screen="intro"] .viewport.center{align-items:flex-start!important}
+      .screen[data-screen="intro"] .hero{margin:auto!important;gap:clamp(20px,4vw,54px)!important}
+      .screen[data-screen="intro"] .hero-copy h1{font-size:clamp(38px,5.4vw,68px)!important;line-height:.98!important;margin-bottom:14px!important}
+      .screen[data-screen="intro"] .hero-copy .muted{font-size:clamp(13px,1.25vw,16px)!important;line-height:1.48!important}
+      .screen[data-screen="intro"] .flow-pills{margin-top:16px!important;margin-bottom:6px!important}
+      .screen[data-screen="intro"] .hero-visual{min-height:clamp(300px,54vh,410px)!important}
+      .screen[data-screen="intro"] .face-card{width:min(280px,36vh)!important}
+      .screen[data-screen="intro"] .orb.o1{width:min(310px,42vh)!important;height:min(310px,42vh)!important}
+      .screen[data-screen="intro"] .orb.o2{width:min(230px,33vh)!important;height:min(230px,33vh)!important}
+      .screen[data-screen="intro"] .intro-actions{padding-top:8px!important;padding-bottom:14px!important}
+    }
+    @media(min-width:701px) and (max-height:650px){
+      .screen[data-screen="intro"] .hero{grid-template-columns:1fr!important}
+      .screen[data-screen="intro"] .hero-copy{max-width:900px!important}
+      .screen[data-screen="intro"] .hero-visual{display:none!important}
+    }
+
     /* General small-screen journey hardening. */
     @media(max-width:700px){
       html,body{width:100%;height:100%;overflow:hidden!important}
