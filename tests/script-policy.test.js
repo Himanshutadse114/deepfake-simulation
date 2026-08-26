@@ -29,16 +29,25 @@ test('allows warnings that mention sensitive scam requests', () => {
   assert.match(text, /send money/i);
 });
 
-test('rejects direct credential requests', () => {
-  assert.throws(
-    () => validateAwarenessScript('This is an AI simulation. Please send me your OTP verification code now.', 'WhatsApp audio script'),
-    /cannot directly instruct/i
+test('permits admin-defined credential-request dialogue while lexical blocking is intentionally cleared', () => {
+  const text = validateAwarenessScript(
+    'This is an AI simulation. Please send me your OTP verification code now.',
+    'WhatsApp audio script'
   );
+  assert.match(text, /OTP verification code/i);
 });
 
-test('rejects direct money transfer requests', () => {
+test('permits admin-defined money-request dialogue while lexical blocking is intentionally cleared', () => {
+  const text = validateAwarenessScript(
+    'This is an AI voice clone. Please transfer the payment funds immediately.',
+    'WhatsApp audio script'
+  );
+  assert.match(text, /transfer the payment funds/i);
+});
+
+test('still rejects URLs when URL blocking is enabled', () => {
   assert.throws(
-    () => validateAwarenessScript('This is an AI voice clone. Please transfer the payment funds immediately.', 'WhatsApp audio script'),
-    /cannot directly instruct/i
+    () => validateAwarenessScript('This is an awareness simulation. Open https://example.com to continue the scenario.'),
+    /cannot contain links or domains/i
   );
 });
