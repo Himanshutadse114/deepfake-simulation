@@ -49,6 +49,11 @@ function ensureStages(session) {
   session.stages.videoAudio ||= { status: 'pending', predictionId: null };
   session.stages.pruna ||= { status: 'pending', predictionId: null, providerUrl: null };
   session.stages.flux ||= { status: 'pending', predictionId: null, providerUrl: null };
+  for (const stageKey of ['whatsappAudio', 'videoAudio']) {
+    const stage = session.stages[stageKey];
+    stage.providerAttempt ||= 1;
+    stage.previousPredictionIds ||= [];
+  }
   session.stages.flux.items = buildFluxItems(session.stages.flux.items || []);
   session.provider ||= {};
   session.variants ||= [];
@@ -71,14 +76,22 @@ function predictionCallbacks(session, stageKey) {
   const stage = session.stages[stageKey];
   return {
     predictionId: stage.predictionId,
-    onBeforePredictionCreate: async () => {
-      if (stage.predictionId) return;
+    attemptNumber: stage.providerAttempt || 1,
+    onBeforePredictionCreate: async (meta = {}) => {
+      if (stage.predictionId && !meta.retry) return;
+      if (meta.retry) {
+        const prior = meta.priorPredictionId || stage.predictionId;
+        if (prior && !stage.previousPredictionIds.includes(prior)) stage.previousPredictionIds.push(prior);
+        stage.predictionId = null;
+      }
+      stage.providerAttempt = Number(meta.attempt || stage.providerAttempt || 1);
       stage.status = 'creation_started';
       stage.creationStartedAt = Date.now();
       await persistSession(session);
     },
-    onPredictionCreated: async (prediction) => {
+    onPredictionCreated: async (prediction, meta = {}) => {
       stage.predictionId = prediction.id;
+      stage.providerAttempt = Number(meta.attempt || stage.providerAttempt || 1);
       stage.status = 'provider_running';
       stage.predictionCreatedAt = Date.now();
       await persistSession(session);
@@ -225,28 +238,47 @@ async function validateGeneratedTrack(session, stageKey, filePath, options, chec
   }
 }
 
-async function generateCheckedAudioTracks(session, { whatsappPath, videoSpeechPath }, dependencies = {}) {
+async function generateCheckedAudioTrack(session, {
+  stageKey,
+  localPath,
+  text,
+  status,
+  relativeName,
+  maxSeconds
+}, dependencies = {}) {
   ensureStages(session);
   const generateVoiceTrack = dependencies.generateVoice || generateVoice;
   const checkDuration = dependencies.assertAudioDuration || assertAudioDuration;
+  const outputRef = stageKey === 'whatsappAudio' ? session.whatsappAudioOutput : session.videoAudioOutput;
+  if (session.stages[stageKey].status === 'completed' && outputRef) return outputRef;
 
-  if (session.stages.whatsappAudio.status !== 'completed' || !session.whatsappAudioOutput) {
-    await generateVoiceTrack(session, whatsappPath, session.scripts.whatsapp, 'cloning_whatsapp', 'whatsappAudio');
-    await validateGeneratedTrack(session, 'whatsappAudio', whatsappPath, {
-      label: 'Generated awareness audio',
+  await generateVoiceTrack(session, localPath, text, status, stageKey);
+  await validateGeneratedTrack(session, stageKey, localPath, {
+    label: stageKey === 'whatsappAudio' ? 'Generated awareness audio' : 'Generated video audio',
+    maxSeconds
+  }, checkDuration);
+  return persistAudioTrack(session, stageKey, localPath, relativeName);
+}
+
+async function generateCheckedAudioTracks(session, { whatsappPath, videoSpeechPath }, dependencies = {}) {
+  return Promise.all([
+    generateCheckedAudioTrack(session, {
+      stageKey: 'whatsappAudio',
+      localPath: whatsappPath,
+      text: session.scripts.whatsapp,
+      status: 'cloning_whatsapp',
+      relativeName: 'whatsapp-speech.wav',
       maxSeconds: config.maxGeneratedAudioSeconds
-    }, checkDuration);
-    await persistAudioTrack(session, 'whatsappAudio', whatsappPath, 'whatsapp-speech.wav');
-  }
-
-  if (session.stages.videoAudio.status !== 'completed' || !session.videoAudioOutput) {
-    await generateVoiceTrack(session, videoSpeechPath, session.scripts.video, 'cloning_video', 'videoAudio');
-    await validateGeneratedTrack(session, 'videoAudio', videoSpeechPath, {
-      label: 'Generated video audio',
+    }, dependencies),
+    generateCheckedAudioTrack(session, {
+      stageKey: 'videoAudio',
+      localPath: videoSpeechPath,
+      text: session.scripts.video,
+      status: 'cloning_video',
+      relativeName: 'video-speech.wav',
       maxSeconds: config.maxVideoSeconds
-    }, checkDuration);
-    await persistAudioTrack(session, 'videoAudio', videoSpeechPath, 'video-speech.wav');
-  }
+    }, dependencies)
+  ]);
 }
 
 function extensionForAudioMime(mime) {
@@ -510,23 +542,46 @@ async function generateSimulation(session) {
     }
 
     await validateParticipantVoice(session, workspace);
-    await generateCheckedAudioTracks(session, { whatsappPath, videoSpeechPath });
 
-    const videoWork = async () => {
+    // Start both voice tracks and the four-profile-image work immediately after
+    // local preflight. Pruna is chained only to the video voice track, so it can
+    // begin as soon as that audio is ready instead of waiting for WhatsApp audio
+    // or all Instagram images to finish.
+    const whatsappAudioWork = generateCheckedAudioTrack(session, {
+      stageKey: 'whatsappAudio',
+      localPath: whatsappPath,
+      text: session.scripts.whatsapp,
+      status: 'cloning_whatsapp',
+      relativeName: 'whatsapp-speech.wav',
+      maxSeconds: config.maxGeneratedAudioSeconds
+    });
+
+    const videoWork = (async () => {
+      await generateCheckedAudioTrack(session, {
+        stageKey: 'videoAudio',
+        localPath: videoSpeechPath,
+        text: session.scripts.video,
+        status: 'cloning_video',
+        relativeName: 'video-speech.wav',
+        maxSeconds: config.maxVideoSeconds
+      });
       const video = await generateVideoWithFallback(session, session.videoAudioOutput, workspace);
       if (video.output) return video.output;
       return finalizeVideo(session, video, workspace);
-    };
+    })();
 
+    const profileWork = generateProfileVariants(session, workspace);
     const results = await Promise.allSettled([
-      videoWork(),
-      generateProfileVariants(session, workspace)
+      whatsappAudioWork,
+      videoWork,
+      profileWork
     ]);
 
     if (results[0].status === 'rejected') throw results[0].reason;
+    if (results[1].status === 'rejected') throw results[1].reason;
     // A completed paid simulation must have all four profile images. Do not
     // silently fall back to the uploaded portrait or mark the session ready.
-    if (results[1].status === 'rejected') throw results[1].reason;
+    if (results[2].status === 'rejected') throw results[2].reason;
 
     updateStatus(session, 'completed', 'Your simulation is ready.');
 
@@ -562,6 +617,7 @@ module.exports = {
   generateProfileVariants,
   generateVideoWithFallback,
   generateVoice,
+  generateCheckedAudioTrack,
   generateCheckedAudioTracks,
   validateGeneratedTrack,
   validateParticipantVoice,
