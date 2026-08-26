@@ -122,20 +122,67 @@ function terminalPredictionError(prediction, label) {
   return error;
 }
 
+function timestampMs(value, fallback = Date.now()) {
+  const parsed = Date.parse(value || '');
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function predictionStateTimeoutError(prediction, label, code, message) {
+  const error = new Error(`${label} ${message}`);
+  error.code = code;
+  error.nonRetryable = true;
+  error.predictionId = prediction?.id;
+  error.predictionStatus = prediction?.status;
+  return error;
+}
+
 async function waitForPrediction(prediction, {
   label = 'Replicate prediction',
   pollMs = 2000,
-  timeoutMs = 10 * 60_000
+  timeoutMs = 10 * 60_000,
+  startingTimeoutMs = null,
+  processingTimeoutMs = null,
+  cancelOnStateTimeout = false
 } = {}) {
-  const started = Date.now();
+  const localStartedAt = Date.now();
   let current = prediction;
+  let firstObservedProcessingAt = current?.status === 'processing' ? Date.now() : null;
 
   for (;;) {
     if (current.status === 'succeeded') return current;
     if (current.status === 'failed' || current.status === 'canceled' || current.status === 'aborted') {
       throw terminalPredictionError(current, label);
     }
-    if (Date.now() - started > timeoutMs) {
+
+    const now = Date.now();
+    if (current.status === 'starting' && Number.isFinite(startingTimeoutMs)) {
+      const createdAt = timestampMs(current.created_at, localStartedAt);
+      if (now - createdAt >= startingTimeoutMs) {
+        if (cancelOnStateTimeout) await cancelPrediction(current.id).catch(() => {});
+        throw predictionStateTimeoutError(
+          current,
+          label,
+          'REPLICATE_STARTING_TIMEOUT',
+          `did not begin processing within ${Math.ceil(startingTimeoutMs / 1000)} seconds.`
+        );
+      }
+    }
+
+    if (current.status === 'processing' && Number.isFinite(processingTimeoutMs)) {
+      firstObservedProcessingAt ||= now;
+      const providerStartedAt = timestampMs(current.started_at, firstObservedProcessingAt);
+      if (now - providerStartedAt >= processingTimeoutMs) {
+        if (cancelOnStateTimeout) await cancelPrediction(current.id).catch(() => {});
+        throw predictionStateTimeoutError(
+          current,
+          label,
+          'REPLICATE_PROCESSING_TIMEOUT',
+          `was still processing after ${Math.ceil(processingTimeoutMs / 1000)} seconds of model runtime.`
+        );
+      }
+    }
+
+    if (now - localStartedAt > timeoutMs) {
       const error = new Error(`${label} is still running after the local wait limit. Its prediction id has been preserved and can be resumed safely.`);
       error.code = 'REPLICATE_POLL_TIMEOUT';
       error.predictionId = current.id;
@@ -152,6 +199,7 @@ async function runOfficialPrediction({
   predictionId,
   label = model,
   cancelAfter = '5m',
+  waitOptions = {},
   onPredictionCreated,
   onRateLimit
 }) {
@@ -167,7 +215,7 @@ async function runOfficialPrediction({
     await onPredictionCreated?.(prediction);
   }
 
-  const completed = await waitForPrediction(prediction, { label });
+  const completed = await waitForPrediction(prediction, { label, ...waitOptions });
   return { prediction: completed, output: completed.output };
 }
 
@@ -202,5 +250,7 @@ module.exports = {
   runOfficialPrediction,
   cancelSessionPredictions,
   collectPredictionIds,
-  retryableReadError
+  retryableReadError,
+  timestampMs,
+  predictionStateTimeoutError
 };
