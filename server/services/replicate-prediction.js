@@ -113,9 +113,12 @@ async function cancelPrediction(predictionId, { attempts = 3 } = {}) {
 function terminalPredictionError(prediction, label) {
   const detail = prediction?.error || `${label} ${prediction?.status || 'failed'}.`;
   const error = new Error(typeof detail === 'string' ? detail : JSON.stringify(detail));
-  error.code = prediction?.status === 'canceled' ? 'REPLICATE_PREDICTION_CANCELED' : 'REPLICATE_PREDICTION_FAILED';
+  if (prediction?.status === 'canceled') error.code = 'REPLICATE_PREDICTION_CANCELED';
+  else if (prediction?.status === 'aborted') error.code = 'REPLICATE_PREDICTION_ABORTED';
+  else error.code = 'REPLICATE_PREDICTION_FAILED';
   error.nonRetryable = true;
   error.predictionId = prediction?.id;
+  error.predictionStatus = prediction?.status;
   return error;
 }
 
@@ -129,7 +132,9 @@ async function waitForPrediction(prediction, {
 
   for (;;) {
     if (current.status === 'succeeded') return current;
-    if (current.status === 'failed' || current.status === 'canceled') throw terminalPredictionError(current, label);
+    if (current.status === 'failed' || current.status === 'canceled' || current.status === 'aborted') {
+      throw terminalPredictionError(current, label);
+    }
     if (Date.now() - started > timeoutMs) {
       const error = new Error(`${label} is still running after the local wait limit. Its prediction id has been preserved and can be resumed safely.`);
       error.code = 'REPLICATE_POLL_TIMEOUT';
