@@ -51,8 +51,8 @@ test('Qwen retries only controlled timeout or cancellation outcomes and never ex
 });
 
 test('Qwen attempt number and previous prediction id are durable across Render restarts', () => {
-  assert.match(pipeline, /stage\.providerAttempt \|= 1/);
-  assert.match(pipeline, /stage\.previousPredictionIds \|= \[\]/);
+  assert.match(pipeline, /stage\.providerAttempt \|\|= 1/);
+  assert.match(pipeline, /stage\.previousPredictionIds \|\|= \[\]/);
   assert.match(pipeline, /attemptNumber: stage\.providerAttempt \|\| 1/);
   assert.match(pipeline, /meta\.priorPredictionId/);
   assert.match(qwen, /predictionId: durablePredictionId/);
