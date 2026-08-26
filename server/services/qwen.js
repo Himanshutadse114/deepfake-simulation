@@ -11,6 +11,8 @@ const EXACT_SCRIPT_STYLE = [
   'Speak naturally, clearly and at a steady pace.'
 ].join(' ');
 
+const FAST_QWEN_DEADLINES = ['10s', '20s'];
+
 function outputUrl(output) {
   if (typeof output === 'string') return output;
   if (typeof output?.url === 'string') return output.url;
@@ -57,6 +59,52 @@ async function saveOutput(output, targetPath) {
   throw new Error('Qwen3-TTS returned an unsupported audio output shape.');
 }
 
+function isDeadlineTermination(error) {
+  return error?.code === 'REPLICATE_PREDICTION_CANCELED' || error?.code === 'REPLICATE_PREDICTION_ABORTED';
+}
+
+async function runFastQwenPrediction({ input, predictionId, options }) {
+  // A durable prediction id from a previous process is resumed rather than
+  // recreated. This avoids duplicate paid work after a Render restart.
+  if (predictionId) {
+    return runOfficialPrediction({
+      model: config.providers.qwenModel,
+      predictionId,
+      label: 'Qwen3-TTS voice clone',
+      cancelAfter: FAST_QWEN_DEADLINES[1],
+      onPredictionCreated: options.onPredictionCreated,
+      onRateLimit: options.onRateLimit
+    });
+  }
+
+  try {
+    return await runOfficialPrediction({
+      model: config.providers.qwenModel,
+      input,
+      label: 'Qwen3-TTS voice clone · fast attempt 1',
+      cancelAfter: FAST_QWEN_DEADLINES[0],
+      onPredictionCreated: options.onPredictionCreated,
+      onRateLimit: options.onRateLimit
+    });
+  } catch (error) {
+    if (!isDeadlineTermination(error)) throw error;
+
+    console.warn(`Qwen3-TTS first attempt ended at ${FAST_QWEN_DEADLINES[0]}; retrying once with ${FAST_QWEN_DEADLINES[1]}.`, {
+      predictionId: error.predictionId,
+      status: error.predictionStatus || error.code
+    });
+
+    return runOfficialPrediction({
+      model: config.providers.qwenModel,
+      input,
+      label: 'Qwen3-TTS voice clone · fast attempt 2',
+      cancelAfter: FAST_QWEN_DEADLINES[1],
+      onPredictionCreated: options.onPredictionCreated,
+      onRateLimit: options.onRateLimit
+    });
+  }
+}
+
 async function synthesizeScript(voiceFile, outputPath, referenceText = '', text = config.awarenessScript, options = {}) {
   if (!config.providers.replicateToken) throw new Error('REPLICATE_API_TOKEN is not configured.');
 
@@ -72,14 +120,10 @@ async function synthesizeScript(voiceFile, outputPath, referenceText = '', text 
     await options.onBeforePredictionCreate?.();
   }
 
-  const result = await runOfficialPrediction({
-    model: config.providers.qwenModel,
+  const result = await runFastQwenPrediction({
     input,
     predictionId: options.predictionId,
-    label: 'Qwen3-TTS voice clone',
-    cancelAfter: '2m',
-    onPredictionCreated: options.onPredictionCreated,
-    onRateLimit: options.onRateLimit
+    options
   });
 
   await options.onProviderOutput?.({
@@ -99,5 +143,8 @@ module.exports = {
   buildVoiceCloneInput,
   saveOutput,
   outputUrl,
-  EXACT_SCRIPT_STYLE
+  EXACT_SCRIPT_STYLE,
+  FAST_QWEN_DEADLINES,
+  isDeadlineTermination,
+  runFastQwenPrediction
 };
