@@ -11,7 +11,12 @@ const EXACT_SCRIPT_STYLE = [
   'Speak naturally, clearly and at a steady pace.'
 ].join(' ');
 
-const FAST_QWEN_DEADLINES = ['10s', '20s'];
+// Qwen can occasionally spend much longer starting a worker than actually
+// synthesizing speech. Do not confuse provider queue/startup time with model
+// runtime: give starting predictions room to begin, then cap actual processing.
+const QWEN_PROVIDER_DEADLINE = '3m';
+const QWEN_QUEUE_TIMEOUT_MS = 90_000;
+const QWEN_PROCESSING_TIMEOUTS_MS = [30_000, 45_000];
 
 function outputUrl(output) {
   if (typeof output === 'string') return output;
@@ -59,68 +64,83 @@ async function saveOutput(output, targetPath) {
   throw new Error('Qwen3-TTS returned an unsupported audio output shape.');
 }
 
-function isDeadlineTermination(error) {
-  return error?.code === 'REPLICATE_PREDICTION_CANCELED' || error?.code === 'REPLICATE_PREDICTION_ABORTED';
+function isRetryableQwenAttemptError(error) {
+  return [
+    'REPLICATE_STARTING_TIMEOUT',
+    'REPLICATE_PROCESSING_TIMEOUT',
+    'REPLICATE_PREDICTION_CANCELED',
+    'REPLICATE_PREDICTION_ABORTED'
+  ].includes(error?.code);
 }
 
-async function runFastQwenPrediction({ input, predictionId, options }) {
-  // A durable prediction id from a previous process is resumed rather than
-  // recreated. This avoids duplicate paid work after a Render restart.
-  if (predictionId) {
-    return runOfficialPrediction({
-      model: config.providers.qwenModel,
-      predictionId,
-      label: 'Qwen3-TTS voice clone',
-      cancelAfter: FAST_QWEN_DEADLINES[1],
-      onPredictionCreated: options.onPredictionCreated,
-      onRateLimit: options.onRateLimit
-    });
-  }
+function normalizeAttempt(value) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return 1;
+  return Math.min(2, Math.max(1, Math.trunc(parsed)));
+}
 
-  try {
-    return await runOfficialPrediction({
-      model: config.providers.qwenModel,
-      input,
-      label: 'Qwen3-TTS voice clone · fast attempt 1',
-      cancelAfter: FAST_QWEN_DEADLINES[0],
-      onPredictionCreated: options.onPredictionCreated,
-      onRateLimit: options.onRateLimit
-    });
-  } catch (error) {
-    if (!isDeadlineTermination(error)) throw error;
+async function runStateAwareQwenPrediction({ input, predictionId, options }) {
+  let attempt = normalizeAttempt(options.attemptNumber);
+  let durablePredictionId = predictionId || null;
 
-    console.warn(`Qwen3-TTS first attempt ended at ${FAST_QWEN_DEADLINES[0]}; retrying once with ${FAST_QWEN_DEADLINES[1]}.`, {
-      predictionId: error.predictionId,
-      status: error.predictionStatus || error.code
-    });
+  for (;;) {
+    const processingTimeoutMs = QWEN_PROCESSING_TIMEOUTS_MS[attempt - 1];
+    try {
+      return await runOfficialPrediction({
+        model: config.providers.qwenModel,
+        input: durablePredictionId ? undefined : input,
+        predictionId: durablePredictionId,
+        label: `Qwen3-TTS voice clone · attempt ${attempt}`,
+        cancelAfter: QWEN_PROVIDER_DEADLINE,
+        waitOptions: {
+          startingTimeoutMs: QWEN_QUEUE_TIMEOUT_MS,
+          processingTimeoutMs,
+          cancelOnStateTimeout: true
+        },
+        onPredictionCreated: async (prediction) => {
+          await options.onPredictionCreated?.(prediction, { attempt });
+        },
+        onRateLimit: options.onRateLimit
+      });
+    } catch (error) {
+      if (!isRetryableQwenAttemptError(error) || attempt >= 2) throw error;
 
-    return runOfficialPrediction({
-      model: config.providers.qwenModel,
-      input,
-      label: 'Qwen3-TTS voice clone · fast attempt 2',
-      cancelAfter: FAST_QWEN_DEADLINES[1],
-      onPredictionCreated: options.onPredictionCreated,
-      onRateLimit: options.onRateLimit
-    });
+      const nextAttempt = attempt + 1;
+      console.warn(
+        `Qwen3-TTS attempt ${attempt} did not complete within the state-aware limit; retrying once with a ${Math.round(QWEN_PROCESSING_TIMEOUTS_MS[nextAttempt - 1] / 1000)}s processing budget.`,
+        { predictionId: error.predictionId, code: error.code, status: error.predictionStatus }
+      );
+
+      await options.onBeforePredictionCreate?.({
+        retry: true,
+        attempt: nextAttempt,
+        priorPredictionId: error.predictionId || durablePredictionId || null
+      });
+      attempt = nextAttempt;
+      durablePredictionId = null;
+    }
   }
 }
 
 async function synthesizeScript(voiceFile, outputPath, referenceText = '', text = config.awarenessScript, options = {}) {
   if (!config.providers.replicateToken) throw new Error('REPLICATE_API_TOKEN is not configured.');
 
-  let input;
+  // Build the input even when resuming a durable prediction id. If that resumed
+  // first attempt reaches the controlled timeout, the same exact input can be
+  // used for the single permitted retry without losing restart safety.
+  const referenceAudio = await toProviderUri(voiceFile.path, voiceFile.mime || 'audio/webm');
+  const input = buildVoiceCloneInput({
+    text,
+    language: config.providers.qwenLanguage,
+    referenceAudio,
+    referenceText
+  });
+
   if (!options.predictionId) {
-    const referenceAudio = await toProviderUri(voiceFile.path, voiceFile.mime || 'audio/webm');
-    input = buildVoiceCloneInput({
-      text,
-      language: config.providers.qwenLanguage,
-      referenceAudio,
-      referenceText
-    });
-    await options.onBeforePredictionCreate?.();
+    await options.onBeforePredictionCreate?.({ attempt: normalizeAttempt(options.attemptNumber) });
   }
 
-  const result = await runFastQwenPrediction({
+  const result = await runStateAwareQwenPrediction({
     input,
     predictionId: options.predictionId,
     options
@@ -144,7 +164,10 @@ module.exports = {
   saveOutput,
   outputUrl,
   EXACT_SCRIPT_STYLE,
-  FAST_QWEN_DEADLINES,
-  isDeadlineTermination,
-  runFastQwenPrediction
+  QWEN_PROVIDER_DEADLINE,
+  QWEN_QUEUE_TIMEOUT_MS,
+  QWEN_PROCESSING_TIMEOUTS_MS,
+  isRetryableQwenAttemptError,
+  runStateAwareQwenPrediction,
+  normalizeAttempt
 };
