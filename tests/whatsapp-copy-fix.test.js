@@ -60,9 +60,9 @@ test('Replay clears the conversation and restarts the complete WhatsApp story', 
 });
 
 test('fresh WhatsApp flow is cache-busted in learner, demo and bootstrap', () => {
-  assert.match(index, /whatsapp-copy-fix\.js\?v=whatsapp-final-flow-20260824-3/);
-  assert.match(demo, /whatsapp-copy-fix\.js\?v=whatsapp-final-flow-20260824-3/);
-  assert.match(bootstrap, /whatsapp-copy-fix\.js\?v=whatsapp-final-flow-20260824-3/);
+  assert.match(index, /whatsapp-copy-fix\.js\?v=whatsapp-final-flow-20260824-4/);
+  assert.match(demo, /whatsapp-copy-fix\.js\?v=whatsapp-final-flow-20260824-4/);
+  assert.match(bootstrap, /whatsapp-copy-fix\.js\?v=whatsapp-final-flow-20260824-4/);
   assert.match(bootstrap, /wa-replay-reset\.js\?v=replay-clean-20260824-2/);
   assert.match(flow, /READY_TIMEOUT_MS = 120000/);
   assert.match(flow, /setInterval/);
