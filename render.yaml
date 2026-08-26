@@ -76,7 +76,7 @@ services:
       - key: MAX_REFERENCE_AUDIO_SECONDS
         value: 60
       - key: MAX_GENERATED_AUDIO_SECONDS
-        value: 20
+        value: 30
       - key: MAX_VIDEO_SECONDS
         value: 20
 
