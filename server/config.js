@@ -25,10 +25,9 @@ module.exports = {
   maxImageBytes: numberEnv('MAX_IMAGE_SIZE_MB', 8) * 1024 * 1024,
   maxAudioBytes: numberEnv('MAX_AUDIO_SIZE_MB', 20) * 1024 * 1024,
   maxReferenceAudioSeconds: Math.min(numberEnv('MAX_REFERENCE_AUDIO_SECONDS', 60), 120),
-  maxGeneratedAudioSeconds: Math.min(numberEnv('MAX_GENERATED_AUDIO_SECONDS', 20), 30),
-  // WhatsApp audio is not passed to the video provider, so allow the full
-  // awareness script to run naturally even when it is a little over 20s.
-  maxWhatsappAudioSeconds: Math.min(numberEnv('MAX_WHATSAPP_AUDIO_SECONDS', 30), 45),
+  // WhatsApp awareness audio is not sent to the video provider. Allow the full
+  // admin script to finish naturally instead of rejecting normal ~20-30s clips.
+  maxGeneratedAudioSeconds: Math.min(numberEnv('MAX_GENERATED_AUDIO_SECONDS', 30), 30),
   maxVideoSeconds: Math.min(numberEnv('MAX_VIDEO_SECONDS', 20), 20),
   retentionMs: numberEnv('MEDIA_RETENTION_MINUTES', 30) * 60 * 1000,
 
