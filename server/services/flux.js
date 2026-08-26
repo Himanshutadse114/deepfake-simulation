@@ -14,6 +14,7 @@ const { runOfficialPrediction } = require('./replicate-prediction');
 
 const PROFILE_VARIANT_COUNT = 4;
 const FLUX_PROFILE_RESOLUTION = '1 MP';
+const FLUX_PROFILE_BATCH_SIZE = 2;
 
 // Restored from the earlier four-post implementation, with stronger wardrobe
 // diversity so every post looks like a separate real-life moment. Clothing is
@@ -102,6 +103,20 @@ async function collectVariantResults(count, runVariant, onFailure = () => {}) {
   return results;
 }
 
+async function runVariantBatches(count, batchSize, runVariant) {
+  const results = new Array(count);
+  const size = Math.max(1, Math.trunc(batchSize) || 1);
+  for (let start = 0; start < count; start += size) {
+    const indexes = Array.from({ length: Math.min(size, count - start) }, (_, offset) => start + offset);
+    const batch = await Promise.all(indexes.map(async (index) => ({
+      index,
+      value: await runVariant(index)
+    })));
+    batch.forEach(({ index, value }) => { results[index] = value; });
+  }
+  return results;
+}
+
 async function generateIdentityVariants(faceFile, sessionId, options = {}) {
   if (!config.providers.fluxEnabled) return { variants: [], predictionIds: [], providerOutputUrls: [] };
   if (!config.providers.replicateToken) throw new Error('REPLICATE_API_TOKEN is not configured.');
@@ -112,70 +127,79 @@ async function generateIdentityVariants(faceFile, sessionId, options = {}) {
   const referencePath = path.join(directory, 'flux-reference.jpg');
   let temporaryProviderRef = null;
   let providerReferenceUri = null;
+  let providerReferencePromise = null;
 
   const ensureProviderReference = async () => {
     if (providerReferenceUri) return providerReferenceUri;
-    await materialize(faceFile.path, sourcePath);
-    await createFluxReference(sourcePath, referencePath);
-    temporaryProviderRef = await persistTemporaryProviderFile(
-      sessionId,
-      'flux-reference.jpg',
-      referencePath,
-      'image/jpeg'
-    );
-    providerReferenceUri = await toProviderUri(temporaryProviderRef, 'image/jpeg');
-    return providerReferenceUri;
+    if (!providerReferencePromise) {
+      providerReferencePromise = (async () => {
+        await materialize(faceFile.path, sourcePath);
+        await createFluxReference(sourcePath, referencePath);
+        temporaryProviderRef = await persistTemporaryProviderFile(
+          sessionId,
+          'flux-reference.jpg',
+          referencePath,
+          'image/jpeg'
+        );
+        providerReferenceUri = await toProviderUri(temporaryProviderRef, 'image/jpeg');
+        return providerReferenceUri;
+      })();
+    }
+    return providerReferencePromise;
   };
 
   try {
-    const variants = [];
-    const predictionIds = [];
-    const providerOutputUrls = [];
+    // Keep each paid prediction independent and resumable, but run only two at
+    // a time. This reduces the critical path without opening four simultaneous
+    // FLUX predictions from one simulation.
+    const generated = await runVariantBatches(
+      PROFILE_VARIANT_COUNT,
+      FLUX_PROFILE_BATCH_SIZE,
+      async (index) => {
+        const callbacks = typeof options.itemCallbacks === 'function'
+          ? options.itemCallbacks(index)
+          : {};
+        let input;
 
-    // Keep the four paid requests independent and resumable through their R2
-    // checkpoints instead of combining them into one grid image.
-    for (let index = 0; index < PROFILE_VARIANT_COUNT; index += 1) {
-      const callbacks = typeof options.itemCallbacks === 'function'
-        ? options.itemCallbacks(index)
-        : {};
-      let input;
+        if (!callbacks.predictionId) {
+          input = {
+            prompt: PROFILE_VARIANT_PROMPTS[index],
+            input_images: [await ensureProviderReference()],
+            resolution: FLUX_PROFILE_RESOLUTION,
+            aspect_ratio: '1:1',
+            output_format: 'jpg',
+            output_quality: 85,
+            safety_tolerance: 2,
+            prompt_upsampling: false
+          };
+          await callbacks.onBeforePredictionCreate?.();
+        }
 
-      if (!callbacks.predictionId) {
-        input = {
-          prompt: PROFILE_VARIANT_PROMPTS[index],
-          input_images: [await ensureProviderReference()],
-          resolution: FLUX_PROFILE_RESOLUTION,
-          aspect_ratio: '1:1',
-          output_format: 'jpg',
-          output_quality: 85,
-          safety_tolerance: 2,
-          prompt_upsampling: false
-        };
-        await callbacks.onBeforePredictionCreate?.();
+        const result = await runOfficialPrediction({
+          model: config.providers.fluxModel,
+          input,
+          predictionId: callbacks.predictionId,
+          label: `FLUX profile image ${index + 1}`,
+          cancelAfter: '5m',
+          onPredictionCreated: callbacks.onPredictionCreated,
+          onRateLimit: options.onRateLimit
+        });
+
+        const url = outputUrl(result.output);
+        if (!url) throw new Error(`FLUX profile image ${index + 1} did not return an image URL.`);
+        await callbacks.onProviderOutput?.({ predictionId: result.prediction.id, url, index });
+
+        const target = path.join(directory, `variant-${index + 1}.jpg`);
+        await saveOutput(result.output, target, `FLUX profile image ${index + 1}`);
+        return { target, predictionId: result.prediction.id, url };
       }
+    );
 
-      const result = await runOfficialPrediction({
-        model: config.providers.fluxModel,
-        input,
-        predictionId: callbacks.predictionId,
-        label: `FLUX profile image ${index + 1}`,
-        cancelAfter: '5m',
-        onPredictionCreated: callbacks.onPredictionCreated,
-        onRateLimit: options.onRateLimit
-      });
+    const variants = generated.map((item) => item.target);
+    const predictionIds = generated.map((item) => item.predictionId);
+    const providerOutputUrls = generated.map((item) => item.url);
 
-      const url = outputUrl(result.output);
-      if (!url) throw new Error(`FLUX profile image ${index + 1} did not return an image URL.`);
-      await callbacks.onProviderOutput?.({ predictionId: result.prediction.id, url, index });
-
-      const target = path.join(directory, `variant-${index + 1}.jpg`);
-      await saveOutput(result.output, target, `FLUX profile image ${index + 1}`);
-      variants.push(target);
-      predictionIds.push(result.prediction.id);
-      providerOutputUrls.push(url);
-    }
-
-    console.log(`Generated ${variants.length} independent FLUX 1 MP profile images for session ${sessionId.slice(0, 8)}.`);
+    console.log(`Generated ${variants.length} independent FLUX 1 MP profile images for session ${sessionId.slice(0, 8)} in batches of ${FLUX_PROFILE_BATCH_SIZE}.`);
     return { variants, predictionIds, providerOutputUrls };
   } finally {
     await Promise.allSettled([
@@ -189,10 +213,12 @@ async function generateIdentityVariants(faceFile, sessionId, options = {}) {
 module.exports = {
   generateIdentityVariants,
   collectVariantResults,
+  runVariantBatches,
   createFluxReference,
   saveOutput,
   outputUrl,
   PROFILE_VARIANT_COUNT,
   FLUX_PROFILE_RESOLUTION,
+  FLUX_PROFILE_BATCH_SIZE,
   PROFILE_VARIANT_PROMPTS
 };
