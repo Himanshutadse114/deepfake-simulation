@@ -1,5 +1,5 @@
 const fs = require('node:fs/promises');
-const { spawn } = require('node:child_process');
+const { spawn, execFile } = require('node:child_process');
 
 const WATERMARK_TEXT = 'AI-GENERATED SECURITY AWARENESS SIMULATION';
 
@@ -39,6 +39,37 @@ function buildFfmpegArgs(inputPath, outputPath, maxSeconds) {
   ];
 }
 
+function probeVideoDuration(filePath) {
+  return new Promise((resolve, reject) => {
+    execFile('ffprobe', [
+      '-v', 'error',
+      '-show_entries', 'format=duration',
+      '-of', 'default=noprint_wrappers=1:nokey=1',
+      filePath
+    ], { timeout: 15_000, windowsHide: true }, (error, stdout, stderr) => {
+      if (error) {
+        reject(new Error(`Video duration check failed: ${String(stderr || error.message).trim()}`));
+        return;
+      }
+      const seconds = Number(String(stdout).trim());
+      if (!Number.isFinite(seconds) || seconds <= 0) {
+        reject(new Error('Video duration could not be verified.'));
+        return;
+      }
+      resolve(Number(seconds.toFixed(3)));
+    });
+  });
+}
+
+async function safeProbeVideoDuration(filePath) {
+  try {
+    return await probeVideoDuration(filePath);
+  } catch (error) {
+    console.warn(`[video-metrics] ${error.message}`);
+    return null;
+  }
+}
+
 async function runFfmpeg(inputPath, outputPath, { maxSeconds = 10 } = {}) {
   try {
     await spawnFfmpeg(buildFfmpegArgs(inputPath, outputPath, maxSeconds));
@@ -48,10 +79,30 @@ async function runFfmpeg(inputPath, outputPath, { maxSeconds = 10 } = {}) {
   }
 }
 
-async function createWatermarkedVideo(sourceUrl, rawPath, outputPath, options) {
+async function createWatermarkedVideo(sourceUrl, rawPath, outputPath, options = {}) {
+  const { maxSeconds = 10, onMetric } = options;
   await downloadVideo(sourceUrl, rawPath);
-  await runFfmpeg(rawPath, outputPath, options);
+  const sourceDurationSeconds = await safeProbeVideoDuration(rawPath);
+  await runFfmpeg(rawPath, outputPath, { maxSeconds });
+  const finalDurationSeconds = await safeProbeVideoDuration(outputPath);
+
+  const metric = {
+    sourceDurationSeconds,
+    finalDurationSeconds,
+    maxSeconds
+  };
+  console.log(`[video-metrics] source=${sourceDurationSeconds ?? 'n/a'}s | final=${finalDurationSeconds ?? 'n/a'}s | configured_max=${maxSeconds}s`);
+  if (typeof onMetric === 'function') onMetric(metric);
+
   return outputPath;
 }
 
-module.exports = { createWatermarkedVideo, runFfmpeg, buildFfmpegArgs, buildWatermarkFilter, WATERMARK_TEXT };
+module.exports = {
+  createWatermarkedVideo,
+  runFfmpeg,
+  buildFfmpegArgs,
+  buildWatermarkFilter,
+  probeVideoDuration,
+  safeProbeVideoDuration,
+  WATERMARK_TEXT
+};
