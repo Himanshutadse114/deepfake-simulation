@@ -28,7 +28,14 @@ function createSession(consents, { mode = 'ai', participant = {}, scripts = {} }
     provider: {},
     profileStatus: 'idle',
     profileDetail: 'Profile preparation is waiting.',
-    profileError: null
+    profileError: null,
+    performance: {
+      generationStartedAt: null,
+      generationCompletedAt: null,
+      totalGenerationSeconds: null,
+      replicate: [],
+      video: null
+    }
   };
   sessions.set(id, session);
   return session;
