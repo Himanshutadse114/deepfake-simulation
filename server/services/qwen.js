@@ -2,6 +2,7 @@ const fs = require('node:fs/promises');
 const Replicate = require('replicate');
 const config = require('../config');
 const { runWithReplicateRetry } = require('./replicate-retry');
+const { runTrackedReplicatePrediction } = require('./replicate-metrics');
 
 function requireReplicate() {
   if (!config.providers.replicateToken) throw new Error('REPLICATE_API_TOKEN is not configured.');
@@ -36,7 +37,13 @@ async function saveOutput(output, targetPath) {
   throw new Error('Qwen3-TTS returned an unsupported audio output shape.');
 }
 
-async function synthesizeScript(voiceFile, outputPath, referenceText = '', text = config.awarenessScript) {
+async function synthesizeScript(
+  voiceFile,
+  outputPath,
+  referenceText = '',
+  text = config.awarenessScript,
+  { label = 'Qwen3-TTS voice clone', onMetric } = {}
+) {
   const replicate = requireReplicate();
   const referenceAudio = await fs.readFile(voiceFile.path);
   const input = {
@@ -51,14 +58,19 @@ async function synthesizeScript(voiceFile, outputPath, referenceText = '', text 
   if (transcript) input.reference_text = transcript.slice(0, 1200);
 
   const output = await runWithReplicateRetry(
-    () => replicate.run(config.providers.qwenModel, { input }),
-    { label: 'Qwen3-TTS voice clone' }
+    () => runTrackedReplicatePrediction(
+      replicate,
+      config.providers.qwenModel,
+      { input },
+      { label, onMetric }
+    ),
+    { label }
   );
 
   return saveOutput(output, outputPath);
 }
 
-const synthesizeFixedScript = (voiceFile, outputPath, referenceText = '') =>
-  synthesizeScript(voiceFile, outputPath, referenceText, config.awarenessScript);
+const synthesizeFixedScript = (voiceFile, outputPath, referenceText = '', options = {}) =>
+  synthesizeScript(voiceFile, outputPath, referenceText, config.awarenessScript, options);
 
 module.exports = { synthesizeScript, synthesizeFixedScript };

@@ -19,6 +19,24 @@ function heygenConfigured() {
   return config.providers.heygenEnabled && Boolean(config.providers.heygenAccessToken || config.providers.heygenApiKey);
 }
 
+function ensurePerformance(session) {
+  if (!session.performance) {
+    session.performance = {
+      generationStartedAt: null,
+      generationCompletedAt: null,
+      totalGenerationSeconds: null,
+      replicate: [],
+      video: null
+    };
+  }
+  if (!Array.isArray(session.performance.replicate)) session.performance.replicate = [];
+  return session.performance;
+}
+
+function recordReplicateMetric(session, metric) {
+  ensurePerformance(session).replicate.push(metric);
+}
+
 async function generateVoice(session, speechPath, text, stage = 'cloning_voice') {
   const provider = config.providers.voiceProvider;
   updateStatus(session, stage, stage === 'cloning_whatsapp'
@@ -27,7 +45,14 @@ async function generateVoice(session, speechPath, text, stage = 'cloning_voice')
 
   if (provider === 'qwen') {
     if (!config.providers.replicateToken) throw new Error('REPLICATE_API_TOKEN is required when VOICE_PROVIDER=qwen.');
-    await synthesizeQwen(session.voice, speechPath, session.voice?.referenceText || '', text);
+    const label = stage === 'cloning_whatsapp' ? 'Qwen3-TTS WhatsApp voice' : 'Qwen3-TTS video voice';
+    await synthesizeQwen(
+      session.voice,
+      speechPath,
+      session.voice?.referenceText || '',
+      text,
+      { label, onMetric: (metric) => recordReplicateMetric(session, metric) }
+    );
     session.provider.voice = 'qwen3-tts';
     return;
   }
@@ -94,7 +119,9 @@ async function generateVideoWithFallback(session, speechPath) {
           continue;
         }
         updateStatus(session, 'generating_video', 'Decoding facial structure and preparing the impersonation video.');
-        return await generatePrunaVideo(session.face, speechPath);
+        return await generatePrunaVideo(session.face, speechPath, {
+          onMetric: (metric) => recordReplicateMetric(session, metric)
+        });
       }
       failures.push(`${provider}: unsupported video provider`);
     } catch (error) {
@@ -133,6 +160,13 @@ async function generateSimulation(session) {
   const videoSpeechPath = path.join(directory, 'video-speech.wav');
   const rawVideoPath = path.join(directory, 'raw.mp4');
   const outputPath = path.join(directory, 'simulation.mp4');
+  const generationStartedMs = Date.now();
+  const performance = ensurePerformance(session);
+  performance.generationStartedAt = new Date(generationStartedMs).toISOString();
+  performance.generationCompletedAt = null;
+  performance.totalGenerationSeconds = null;
+  performance.replicate = [];
+  performance.video = null;
 
   try {
     if (!session.face || !session.voice) throw new Error('Both face and voice media are required.');
@@ -154,7 +188,8 @@ async function generateSimulation(session) {
 
       updateStatus(session, 'watermarking', 'Finalizing facial motion and applying the awareness disclosure.');
       await createWatermarkedVideo(video.url, rawVideoPath, outputPath, {
-        maxSeconds: config.maxVideoSeconds
+        maxSeconds: config.maxVideoSeconds,
+        onMetric: (metric) => { ensurePerformance(session).video = metric; }
       });
       session.output = outputPath;
       if (session.profileStatus !== 'completed') {
@@ -184,6 +219,11 @@ async function generateSimulation(session) {
     session.profileStatus = 'failed';
     session.profileError = error.message || 'Generation failed.';
     await removeLocalSessionFiles(session).catch(() => {});
+  } finally {
+    const completedMs = Date.now();
+    performance.generationCompletedAt = new Date(completedMs).toISOString();
+    performance.totalGenerationSeconds = Number(((completedMs - generationStartedMs) / 1000).toFixed(3));
+    console.log(`[generation-metrics:${session.id.slice(0, 8)}] total=${performance.totalGenerationSeconds.toFixed(3)}s | video=${performance.video?.finalDurationSeconds ?? 'n/a'}s | predictions=${performance.replicate.length}`);
   }
 }
 
@@ -205,7 +245,9 @@ async function generateProfileVariants(session) {
     if (!config.providers.replicateToken) throw new Error('REPLICATE_API_TOKEN is required for FLUX image generation.');
     if (!session.face?.path) throw new Error('The temporary participant portrait is no longer available for this session.');
 
-    session.variants = await generateIdentityVariants(session.face, session.id);
+    session.variants = await generateIdentityVariants(session.face, session.id, {
+      onMetric: (metric) => recordReplicateMetric(session, metric)
+    });
     if (session.variants.length !== 4) throw new Error('Four profile images could not be prepared.');
     session.provider.images = 'flux-2-pro';
     updateProfileStatus(session, 'completed', 'Four profile images are ready.');
@@ -224,5 +266,7 @@ module.exports = {
   generateVoice,
   generateCheckedAudioTracks,
   completeDemoSession,
-  runInitialGeneration
+  runInitialGeneration,
+  ensurePerformance,
+  recordReplicateMetric
 };

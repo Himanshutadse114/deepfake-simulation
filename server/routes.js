@@ -97,7 +97,8 @@ router.get('/:id/status', loadAuthorisedSession, (req, res) => {
     whatsappAudioOutput,
     videoAudioOutput,
     output,
-    mode
+    mode,
+    performance
   } = req.simulation;
   res.json({
     status,
@@ -111,7 +112,8 @@ router.get('/:id/status', loadAuthorisedSession, (req, res) => {
     whatsappAudioReady: status === 'completed' && Boolean(whatsappAudioOutput),
     videoAudioReady: status === 'completed' && Boolean(videoAudioOutput),
     videoReady: status === 'completed' && Boolean(output),
-    variantCount: variants.length
+    variantCount: variants.length,
+    performance: performance || null
   });
 });
 
