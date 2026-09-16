@@ -20,7 +20,8 @@ module.exports = {
   clientDist: path.join(ROOT, 'client', 'dist'),
   maxImageBytes: numberEnv('MAX_IMAGE_SIZE_MB', 8) * 1024 * 1024,
   maxAudioBytes: numberEnv('MAX_AUDIO_SIZE_MB', 20) * 1024 * 1024,
-  maxGeneratedAudioSeconds: 12,
+  // Generated speech is always fitted to the same ten-second ceiling as the video.
+  maxGeneratedAudioSeconds: 10,
   maxVideoSeconds: Math.min(numberEnv('MAX_VIDEO_SECONDS', 10), 10),
   retentionMs: numberEnv('MEDIA_RETENTION_MINUTES', 30) * 60 * 1000,
   demoMode: String(process.env.DEMO_MODE || 'false').toLowerCase() === 'true',
