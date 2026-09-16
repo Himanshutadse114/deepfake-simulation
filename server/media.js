@@ -7,6 +7,7 @@ const multer = require('multer');
 const config = require('./config');
 const { persistInputFile } = require('./storage');
 const { withMediaProcessSlot } = require('./services/process-limit');
+const { assertAudibleAudio } = require('./services/audio-signal');
 
 fsSync.mkdirSync(config.stagingRoot, { recursive: true });
 
@@ -159,6 +160,10 @@ async function persistParticipantFile(sessionId, kind, file) {
     if (!detected) throw new Error(kind === 'face'
       ? 'Only genuine JPEG or PNG images are accepted.'
       : 'Only supported audio recordings (MP3, WAV, WebM or M4A) are accepted.');
+
+    // This is a local signal-level check only: no speech recognition,
+    // transcript comparison, duration restriction, or provider call occurs.
+    if (kind === 'voice') await assertAudibleAudio(stagedPath);
 
     let dimensions = kind === 'face' ? validateLocalImage(header, detected) : undefined;
     let persistPath = stagedPath;

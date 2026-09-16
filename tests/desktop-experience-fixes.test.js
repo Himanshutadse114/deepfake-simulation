@@ -63,7 +63,7 @@ test('retained polish loads after the existing carousel and WhatsApp runtime', (
   assert.ok(referenceCarousel > baseCarousel);
   assert.ok(desktopFixes > referenceCarousel);
   assert.match(bootstrap, /whatsapp-copy-fix\.js\?v=whatsapp-final-flow-20260824-4/);
-  assert.match(index, /ui-bootstrap\.js\?v=retained-polish-20260824-7/);
+  assert.match(index, /ui-bootstrap\.js\?v=stable-refresh-20260916-1/);
   assert.match(demo, /ui-bootstrap\.js\?v=retained-polish-20260824-7/);
   assert.doesNotThrow(() => new Function(fixes));
 });

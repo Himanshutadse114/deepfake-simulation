@@ -51,3 +51,8 @@ test('detectAudio accepts WAV, MP3 and WebM signatures', () => {
 test('detectAudio rejects arbitrary bytes', () => {
   assert.equal(detectAudio(Buffer.from('not audio')), null);
 });
+
+test('voice uploads must contain an audible local signal before provider use', () => {
+  assert.match(mediaSource, /assertAudibleAudio\(stagedPath\)/);
+  assert.match(mediaSource, /no speech recognition/);
+});

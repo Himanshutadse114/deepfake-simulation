@@ -9,16 +9,21 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Fraunces:ital,wght@0,600;0,700;0,900;1,600&display=swap" rel="stylesheet" />
+<style>
+body[data-session-restoring="true"]{overflow:hidden}
+body[data-session-restoring="true"] #app{visibility:hidden!important}
+body[data-session-restoring="true"]::before{content:"Loading secure simulation…";position:fixed;inset:0;z-index:99999;display:grid;place-items:center;background:#06080d;color:#dce5ef;font:700 14px/1.4 Inter,system-ui,sans-serif;letter-spacing:.02em}
+</style>
 </head>
-<body>
+<body data-session-restoring="true">
 <div id="uiBoot" style="min-height:100vh;background:#06080d"></div>
 <script src="/voice-recording-prompt.js?v=teleprompter-20260822-1" defer></script>
 <script src="/voice-sample-controls.js?v=voice-replace-20260822-1" defer></script>
 <script src="/loading-copy-privacy.js?v=private-loading-20260823-2" defer></script>
-<script src="/ui-bootstrap.js?v=retained-polish-20260824-7" defer></script>
+<script src="/ui-bootstrap.js?v=stable-refresh-20260916-1" defer></script>
 <script src="/whatsapp-copy-fix.js?v=whatsapp-final-flow-20260824-4" defer></script>
 <script src="/generation-safety.js?v=1" defer></script>
-<script src="/refresh-recovery.js?v=1" defer></script>
+<script src="/refresh-recovery.js?v=stable-refresh-20260916-1" defer></script>
 <script src="/queue-status-ui.js?v=queue-only-20260823-1" defer></script>
 </body>
 </html>

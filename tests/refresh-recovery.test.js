@@ -6,10 +6,20 @@ const path = require('node:path');
 const root = path.join(__dirname, '..');
 const recovery = fs.readFileSync(path.join(root, 'client/public/refresh-recovery.js'), 'utf8');
 const index = fs.readFileSync(path.join(root, 'client/index.html'), 'utf8');
+const consent = fs.readFileSync(path.join(root, 'client/public/ui-html-1.txt'), 'utf8');
 
 test('refresh recovery runtime parses as valid JavaScript and is loaded by the client', () => {
   assert.doesNotThrow(() => new Function(recovery));
-  assert.match(index, /refresh-recovery\.js\?v=1/);
+  assert.match(index, /refresh-recovery\.js\?v=stable-refresh-20260916-1/);
+});
+
+test('refresh recovery keeps the UI non-interactive until layout and navigation restoration finish', () => {
+  assert.match(index, /data-session-restoring="true"/);
+  assert.match(index, /body\[data-session-restoring="true"\] #app\{visibility:hidden!important\}/);
+  assert.match(recovery, /window\.__innviktaUiBootComplete === true/);
+  assert.match(recovery, /removeAttribute\('data-session-restoring'\)/);
+  assert.match(consent, /id="consentContinue" type="button"/);
+  assert.equal((consent.match(/class='consent-check' type='checkbox' autocomplete='off'/g) || []).length, 3);
 });
 
 test('refresh recovery keeps session credentials tab-scoped instead of persistent local storage', () => {

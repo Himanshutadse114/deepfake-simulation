@@ -404,11 +404,9 @@
         && typeof window.pollGenerationUntilReady === 'function'
         && typeof window.prepareGeneratedAssets === 'function'
         && typeof window.stopWhatsAppCallRingtone === 'function'
+        && window.__innviktaUiBootComplete === true
         && document.querySelector('.screen[data-screen="intro"]');
       if (ready) {
-        // Let ui-bootstrap finish its final synchronous wrappers and initial
-        // visibility pass before restoration changes the active screen.
-        await sleep(120);
         return true;
       }
       await sleep(50);
@@ -417,8 +415,14 @@
   }
 
   (async () => {
-    if (!(await waitForRuntime())) return;
-    installTracking();
-    await restoreSavedSession();
+    try {
+      if (!(await waitForRuntime())) return;
+      installTracking();
+      await restoreSavedSession();
+    } finally {
+      // The learner sees only the final, restored layout. This prevents a
+      // checkbox click racing a delayed restore/navigation after refresh.
+      document.body?.removeAttribute('data-session-restoring');
+    }
   })();
 })();

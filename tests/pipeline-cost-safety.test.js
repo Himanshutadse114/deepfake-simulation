@@ -5,7 +5,7 @@ const {
   validateParticipantVoice
 } = require('../server/pipeline');
 
-test('passes the uploaded participant voice directly to the provider without inspection', async () => {
+test('passes the uploaded participant voice directly to the provider after the upload-level silence guard', async () => {
   const session = {
     voice: {
       path: 'object://sessions/test/input/voice.webm',

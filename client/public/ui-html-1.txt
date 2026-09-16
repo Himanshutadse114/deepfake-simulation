@@ -23,7 +23,7 @@
             <strong>I own the photograph</strong>
             <small>The photo is of me and I am authorised to use it for this awareness simulation.</small>
           </div>
-          <input class='consent-check' type='checkbox'>
+          <input class='consent-check' type='checkbox' autocomplete='off'>
         </label>
         <label class='consent-item'>
           <div class='consent-item-icon'>
@@ -33,7 +33,7 @@
             <strong>I own the voice sample</strong>
             <small>The voice recording is mine and is being provided voluntarily.</small>
           </div>
-          <input class='consent-check' type='checkbox'>
+          <input class='consent-check' type='checkbox' autocomplete='off'>
         </label>
         <label class='consent-item'>
           <div class='consent-item-icon'>
@@ -43,10 +43,10 @@
             <strong>I consent to simulation processing</strong>
             <small>The media is used only to demonstrate impersonation risk within this authorised learning flow.</small>
           </div>
-          <input class='consent-check' type='checkbox'>
+          <input class='consent-check' type='checkbox' autocomplete='off'>
         </label>
       </div><div class="safe-note">The generated content is framed as a security-awareness simulation and should never be published or used to impersonate another person.</div>
-    <div class="action-dock"><button id="consentContinue" class="primary wide-action" disabled onclick="go('media')">Continue to media setup →</button></div></div></div></div>
+    <div class="action-dock"><button id="consentContinue" type="button" class="primary wide-action" disabled onclick="go('media')">Continue to media setup →</button></div></div></div></div>
   </section>
 
   <section class="screen" data-screen="media">

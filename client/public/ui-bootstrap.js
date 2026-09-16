@@ -149,5 +149,8 @@
     await loadScript('/profile-carousel-experience.js?v=cloned-profiles-20260824-2');
     await loadScript('/profile-carousel-reference-ui.js?v=reference-ui-20260824-2');
     await loadScript('/desktop-experience-fixes.js?v=desktop-polish-20260824-2');
+    // Refresh recovery must not expose or navigate the UI until every late
+    // layout/runtime enhancement has finished installing.
+    window.__innviktaUiBootComplete=true;
   }catch(error){console.error(error);document.body.innerHTML='<main style="font-family:system-ui;background:#06080d;color:white;min-height:100vh;display:grid;place-items:center;padding:24px"><div><h1>UI could not load</h1><p>Please refresh the page.</p></div></main>'}
 })();
