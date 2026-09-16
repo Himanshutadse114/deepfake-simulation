@@ -125,6 +125,7 @@
     } catch (_) {}
 
     preview.src = objectUrl;
+    preview.load();
     const prompt = byId('audioPrompt');
     const ready = byId('audioReady');
     const fileName = byId('audioFileName');

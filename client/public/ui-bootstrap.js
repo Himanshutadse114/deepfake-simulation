@@ -148,7 +148,7 @@
     await loadScript('/participant-name-fix.js?v=participant-name-20260824-1');
     await loadScript('/profile-carousel-experience.js?v=cloned-profiles-20260824-2');
     await loadScript('/profile-carousel-reference-ui.js?v=reference-ui-20260824-2');
-    await loadScript('/desktop-experience-fixes.js?v=desktop-polish-20260824-2');
+    await loadScript('/desktop-experience-fixes.js?v=recording-preview-20260916-2');
     // Refresh recovery must not expose or navigate the UI until every late
     // layout/runtime enhancement has finished installing.
     window.__innviktaUiBootComplete=true;
