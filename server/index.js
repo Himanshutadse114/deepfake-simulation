@@ -69,6 +69,7 @@ app.get('/api/health', (_req, res) => {
     scriptPolicy: {
       minChars: config.scriptPolicy.minChars,
       maxChars: config.scriptPolicy.maxChars,
+      maxWords: config.scriptPolicy.maxWords,
       blockUrls: config.scriptPolicy.blockUrls,
       requireAwarenessContext: config.scriptPolicy.requireAwarenessContext,
       sensitiveRequestProtection: true
@@ -90,6 +91,17 @@ app.get('/api/health', (_req, res) => {
     },
     qwenModel: config.providers.qwenModel,
     qwenLanguage: config.providers.qwenLanguage,
+    speechVerification: {
+      enabled: true,
+      model: config.providers.whisperModel,
+      language: config.providers.whisperLanguage,
+      attempts: config.voiceGenerationAttempts,
+      maxWordErrorRate: config.transcriptMaxWordErrorRate,
+      referenceAudioSeconds: {
+        min: config.minReferenceAudioSeconds,
+        max: config.maxReferenceAudioSeconds
+      }
+    },
     fluxEnabled: config.providers.fluxEnabled,
     fluxGridImages: config.providers.fluxGridImages,
     videoProviderPreference: config.providers.videoProviderPreference

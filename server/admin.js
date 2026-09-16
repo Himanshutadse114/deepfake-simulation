@@ -28,6 +28,7 @@ router.get('/scripts', requireAdmin, async (_req, res, next) => {
       policy: {
         minChars: config.scriptPolicy.minChars,
         maxChars: config.scriptPolicy.maxChars,
+        maxWords: config.scriptPolicy.maxWords,
         blockUrls: config.scriptPolicy.blockUrls,
         requireAwarenessContext: config.scriptPolicy.requireAwarenessContext
       }
@@ -72,7 +73,7 @@ function renderAdminPage() {
     <textarea id="videoScript" maxlength="${max}" placeholder="Deepfake video script"></textarea>
 
     <div class="actions"><button class="btn secondary" id="loadScripts" type="button">Load current</button><button class="btn primary" id="saveScripts" type="button">Save scripts</button></div>
-    <div class="note">Keep each script short enough for a 12-second spoken result. If either generated track exceeds 12 seconds, generation stops before Pruna. Sensitive payment and credential requests remain blocked by the core simulation safeguard.</div>
+    <div class="note">Each script is limited to ${config.scriptPolicy.maxWords} words. Generated speech is transcribed and must match the saved administrator script before Pruna can be called. Sensitive payment and credential requests remain blocked by the core simulation safeguard.</div>
     <div class="status" id="adminStatus"></div>
   </section>
 </main>

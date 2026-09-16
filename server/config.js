@@ -12,15 +12,23 @@ const booleanEnv = (name, fallback) => {
 };
 
 const ROOT = path.resolve(__dirname, '..');
+const configuredAdminSettingsPath = String(process.env.ADMIN_SETTINGS_PATH || '').trim();
 
 module.exports = {
   port: Number(process.env.PORT || 10000),
   root: ROOT,
   uploadRoot: path.join(ROOT, 'uploads'),
+  adminSettingsPath: configuredAdminSettingsPath
+    ? path.resolve(configuredAdminSettingsPath)
+    : path.join(ROOT, 'uploads', 'admin-scripts.json'),
   clientDist: path.join(ROOT, 'client', 'dist'),
   maxImageBytes: numberEnv('MAX_IMAGE_SIZE_MB', 8) * 1024 * 1024,
   maxAudioBytes: numberEnv('MAX_AUDIO_SIZE_MB', 20) * 1024 * 1024,
   maxGeneratedAudioSeconds: 12,
+  minReferenceAudioSeconds: numberEnv('MIN_REFERENCE_AUDIO_SECONDS', 3),
+  maxReferenceAudioSeconds: numberEnv('MAX_REFERENCE_AUDIO_SECONDS', 15),
+  voiceGenerationAttempts: Math.min(Math.round(numberEnv('VOICE_GENERATION_ATTEMPTS', 2)), 2),
+  transcriptMaxWordErrorRate: Math.min(numberEnv('TRANSCRIPT_MAX_WORD_ERROR_RATE', 0.05), 0.2),
   maxVideoSeconds: Math.min(numberEnv('MAX_VIDEO_SECONDS', 10), 10),
   retentionMs: numberEnv('MEDIA_RETENTION_MINUTES', 30) * 60 * 1000,
   demoMode: String(process.env.DEMO_MODE || 'false').toLowerCase() === 'true',
@@ -28,6 +36,7 @@ module.exports = {
   scriptPolicy: {
     minChars: numberEnv('SCRIPT_MIN_CHARS', 20),
     maxChars: numberEnv('SCRIPT_MAX_CHARS', 180),
+    maxWords: numberEnv('SCRIPT_MAX_WORDS', 26),
     blockUrls: booleanEnv('SCRIPT_BLOCK_URLS', true),
     requireAwarenessContext: booleanEnv('SCRIPT_REQUIRE_AWARENESS_CONTEXT', false)
   },
@@ -39,7 +48,9 @@ module.exports = {
     // Active voice path: per-session reference-audio cloning on Replicate.
     voiceProvider: String(process.env.VOICE_PROVIDER || 'qwen').trim().toLowerCase(),
     qwenModel: process.env.QWEN_MODEL || 'qwen/qwen3-tts',
-    qwenLanguage: process.env.QWEN_LANGUAGE || 'auto',
+    qwenLanguage: process.env.QWEN_LANGUAGE || 'English',
+    whisperModel: process.env.WHISPER_MODEL || 'openai/whisper:8099696689d249cf8b122d833c36ac3f75505c666a395ca40ef26f68e7d3d16e',
+    whisperLanguage: process.env.WHISPER_LANGUAGE || 'english',
     // Optional fallback/experimentation providers kept available but not active by default.
     chatterboxModel: process.env.CHATTERBOX_MODEL || 'resemble-ai/chatterbox-multilingual:9cfba4c265e685f840612be835424f8c33bdee685d7466ece7684b0d9d4c0b1c',
     chatterboxLanguage: process.env.CHATTERBOX_LANGUAGE || 'en',

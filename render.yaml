@@ -18,6 +18,8 @@ services:
         value: 20
       - key: SCRIPT_MAX_CHARS
         value: 180
+      - key: SCRIPT_MAX_WORDS
+        value: 26
       - key: SCRIPT_BLOCK_URLS
         value: "true"
       - key: SCRIPT_REQUIRE_AWARENESS_CONTEXT
@@ -27,7 +29,19 @@ services:
       - key: QWEN_MODEL
         value: qwen/qwen3-tts
       - key: QWEN_LANGUAGE
-        value: auto
+        value: English
+      - key: WHISPER_MODEL
+        value: openai/whisper:8099696689d249cf8b122d833c36ac3f75505c666a395ca40ef26f68e7d3d16e
+      - key: WHISPER_LANGUAGE
+        value: english
+      - key: MIN_REFERENCE_AUDIO_SECONDS
+        value: 3
+      - key: MAX_REFERENCE_AUDIO_SECONDS
+        value: 15
+      - key: VOICE_GENERATION_ATTEMPTS
+        value: 2
+      - key: TRANSCRIPT_MAX_WORD_ERROR_RATE
+        value: 0.05
       - key: MAX_VIDEO_SECONDS
         value: 10
       - key: FLUX_ENABLED

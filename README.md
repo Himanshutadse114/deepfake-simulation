@@ -13,7 +13,9 @@ This project is intentionally restricted to authorised participant-facing awaren
 - administrator-configured scripts are accepted only when they pass the awareness and sensitive-request policy;
 - server-side policy rejects direct instructions to send/approve money or disclose passwords, OTPs, credentials, security codes, payment approvals, etc.;
 - scripts are capped at 180 characters so generated clips remain short;
-- the uploaded participant voice is passed directly to Qwen as a reference without a duration check; the separate WhatsApp and video outputs must each be 12 seconds or less or generation stops before Pruna is called; the delivered video is hard-capped at 10 seconds;
+- the uploaded participant voice is normalized to 24 kHz mono WAV, trimmed to a 3–15 second reference, and transcribed by Whisper before Qwen receives it;
+- each Qwen output is transcribed and compared with the corresponding administrator script; mismatched, repeated or additional speech is rejected before Pruna is called;
+- the separate WhatsApp and video outputs must each be 12 seconds or less or generation stops before Pruna is called; the delivered video is hard-capped at 10 seconds;
 - paid predictions are not automatically retried;
 - generated video carries a permanent `AI-GENERATED SECURITY AWARENESS SIMULATION` disclosure;
 - generated social images remain inside the module and are not published to a real social network;
@@ -55,9 +57,11 @@ It uses the same UI and backend session lifecycle but does **not** call Qwen, Pr
 ## Active AI stack
 
 ```text
-Admin WhatsApp script ──→ Qwen3-TTS ──→ checked WhatsApp audio (≤12 s)
+Voice sample ──→ FFmpeg normalization ──→ Whisper reference transcript
 
-Admin video script ─────→ Qwen3-TTS ──→ checked video audio (≤12 s)
+Admin WhatsApp script ──→ Qwen3-TTS ──→ Whisper text verification ──→ checked WhatsApp audio (≤12 s)
+
+Admin video script ─────→ Qwen3-TTS ──→ Whisper text verification ──→ checked video audio (≤12 s)
                                                 │
 Participant-owned portrait ─────────────────────┤
                                                 ↓
@@ -97,7 +101,13 @@ REPLICATE_API_TOKEN=your_fresh_replicate_token
 
 VOICE_PROVIDER=qwen
 QWEN_MODEL=qwen/qwen3-tts
-QWEN_LANGUAGE=auto
+QWEN_LANGUAGE=English
+WHISPER_MODEL=openai/whisper:8099696689d249cf8b122d833c36ac3f75505c666a395ca40ef26f68e7d3d16e
+WHISPER_LANGUAGE=english
+MIN_REFERENCE_AUDIO_SECONDS=3
+MAX_REFERENCE_AUDIO_SECONDS=15
+VOICE_GENERATION_ATTEMPTS=2
+TRANSCRIPT_MAX_WORD_ERROR_RATE=0.05
 MAX_VIDEO_SECONDS=10
 
 VIDEO_PROVIDER_PREFERENCE=pruna
@@ -108,7 +118,9 @@ FLUX_ENABLED=true
 FLUX_MODEL=black-forest-labs/flux-2-pro
 ```
 
-One uninterrupted generation run creates the two Qwen audio tracks, the Pruna video and exactly four FLUX images. Pruna is not called if either generated audio track exceeds 12 seconds. There is no later profile-generation request or browser confirmation.
+One uninterrupted generation run creates the two verified Qwen audio tracks, the Pruna video and exactly four FLUX images. Pruna is not called if either generated audio track exceeds 12 seconds or fails the Whisper comparison with the saved administrator script. There is no later profile-generation request or browser confirmation.
+
+Administrator settings are written to `ADMIN_SETTINGS_PATH` when it is configured, otherwise to `uploads/admin-scripts.json`. Render's default filesystem is ephemeral. For settings to survive restarts, attach a persistent disk and set `ADMIN_SETTINGS_PATH` to a file beneath that disk's mount path (for example `/app/persistent/admin-scripts.json`).
 
 Optional legacy/fallback providers remain in the codebase but are disabled by default.
 

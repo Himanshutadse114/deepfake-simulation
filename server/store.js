@@ -29,6 +29,7 @@ function createSession(consents, { mode = 'ai', participant = {}, scripts = {} }
     profileStatus: 'idle',
     profileDetail: 'Profile preparation is waiting.',
     profileError: null,
+    transcriptAudit: {},
     performance: {
       generationStartedAt: null,
       generationCompletedAt: null,

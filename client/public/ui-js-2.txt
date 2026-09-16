@@ -169,7 +169,9 @@ function generationPercentForStatus(status) {
   return ({
     queued: 5,
     validating: 12,
+    preparing_voice: 18,
     cloning_whatsapp: 25,
+    verifying_audio: 34,
     cloning_video: 40,
     generating_video: 58,
     watermarking: 72,

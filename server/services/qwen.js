@@ -9,6 +9,22 @@ function requireReplicate() {
   return new Replicate({ auth: config.providers.replicateToken, fileEncodingStrategy: 'upload' });
 }
 
+function buildVoiceCloneInput({ referenceAudio, referenceText, text, language }) {
+  const exactText = String(text ?? '');
+  const transcript = String(referenceText || '').trim();
+  if (!exactText.trim()) throw new Error('The administrator script is empty.');
+  if (!referenceAudio) throw new Error('The normalized reference audio is missing.');
+  if (!transcript) throw new Error('An exact transcript of the normalized reference audio is required for Qwen voice cloning.');
+  return {
+    mode: 'voice_clone',
+    text: exactText,
+    language: language || 'English',
+    reference_audio: referenceAudio,
+    reference_text: transcript.slice(0, 1200),
+    style_instruction: 'Read the provided text verbatim from beginning to end. Do not add, omit, repeat, paraphrase, preface, append, or improvise any words. Speak naturally and clearly.'
+  };
+}
+
 async function saveOutput(output, targetPath) {
   if (!output) throw new Error('Qwen3-TTS did not return audio output.');
 
@@ -46,16 +62,12 @@ async function synthesizeScript(
 ) {
   const replicate = requireReplicate();
   const referenceAudio = await fs.readFile(voiceFile.path);
-  const input = {
-    mode: 'voice_clone',
-    text: String(text || config.awarenessScript),
-    language: config.providers.qwenLanguage,
-    reference_audio: referenceAudio,
-    style_instruction: 'Speak naturally, calmly and clearly. Keep the delivery suitable for an authorised cybersecurity awareness demonstration.'
-  };
-
-  const transcript = String(referenceText || '').trim();
-  if (transcript) input.reference_text = transcript.slice(0, 1200);
+  const input = buildVoiceCloneInput({
+    referenceAudio,
+    referenceText,
+    text,
+    language: config.providers.qwenLanguage
+  });
 
   const output = await runWithReplicateRetry(
     () => runTrackedReplicatePrediction(
@@ -73,4 +85,4 @@ async function synthesizeScript(
 const synthesizeFixedScript = (voiceFile, outputPath, referenceText = '', options = {}) =>
   synthesizeScript(voiceFile, outputPath, referenceText, config.awarenessScript, options);
 
-module.exports = { synthesizeScript, synthesizeFixedScript };
+module.exports = { synthesizeScript, synthesizeFixedScript, buildVoiceCloneInput };
