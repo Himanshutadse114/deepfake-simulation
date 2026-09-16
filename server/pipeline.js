@@ -9,6 +9,7 @@ const { generateAvatarVideo: generateDidVideo } = require('./services/did');
 const { generateAvatarVideo: generateHeyGenVideo } = require('./services/heygen');
 const { generateAvatarVideo: generatePrunaVideo } = require('./services/pruna');
 const { createWatermarkedVideo } = require('./services/watermark');
+const { createVideoAudioInput } = require('./services/video-audio');
 
 function didConfigured() {
   return config.providers.didEnabled && Boolean(config.providers.didKey);
@@ -148,6 +149,7 @@ async function generateSimulation(session) {
   const directory = path.join(config.uploadRoot, session.id);
   const whatsappPath = path.join(directory, 'whatsapp-speech.wav');
   const videoSpeechPath = path.join(directory, 'video-speech.wav');
+  const videoProviderSpeechPath = path.join(directory, 'video-provider-speech.wav');
   const rawVideoPath = path.join(directory, 'raw.mp4');
   const outputPath = path.join(directory, 'simulation.mp4');
   const generationStartedMs = Date.now();
@@ -172,8 +174,13 @@ async function generateSimulation(session) {
 
     const mediaWork = async () => {
       await generateCheckedAudioTracks(session, { whatsappPath, videoSpeechPath });
+      await createVideoAudioInput(session.videoAudioOutput, videoProviderSpeechPath, {
+        maxSeconds: config.maxVideoSeconds
+      });
 
-      const video = await generateVideoWithFallback(session, session.videoAudioOutput);
+      // Keep the full Qwen audio available to the learner, but give Pruna a
+      // separate, exact 10-second copy so the paid prediction is never longer.
+      const video = await generateVideoWithFallback(session, videoProviderSpeechPath);
       session.provider.video = video.provider;
 
       updateStatus(session, 'watermarking', 'Finalizing facial motion and applying the awareness disclosure.');
