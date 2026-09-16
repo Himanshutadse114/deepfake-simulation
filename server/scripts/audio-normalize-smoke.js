@@ -22,7 +22,10 @@ async function main() {
   try {
     await run('ffmpeg', [
       '-hide_banner', '-loglevel', 'error', '-y',
+      // Reproduce a very quiet browser recording. The normalizer must preserve
+      // its duration instead of treating the whole sample as removable silence.
       '-f', 'lavfi', '-i', 'sine=frequency=440:duration=5',
+      '-af', 'volume=0.0005',
       '-ac', '2', '-ar', '48000', input
     ]);
     await normalizeReferenceAudio(input, output, { maxSeconds: 15 });

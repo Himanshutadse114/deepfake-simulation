@@ -358,7 +358,10 @@ async function validateParticipantVoice(session, workspace, dependencies = {}) {
   updateStatus(session, 'validating', 'Normalizing and transcribing the consented voice sample.');
   await persistSession(session);
 
-  const localPath = path.join(workspace, `reference-voice.${extensionForAudioMime(session.voice.mime)}`);
+  // Keep the materialized upload separate from the normalized WAV. Without
+  // this distinction, an uploaded WAV made FFmpeg read from and write to the
+  // same file and could leave an invalid zero-duration result.
+  const localPath = path.join(workspace, `reference-input.${extensionForAudioMime(session.voice.mime)}`);
   await materializeInput(session.voice.path, localPath);
   try {
     await normalize(localPath, normalizedPath, { maxSeconds: config.maxReferenceAudioSeconds });

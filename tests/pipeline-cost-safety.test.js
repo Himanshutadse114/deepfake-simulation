@@ -12,10 +12,15 @@ test('uses a server transcription of the normalized reference audio', async () =
     provider: {},
     stages: {}
   };
+  let materializedPath;
+  let normalizationPaths;
 
   await validateParticipantVoice(session, 'session-directory', {
-    materialize: async () => {},
-    normalizeReferenceAudio: async (_input, output) => output,
+    materialize: async (_ref, target) => { materializedPath = target; },
+    normalizeReferenceAudio: async (input, output) => {
+      normalizationPaths = { input, output };
+      return output;
+    },
     assertAudioDuration: async (_path, options) => {
       assert.equal(options.minSeconds, 3);
       assert.equal(options.maxSeconds, 15);
@@ -26,6 +31,8 @@ test('uses a server transcription of the normalized reference audio', async () =
   });
 
   assert.equal(session.voice.normalizedPath, 'object://sessions/test/provider-temp/reference-voice.wav');
+  assert.match(materializedPath, /reference-input\.webm$/);
+  assert.notEqual(normalizationPaths.input, normalizationPaths.output);
   assert.equal(session.voice.referenceText, 'The words actually spoken in the recording.');
   assert.equal(session.voice.transcriptSource, 'server-whisper');
   assert.equal(session.stages.referenceVoice.status, 'completed');
