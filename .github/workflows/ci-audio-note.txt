@@ -1,1 +1,0 @@
-Audio duration regression coverage uses the existing FFmpeg installation on the GitHub-hosted runner to verify that generated audio longer than 10 seconds is normalised instead of failing the simulation.
