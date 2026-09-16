@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { parseProbeDuration, validateDuration } = require('../server/services/audio-duration');
+const { parseProbeDuration, validateDuration, buildFitArgs, atempoChain } = require('../server/services/audio-duration');
 
 test('reads duration from the container or audio stream metadata', () => {
   assert.equal(parseProbeDuration(JSON.stringify({
@@ -22,14 +22,25 @@ test('uses the longest trustworthy duration value', () => {
 });
 
 test('accepts audio inside the configured safety window', () => {
-  assert.equal(validateDuration(11.9, { minSeconds: 3, maxSeconds: 12 }), 11.9);
+  assert.equal(validateDuration(9.9, { minSeconds: 3, maxSeconds: 10 }), 9.9);
 });
 
-test('rejects unexpectedly long generated audio before video generation', () => {
+test('direct duration validation still rejects audio above the ten-second ceiling', () => {
   assert.throws(
-    () => validateDuration(120, { label: 'Generated awareness audio', maxSeconds: 12 }),
-    /exceeding the 12-second safety limit.*before the video provider was called/
+    () => validateDuration(12, { label: 'Generated awareness audio', maxSeconds: 10 }),
+    /exceeding the 10-second safety limit.*before the video provider was called/
   );
+});
+
+test('builds an atempo filter that preserves speech while fitting long audio', () => {
+  assert.deepEqual(atempoChain(1.35), ['atempo=1.350000']);
+  assert.deepEqual(atempoChain(4), ['atempo=2', 'atempo=2.000000']);
+
+  const args = buildFitArgs('input.wav', 'output.wav', 13.5, 10);
+  const filterIndex = args.indexOf('-af');
+  assert.ok(filterIndex >= 0);
+  assert.match(args[filterIndex + 1], /atempo=1\.350000/);
+  assert.match(args[filterIndex + 1], /atrim=duration=10/);
 });
 
 test('rejects invalid or too-short audio durations', () => {
