@@ -28,11 +28,10 @@ test('Qwen forwards the complete requested script and explicitly forbids early s
   assert.doesNotMatch(qwen, /exactText\.slice/);
 });
 
-test('accepted scripts have enough local duration headroom to play in full', () => {
-  assert.equal(config.maxGeneratedAudioSeconds, 20);
-  assert.equal(config.maxVideoSeconds, 20);
-  assert.match(configSource, /MAX_GENERATED_AUDIO_SECONDS', 20/);
-  assert.match(configSource, /MAX_VIDEO_SECONDS', 20/);
+test('audio stays uncapped while delivered video is hard-capped to ten seconds', () => {
+  assert.equal(config.maxVideoSeconds, 10);
+  assert.doesNotMatch(configSource, /MAX_GENERATED_AUDIO_SECONDS/);
+  assert.match(configSource, /MAX_VIDEO_SECONDS', 10/);
 });
 
 test('admin scripts are snapshotted server-side and audited before TTS creation', () => {

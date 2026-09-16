@@ -73,10 +73,10 @@ test('uploads use disk staging rather than multer memoryStorage', () => {
   assert.doesNotMatch(media, /multer\.memoryStorage/);
 });
 
-test('video audio is capped to the same duration that Pruna output keeps', () => {
-  assert.match(pipeline, /maxSeconds:\s*config\.maxVideoSeconds/);
-  assert.equal(config.maxVideoSeconds, 20);
-  assert.equal(config.maxGeneratedAudioSeconds, 20);
+test('audio is unrestricted while the delivered Pruna video is capped to ten seconds', () => {
+  assert.doesNotMatch(pipeline, /Generated video audio[^\n]*maxSeconds/);
+  assert.equal(config.maxVideoSeconds, 10);
+  assert.match(pipeline, /createWatermarkedVideo\(sourceUrl, rawVideoPath, outputPath, \{ maxSeconds: config\.maxVideoSeconds \}\)/);
 });
 
 test('paid stages checkpoint the creation boundary before the provider request', () => {
@@ -107,7 +107,7 @@ test('Render blueprint contains only the one durable R2-backed web service', () 
   assert.doesNotMatch(render, /REDIS_URL/);
   assert.match(render, /AI_WORKER_CONCURRENCY[\s\S]*value:\s*4/);
   assert.match(render, /FFMPEG_CONCURRENCY[\s\S]*value:\s*2/);
-  assert.match(render, /MAX_VIDEO_SECONDS[\s\S]*value:\s*20/);
-  assert.match(render, /MAX_GENERATED_AUDIO_SECONDS[\s\S]*value:\s*20/);
+  assert.match(render, /MAX_VIDEO_SECONDS[\s\S]*value:\s*10/);
+  assert.doesNotMatch(render, /MAX_GENERATED_AUDIO_SECONDS/);
   assert.match(render, /S3_BUCKET/);
 });

@@ -114,10 +114,6 @@ app.get('/api/health', async (_req, res) => {
     mediaProcesses: mediaProcessStats(),
     audioTracks: ['whatsapp', 'video'],
     durationLimits: {
-      referenceAudioMinimumSeconds: config.minReferenceAudioSeconds,
-      referenceAudioMaximumSeconds: config.maxReferenceAudioSeconds,
-      whatsappAudioSeconds: config.maxGeneratedAudioSeconds,
-      videoAudioSeconds: config.maxVideoSeconds,
       videoSeconds: config.maxVideoSeconds
     },
     scriptPolicy: {
@@ -145,7 +141,6 @@ app.get('/api/health', async (_req, res) => {
     },
     qwenModel: config.providers.qwenModel,
     qwenLanguage: config.providers.qwenLanguage,
-    whisperModel: config.providers.whisperModel,
     fluxEnabled: config.providers.fluxEnabled,
     fluxProfileImages: config.providers.fluxProfileImages,
     fluxProfileResolution: config.providers.fluxProfileResolution,

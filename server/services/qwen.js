@@ -34,8 +34,7 @@ function buildVoiceCloneInput({ text, language, referenceAudio, referenceText = 
   };
 
   const transcript = String(referenceText || '').trim();
-  if (!transcript) throw new Error('Qwen3-TTS voice cloning requires the server-verified reference transcript.');
-  input.reference_text = transcript.slice(0, 1200);
+  if (transcript) input.reference_text = transcript.slice(0, 1200);
   return input;
 }
 
