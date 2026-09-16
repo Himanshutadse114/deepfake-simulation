@@ -2,37 +2,43 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { generateCheckedAudioTracks } = require('../server/pipeline');
 
-test('does not continue to Pruna when either generated audio exceeds ten seconds', async () => {
+test('creates both complete admin-script audio tracks without duration or transcription checks', async () => {
   const session = {
+    voice: {
+      path: 'uploaded.webm',
+      mime: 'audio/webm',
+      referenceText: 'Optional recording prompt.'
+    },
     scripts: {
-      whatsapp: 'Administrator WhatsApp script',
-      video: 'Administrator video script'
+      whatsapp: 'Administrator WhatsApp script with its complete intended wording.',
+      video: 'Administrator video script with its complete intended wording.'
     }
   };
   const generated = [];
-  let prunaCalls = 0;
 
-  await assert.rejects(async () => {
-    await generateCheckedAudioTracks(session, {
-      whatsappPath: 'whatsapp.wav',
-      videoSpeechPath: 'video.wav'
-    }, {
-      generateVoice: async (_session, outputPath, script) => generated.push([outputPath, script]),
-      assertAudioDuration: async (outputPath, options) => {
-        assert.equal(options.maxSeconds, 10);
-        if (outputPath === 'video.wav') throw new Error('Generated video audio exceeds 10 seconds');
-      }
-    });
-
-    // This represents the next pipeline step and must remain unreachable.
-    prunaCalls += 1;
-  }, /exceeds 10 seconds/);
+  await generateCheckedAudioTracks(session, {
+    whatsappPath: 'whatsapp.wav',
+    videoSpeechPath: 'video.wav'
+  }, {
+    generateVoice: async (receivedSession, outputPath, script, stage) => {
+      assert.equal(receivedSession.voice.path, 'uploaded.webm');
+      assert.equal(receivedSession.voice.mime, 'audio/webm');
+      generated.push({ outputPath, script, stage });
+    }
+  });
 
   assert.deepEqual(generated, [
-    ['whatsapp.wav', 'Administrator WhatsApp script'],
-    ['video.wav', 'Administrator video script']
+    {
+      outputPath: 'whatsapp.wav',
+      script: session.scripts.whatsapp,
+      stage: 'cloning_whatsapp'
+    },
+    {
+      outputPath: 'video.wav',
+      script: session.scripts.video,
+      stage: 'cloning_video'
+    }
   ]);
-  assert.equal(prunaCalls, 0);
   assert.equal(session.whatsappAudioOutput, 'whatsapp.wav');
-  assert.equal(session.videoAudioOutput, undefined);
+  assert.equal(session.videoAudioOutput, 'video.wav');
 });

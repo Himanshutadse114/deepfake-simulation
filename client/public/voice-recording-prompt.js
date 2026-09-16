@@ -31,6 +31,9 @@
         text-align:center;
       }
       .voice-read-prompt{
+        display:block!important;
+        visibility:visible!important;
+        opacity:1!important;
         width:min(560px,92%);
         margin:12px auto;
         padding:14px 16px;
@@ -63,7 +66,7 @@
       .voice-read-prompt p{
         margin:0!important;
         color:var(--text,#f2f5f8)!important;
-        font-size:13px!important;
+        font-size:14px!important;
         line-height:1.55!important;
         font-weight:500;
       }
@@ -113,12 +116,5 @@
     document.head.appendChild(style);
   }
 
-  if (installRecorderPrompt()) return;
-
-  const observer = new MutationObserver(() => {
-    if (installRecorderPrompt()) observer.disconnect();
-  });
-  observer.observe(document.documentElement, { childList: true, subtree: true });
-
-  window.addEventListener('load', installRecorderPrompt, { once: true });
+  installRecorderPrompt();
 })();

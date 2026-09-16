@@ -27,8 +27,16 @@ function createSession(consents, { mode = 'ai', participant = {}, scripts = {} }
     variants: [],
     provider: {},
     profileStatus: 'idle',
-    profileDetail: 'Profile impersonation demo has not started.',
-    profileError: null
+    profileDetail: 'Profile preparation is waiting.',
+    profileError: null,
+    transcriptAudit: {},
+    performance: {
+      generationStartedAt: null,
+      generationCompletedAt: null,
+      totalGenerationSeconds: null,
+      replicate: [],
+      video: null
+    }
   };
   sessions.set(id, session);
   return session;

@@ -3,6 +3,7 @@ const path = require('node:path');
 const Replicate = require('replicate');
 const config = require('../config');
 const { runWithReplicateRetry } = require('./replicate-retry');
+const { runTrackedReplicatePrediction } = require('./replicate-metrics');
 
 // These prompts are intentionally restricted to benign, consented awareness
 // imagery. They create plausible social-photo variety without adding claims,
@@ -46,29 +47,35 @@ async function saveOutput(output, targetPath) {
   throw new Error('FLUX returned an unsupported image output shape.');
 }
 
-async function generateIdentityVariants(faceFile, sessionId) {
+async function generateIdentityVariants(faceFile, sessionId, { onMetric } = {}) {
   if (!config.providers.fluxEnabled) return [];
   const replicate = requireReplicate();
   const reference = await fs.readFile(faceFile.path);
   const directory = path.dirname(faceFile.path);
-  const count = Math.min(Math.max(Number(config.providers.fluxGridImages) || 4, 1), VARIANT_PROMPTS.length);
+  const count = VARIANT_PROMPTS.length;
   const results = [];
 
   for (let index = 0; index < count; index += 1) {
+    const label = `FLUX profile image ${index + 1}/${count}`;
     const output = await runWithReplicateRetry(
-      () => replicate.run(config.providers.fluxModel, {
-        input: {
-          prompt: VARIANT_PROMPTS[index],
-          input_images: [reference],
-          resolution: '1 MP',
-          aspect_ratio: '1:1',
-          output_format: 'jpg',
-          output_quality: 85,
-          safety_tolerance: 2,
-          prompt_upsampling: false
-        }
-      }),
-      { label: `FLUX profile image ${index + 1}/${count}` }
+      () => runTrackedReplicatePrediction(
+        replicate,
+        config.providers.fluxModel,
+        {
+          input: {
+            prompt: VARIANT_PROMPTS[index],
+            input_images: [reference],
+            resolution: '1 MP',
+            aspect_ratio: '1:1',
+            output_format: 'jpg',
+            output_quality: 85,
+            safety_tolerance: 2,
+            prompt_upsampling: false
+          }
+        },
+        { label, onMetric }
+      ),
+      { label }
     );
 
     const targetPath = path.join(directory, `variant-${index + 1}.jpg`);

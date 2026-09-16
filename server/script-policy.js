@@ -3,12 +3,12 @@ const config = require('./config');
 const MAX_SCRIPT_CHARS = config.scriptPolicy.maxChars;
 const MIN_SCRIPT_CHARS = config.scriptPolicy.minChars;
 
-const awarenessTerms = /\b(ai|deepfake|voice clone|synthetic|security awareness|verify|verification|simulation)\b/i;
+const awarenessTerms = /\b(ai|deepfake|synthetic|clone|cloned|security|cybersecurity|awareness|simulation|verify|verification|impersonation|fake|faked)\b/i;
 const urlPattern = /(?:https?:\/\/|www\.|\b[a-z0-9-]+\.(?:com|net|org|io|in|co)\b)/i;
-const secretPattern = /\b(password|passcode|otp|one[- ]time password|verification code|security code|recovery code|credential(?:s)?|login code)\b/i;
-const secretRequest = new RegExp(`\\b(send|share|tell|give|provide|read|enter|forward|reveal)\\b[\\s\\S]{0,45}${secretPattern.source}`, 'i');
-const moneyRequest = /\b(send|transfer|wire|approve|authorise|authorize|pay)\b[\s\S]{0,35}\b(money|funds|payment|invoice|bank transfer|crypto|cryptocurrency)\b/i;
-const warningContext = /\b(do not|don't|never|avoid|refuse|report|warning|beware|if someone|someone asks|cannot|can't|should not|shouldn't)\b/i;
+const secretPattern = /\b(password|passcode|otp|pin|credential|credentials|security code|recovery code)\b/i;
+const secretRequest = new RegExp(`\\b(send|share|tell|give|provide|enter|reveal|disclose)\\b[\\s\\S]{0,45}${secretPattern.source}`, 'i');
+const moneyRequest = /\b(send|transfer|wire|pay|approve)\b[\s\S]{0,35}\b(money|payment|funds?|cash|rupees?|dollars?|euros?)\b/i;
+const warningContext = /\b(do not|don't|never|avoid|refuse|warning|scam|fraud|suspicious|verify)\b/i;
 
 function normalizeScript(value) {
   return String(value || '').replace(/\s+/g, ' ').trim();
@@ -26,6 +26,10 @@ function validateAwarenessScript(value, label = 'Script') {
   }
   if (text.length > MAX_SCRIPT_CHARS) {
     throw new Error(`${label} must be ${MAX_SCRIPT_CHARS} characters or fewer so the simulation stays short.`);
+  }
+  const wordCount = text.split(/\s+/).filter(Boolean).length;
+  if (wordCount > config.scriptPolicy.maxWords) {
+    throw new Error(`${label} must be ${config.scriptPolicy.maxWords} words or fewer so generated speech can fit within the safety limit.`);
   }
   if (config.scriptPolicy.requireAwarenessContext && !awarenessTerms.test(text)) {
     throw new Error(`${label} must clearly be framed as AI/deepfake security-awareness or verification content.`);

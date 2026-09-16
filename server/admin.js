@@ -28,6 +28,7 @@ router.get('/scripts', requireAdmin, async (_req, res, next) => {
       policy: {
         minChars: config.scriptPolicy.minChars,
         maxChars: config.scriptPolicy.maxChars,
+        maxWords: config.scriptPolicy.maxWords,
         blockUrls: config.scriptPolicy.blockUrls,
         requireAwarenessContext: config.scriptPolicy.requireAwarenessContext
       }
@@ -60,7 +61,7 @@ function renderAdminPage() {
 </head>
 <body>
 <main class="wrap">
-  <div class="top"><div class="kicker">Internal configuration</div><h1>Simulation script admin</h1><p class="muted">Set the two approved awareness scripts. Qwen generates one WhatsApp track and one video track; each must be 10 seconds or less before Pruna can be called.</p></div>
+  <div class="top"><div class="kicker">Internal configuration</div><h1>Simulation script admin</h1><p class="muted">Set the two approved awareness scripts. Qwen generates one complete cloned-voice track for WhatsApp and one for the video.</p></div>
   <section class="card">
     <label for="adminKey">Admin key</label>
     <input id="adminKey" type="password" autocomplete="current-password" placeholder="Enter ADMIN_KEY">
@@ -72,7 +73,7 @@ function renderAdminPage() {
     <textarea id="videoScript" maxlength="${max}" placeholder="Deepfake video script"></textarea>
 
     <div class="actions"><button class="btn secondary" id="loadScripts" type="button">Load current</button><button class="btn primary" id="saveScripts" type="button">Save scripts</button></div>
-    <div class="note">Keep each script short enough for a 10-second spoken result. If either generated track exceeds 10 seconds, generation stops before Pruna. Sensitive payment and credential requests remain blocked by the core simulation safeguard.</div>
+    <div class="note">Each script is limited to ${config.scriptPolicy.maxWords} words. Qwen receives the saved script exactly as written and the participant's uploaded voice sample directly. The delivered video is limited to 10 seconds. Sensitive payment and credential requests remain blocked by the core simulation safeguard.</div>
     <div class="status" id="adminStatus"></div>
   </section>
 </main>

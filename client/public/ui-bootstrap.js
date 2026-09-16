@@ -69,11 +69,13 @@
     await loadScript('/wa-polish.js?v=4');
     await loadScript('/experience-polish.js?v=1');
     await loadScript('/editorial-newspaper.js?v=2');
-    await loadScript('/responsive-polish.js?v=1');
+    await loadScript('/responsive-polish.js?v=2');
     await loadScript('/qr-polish.js?v=1');
     await loadScript('/wa-flow-fix.js?v=3');
     await loadScript('/wa-replay-reset.js?v=1');
     await loadScript('/editorial-cta-fix.js?v=1');
+    await loadScript('/final-flow-polish.js?v=1');
+    await loadScript('/voice-recording-prompt.js?v=2');
     const enforceScreenVisibility=(name)=>{
       document.querySelectorAll('.screen').forEach(screen=>{
         const active=screen.dataset.screen===name;

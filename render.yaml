@@ -18,6 +18,8 @@ services:
         value: 20
       - key: SCRIPT_MAX_CHARS
         value: 180
+      - key: SCRIPT_MAX_WORDS
+        value: 26
       - key: SCRIPT_BLOCK_URLS
         value: "true"
       - key: SCRIPT_REQUIRE_AWARENESS_CONTEXT
@@ -27,19 +29,13 @@ services:
       - key: QWEN_MODEL
         value: qwen/qwen3-tts
       - key: QWEN_LANGUAGE
-        value: auto
-      - key: MAX_REFERENCE_AUDIO_SECONDS
-        value: 45
-      - key: MAX_GENERATED_AUDIO_SECONDS
-        value: 10
+        value: English
       - key: MAX_VIDEO_SECONDS
         value: 10
       - key: FLUX_ENABLED
         value: "true"
       - key: FLUX_MODEL
         value: black-forest-labs/flux-2-pro
-      - key: FLUX_GRID_IMAGES
-        value: 4
       - key: VIDEO_PROVIDER_PREFERENCE
         value: pruna
       - key: PRUNA_RESOLUTION

@@ -468,7 +468,6 @@ export default function App() {
   function stopRecording() {
     recorderRef.current?.stop();
     setRecording(false);
-    if (seconds < 5) setError('A longer sample usually gives a stronger voice match. Aim for at least 10 seconds if possible.');
   }
 
   function uploadVoiceFile(event) {
@@ -617,7 +616,7 @@ export default function App() {
           <div className="card narrow">
             <div className="eyebrow">STEP 3 — YOUR VOICE</div>
             <h2>Record a short, clean sample of your own voice.</h2>
-            <p className="muted">For better consistency, aim for around 10–20 seconds in a quiet room and read the sample below naturally.</p>
+            <p className="muted">Record or upload any supported voice sample. Its duration is not checked before it is sent to Qwen as the cloning reference.</p>
             <blockquote>{RECORDING_SCRIPT}</blockquote>
             <div className={`recorder ${recording ? 'recording' : ''}`}>
               <div className="mic">{recording ? '●' : '◉'}</div>

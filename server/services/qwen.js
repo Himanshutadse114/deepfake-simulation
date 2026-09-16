@@ -2,10 +2,27 @@ const fs = require('node:fs/promises');
 const Replicate = require('replicate');
 const config = require('../config');
 const { runWithReplicateRetry } = require('./replicate-retry');
+const { runTrackedReplicatePrediction } = require('./replicate-metrics');
 
 function requireReplicate() {
   if (!config.providers.replicateToken) throw new Error('REPLICATE_API_TOKEN is not configured.');
   return new Replicate({ auth: config.providers.replicateToken, fileEncodingStrategy: 'upload' });
+}
+
+function buildVoiceCloneInput({ referenceAudio, referenceText, text, language }) {
+  const exactText = String(text ?? '');
+  const transcript = String(referenceText || '').trim();
+  if (!exactText.trim()) throw new Error('The administrator script is empty.');
+  if (!referenceAudio) throw new Error('The reference audio is missing.');
+  const input = {
+    mode: 'voice_clone',
+    text: exactText,
+    language: language || 'English',
+    reference_audio: referenceAudio,
+    style_instruction: 'Read the entire provided text verbatim from the first word through the final word. Do not add, omit, repeat, paraphrase, preface, append, shorten, summarize, or improvise any words. Do not stop early. Finish only after speaking the final word. Speak naturally and clearly.'
+  };
+  if (transcript) input.reference_text = transcript.slice(0, 1200);
+  return input;
 }
 
 async function saveOutput(output, targetPath) {
@@ -36,29 +53,36 @@ async function saveOutput(output, targetPath) {
   throw new Error('Qwen3-TTS returned an unsupported audio output shape.');
 }
 
-async function synthesizeScript(voiceFile, outputPath, referenceText = '', text = config.awarenessScript) {
+async function synthesizeScript(
+  voiceFile,
+  outputPath,
+  referenceText = '',
+  text = config.awarenessScript,
+  { label = 'Qwen3-TTS voice clone', onMetric } = {}
+) {
   const replicate = requireReplicate();
   const referenceAudio = await fs.readFile(voiceFile.path);
-  const input = {
-    mode: 'voice_clone',
-    text: String(text || config.awarenessScript),
-    language: config.providers.qwenLanguage,
-    reference_audio: referenceAudio,
-    style_instruction: 'Speak naturally, calmly and clearly. Keep the delivery suitable for an authorised cybersecurity awareness demonstration.'
-  };
-
-  const transcript = String(referenceText || '').trim();
-  if (transcript) input.reference_text = transcript.slice(0, 1200);
+  const input = buildVoiceCloneInput({
+    referenceAudio,
+    referenceText,
+    text,
+    language: config.providers.qwenLanguage
+  });
 
   const output = await runWithReplicateRetry(
-    () => replicate.run(config.providers.qwenModel, { input }),
-    { label: 'Qwen3-TTS voice clone' }
+    () => runTrackedReplicatePrediction(
+      replicate,
+      config.providers.qwenModel,
+      { input },
+      { label, onMetric }
+    ),
+    { label }
   );
 
   return saveOutput(output, outputPath);
 }
 
-const synthesizeFixedScript = (voiceFile, outputPath, referenceText = '') =>
-  synthesizeScript(voiceFile, outputPath, referenceText, config.awarenessScript);
+const synthesizeFixedScript = (voiceFile, outputPath, referenceText = '', options = {}) =>
+  synthesizeScript(voiceFile, outputPath, referenceText, config.awarenessScript, options);
 
-module.exports = { synthesizeScript, synthesizeFixedScript };
+module.exports = { synthesizeScript, synthesizeFixedScript, buildVoiceCloneInput };

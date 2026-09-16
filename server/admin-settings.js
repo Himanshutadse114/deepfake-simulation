@@ -3,7 +3,7 @@ const path = require('node:path');
 const config = require('./config');
 const { validateScriptPair } = require('./script-policy');
 
-const settingsPath = path.join(config.uploadRoot, 'admin-scripts.json');
+const settingsPath = config.adminSettingsPath;
 
 const defaultScripts = () => validateScriptPair({
   whatsapp: process.env.WHATSAPP_AUDIO_SCRIPT || 'This is an AI voice-clone awareness demo. A familiar voice can be faked, so verify unusual requests through a trusted channel before you act.',
@@ -37,7 +37,7 @@ async function getActiveScripts() {
 async function saveActiveScripts(input) {
   const scripts = validateScriptPair(input || {});
   const payload = { scripts, updatedAt: new Date().toISOString() };
-  await fs.mkdir(config.uploadRoot, { recursive: true });
+  await fs.mkdir(path.dirname(settingsPath), { recursive: true });
   const temp = `${settingsPath}.tmp`;
   await fs.writeFile(temp, `${JSON.stringify(payload, null, 2)}\n`, { mode: 0o600 });
   await fs.rename(temp, settingsPath);

@@ -2,13 +2,14 @@ const fs = require('node:fs/promises');
 const Replicate = require('replicate');
 const config = require('../config');
 const { runWithReplicateRetry } = require('./replicate-retry');
+const { runTrackedReplicatePrediction } = require('./replicate-metrics');
 
 function requireReplicate() {
   if (!config.providers.replicateToken) throw new Error('REPLICATE_API_TOKEN is not configured.');
   return new Replicate({ auth: config.providers.replicateToken, fileEncodingStrategy: 'upload' });
 }
 
-async function generateAvatarVideo(faceFile, speechPath) {
+async function generateAvatarVideo(faceFile, speechPath, { onMetric } = {}) {
   const replicate = requireReplicate();
   const [image, audio] = await Promise.all([
     fs.readFile(faceFile.path),
@@ -16,14 +17,19 @@ async function generateAvatarVideo(faceFile, speechPath) {
   ]);
 
   const output = await runWithReplicateRetry(
-    () => replicate.run(config.providers.prunaModel, {
-      input: {
-        image,
-        audio,
-        resolution: config.providers.prunaResolution,
-        disable_safety_filter: false
-      }
-    }),
+    () => runTrackedReplicatePrediction(
+      replicate,
+      config.providers.prunaModel,
+      {
+        input: {
+          image,
+          audio,
+          resolution: config.providers.prunaResolution,
+          disable_safety_filter: false
+        }
+      },
+      { label: 'Pruna avatar video', onMetric }
+    ),
     { label: 'Pruna avatar video' }
   );
 

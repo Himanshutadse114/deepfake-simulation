@@ -12,16 +12,18 @@ const booleanEnv = (name, fallback) => {
 };
 
 const ROOT = path.resolve(__dirname, '..');
+const configuredAdminSettingsPath = String(process.env.ADMIN_SETTINGS_PATH || '').trim();
 
 module.exports = {
   port: Number(process.env.PORT || 10000),
   root: ROOT,
   uploadRoot: path.join(ROOT, 'uploads'),
+  adminSettingsPath: configuredAdminSettingsPath
+    ? path.resolve(configuredAdminSettingsPath)
+    : path.join(ROOT, 'uploads', 'admin-scripts.json'),
   clientDist: path.join(ROOT, 'client', 'dist'),
   maxImageBytes: numberEnv('MAX_IMAGE_SIZE_MB', 8) * 1024 * 1024,
   maxAudioBytes: numberEnv('MAX_AUDIO_SIZE_MB', 20) * 1024 * 1024,
-  maxReferenceAudioSeconds: numberEnv('MAX_REFERENCE_AUDIO_SECONDS', 45),
-  maxGeneratedAudioSeconds: Math.min(numberEnv('MAX_GENERATED_AUDIO_SECONDS', 10), 10),
   maxVideoSeconds: Math.min(numberEnv('MAX_VIDEO_SECONDS', 10), 10),
   retentionMs: numberEnv('MEDIA_RETENTION_MINUTES', 30) * 60 * 1000,
   demoMode: String(process.env.DEMO_MODE || 'false').toLowerCase() === 'true',
@@ -29,6 +31,7 @@ module.exports = {
   scriptPolicy: {
     minChars: numberEnv('SCRIPT_MIN_CHARS', 20),
     maxChars: numberEnv('SCRIPT_MAX_CHARS', 180),
+    maxWords: numberEnv('SCRIPT_MAX_WORDS', 26),
     blockUrls: booleanEnv('SCRIPT_BLOCK_URLS', true),
     requireAwarenessContext: booleanEnv('SCRIPT_REQUIRE_AWARENESS_CONTEXT', false)
   },
@@ -40,17 +43,17 @@ module.exports = {
     // Active voice path: per-session reference-audio cloning on Replicate.
     voiceProvider: String(process.env.VOICE_PROVIDER || 'qwen').trim().toLowerCase(),
     qwenModel: process.env.QWEN_MODEL || 'qwen/qwen3-tts',
-    qwenLanguage: process.env.QWEN_LANGUAGE || 'auto',
+    qwenLanguage: process.env.QWEN_LANGUAGE || 'English',
     // Optional fallback/experimentation providers kept available but not active by default.
     chatterboxModel: process.env.CHATTERBOX_MODEL || 'resemble-ai/chatterbox-multilingual:9cfba4c265e685f840612be835424f8c33bdee685d7466ece7684b0d9d4c0b1c',
     chatterboxLanguage: process.env.CHATTERBOX_LANGUAGE || 'en',
     elevenLabsApiKey: process.env.ELEVENLABS_API_KEY || '',
     elevenLabsModel: process.env.ELEVENLABS_MODEL || 'eleven_multilingual_v2',
 
-    // Social-profile awareness images are generated only after the first learning checkpoint.
+    // Four social-profile awareness images are generated with the initial media pipeline.
     fluxEnabled: String(process.env.FLUX_ENABLED || 'true').toLowerCase() !== 'false',
     fluxModel: process.env.FLUX_MODEL || 'black-forest-labs/flux-2-pro',
-    fluxGridImages: Math.min(numberEnv('FLUX_GRID_IMAGES', 4), 4),
+    fluxGridImages: 4,
 
     didKey: process.env.DID_API_KEY || '',
     didEnabled: String(process.env.DID_ADAPTER_ENABLED || 'false').toLowerCase() !== 'false',

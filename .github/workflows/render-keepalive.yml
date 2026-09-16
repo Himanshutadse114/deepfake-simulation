@@ -1,0 +1,51 @@
+name: Render Keepalive Bot
+
+on:
+  schedule:
+    # Render free web services spin down after 15 minutes without inbound traffic.
+    # Ping every 5 minutes, offset from the top of the hour to reduce scheduler congestion.
+    - cron: '2,7,12,17,22,27,32,37,42,47,52,57 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: render-keepalive
+  cancel-in-progress: true
+
+jobs:
+  ping-render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Keep Render service awake
+        shell: bash
+        run: |
+          set -u
+          URL="https://deepfake-simulation.onrender.com/api/health"
+
+          for attempt in 1 2 3; do
+            echo "Keepalive attempt ${attempt}: ${URL}"
+            if curl \
+              --fail \
+              --silent \
+              --show-error \
+              --location \
+              --connect-timeout 15 \
+              --max-time 75 \
+              --retry 1 \
+              --retry-delay 5 \
+              --user-agent "Innvikta-Render-Keepalive/1.0" \
+              "${URL}" >/dev/null; then
+              echo "Render keepalive succeeded."
+              exit 0
+            fi
+
+            if [ "${attempt}" -lt 3 ]; then
+              sleep 10
+            fi
+          done
+
+          echo "Render keepalive failed after 3 attempts."
+          exit 1
