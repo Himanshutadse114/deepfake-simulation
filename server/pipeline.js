@@ -23,6 +23,7 @@ const { generateAvatarVideo: generateDidVideo } = require('./services/did');
 const { generateAvatarVideo: generateHeyGenVideo } = require('./services/heygen');
 const { generateAvatarVideo: generatePrunaVideo } = require('./services/pruna');
 const { createWatermarkedVideo } = require('./services/watermark');
+const { createVideoAudioInput } = require('./services/video-audio');
 
 function didConfigured() {
   return config.providers.didEnabled && Boolean(config.providers.didKey);
@@ -245,6 +246,16 @@ async function materializeLegacyVideoInputs(session, speechRef, workspace) {
   };
 }
 
+async function prepareVideoProviderAudio(speechRef, workspace) {
+  const fullAudioPath = path.join(workspace, 'video-provider-source.wav');
+  const providerAudioPath = path.join(workspace, 'video-provider-speech.wav');
+  await materialize(speechRef, fullAudioPath);
+  await createVideoAudioInput(fullAudioPath, providerAudioPath, {
+    maxSeconds: config.maxVideoSeconds
+  });
+  return providerAudioPath;
+}
+
 async function generateVideoWithFallback(session, speechRef, workspace = path.join(config.workRoot, session.id || 'test')) {
   ensureStages(session);
   if (session.output) {
@@ -457,7 +468,10 @@ async function generateSimulation(session) {
     await generateCheckedAudioTracks(session, { whatsappPath, videoSpeechPath });
 
     const videoWork = async () => {
-      const video = await generateVideoWithFallback(session, session.videoAudioOutput, workspace);
+      // Preserve both complete Qwen outputs for the learner. Pruna receives a
+      // separate 10-second copy so its paid prediction itself cannot be 21s.
+      const providerAudio = await prepareVideoProviderAudio(session.videoAudioOutput, workspace);
+      const video = await generateVideoWithFallback(session, providerAudio, workspace);
       if (video.output) return video.output;
       return finalizeVideo(session, video, workspace);
     };
@@ -507,6 +521,7 @@ module.exports = {
   generateVideoWithFallback,
   generateVoice,
   generateCheckedAudioTracks,
+  prepareVideoProviderAudio,
   validateParticipantVoice,
   completeDemoSession,
   runInitialGeneration,

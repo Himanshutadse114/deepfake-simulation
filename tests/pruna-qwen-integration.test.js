@@ -28,10 +28,12 @@ test('Qwen forwards the complete requested script and explicitly forbids early s
   assert.doesNotMatch(qwen, /exactText\.slice/);
 });
 
-test('audio stays uncapped while delivered video is hard-capped to ten seconds', () => {
+test('audio stays uncapped while both Pruna input and delivered video are capped to ten seconds', () => {
   assert.equal(config.maxVideoSeconds, 10);
   assert.doesNotMatch(configSource, /MAX_GENERATED_AUDIO_SECONDS/);
   assert.match(configSource, /MAX_VIDEO_SECONDS', 10/);
+  assert.match(pipeline, /prepareVideoProviderAudio\(session\.videoAudioOutput, workspace\)/);
+  assert.match(pipeline, /generateVideoWithFallback\(session, providerAudio, workspace\)/);
 });
 
 test('admin scripts are snapshotted server-side and audited before TTS creation', () => {
