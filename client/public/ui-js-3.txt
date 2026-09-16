@@ -35,7 +35,7 @@ async function startGeneration() {
     const whatsappScript = safeScriptClientCheck(whatsappScriptInput?.value, 'WhatsApp audio script');
     const videoScript = safeScriptClientCheck(videoScriptInput?.value, 'Deepfake video audio script');
     if (!firstNameInput?.value.trim() || !lastNameInput?.value.trim()) throw new Error('Enter both first name and surname.');
-    if (!photoInput?.files?.[0] || !audioInput?.files?.[0]) throw new Error('Upload or capture both a photo and voice sample.');
+    if (!photoInput?.files?.[0] || !audioInput?.files?.[0]) throw new Error('Add a photo and record your voice before generating.');
     if (!checks.every((item) => item.checked)) throw new Error('Accept every consent statement before generating.');
 
     go('generate');

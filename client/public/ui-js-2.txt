@@ -173,7 +173,7 @@ function checkMediaReady() {
   const btn = document.getElementById('generateBtn');
   if (!btn) return;
   btn.disabled = !ready;
-  if (!hasPhoto || !hasVoice) btn.textContent = 'Upload photo & voice to continue';
+  if (!hasPhoto || !hasVoice) btn.textContent = 'Add photo and record voice to continue';
   else if (!hasName) btn.textContent = 'Add your name to continue';
   else if (!hasScripts) btn.textContent = 'Add both awareness scripts to continue';
   else btn.textContent = runMode === 'demo' ? 'Run internal demo · no AI →' : 'Generate awareness simulation →';

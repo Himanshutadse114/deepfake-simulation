@@ -55,9 +55,9 @@
     if (input) input.value = '';
     if (ready) ready.classList.remove('show');
     if (prompt) prompt.style.display = '';
-    if (fileName) fileName.textContent = 'Voice sample ready';
+    if (fileName) fileName.textContent = 'Recording ready';
     if (status) {
-      status.textContent = 'Waiting for voice';
+      status.textContent = 'Waiting for recording';
       status.classList.remove('ready');
     }
 
@@ -66,7 +66,7 @@
     try { audioChunks = []; } catch (_) {}
 
     if (typeof checkMediaReady === 'function') checkMediaReady();
-    if (typeof toast === 'function') toast('Voice sample removed. Record again or upload a new sample.');
+    if (typeof toast === 'function') toast('Recording removed. Record your voice again when ready.');
     updateLabels();
   }
 
@@ -104,7 +104,9 @@
     style.id = 'voiceSampleControlStyles';
     style.textContent = `
       #audioReady.show{display:flex!important;align-items:center!important;gap:12px!important;flex-wrap:wrap!important}
+      #audioDrop{cursor:default!important}
       #audioReady.show>div:not(.voice-ready-actions){min-width:0;flex:1 1 180px}
+      .voice-preview-action{pointer-events:auto!important;display:inline-flex!important;align-items:center!important;gap:7px!important;min-width:154px!important;min-height:44px!important;padding:9px 14px!important;border-radius:999px!important;background:rgba(241,90,36,.14)!important;border:1px solid rgba(241,90,36,.35)!important;color:#fff!important;font-size:11px!important;font-weight:800!important}
       .voice-ready-actions{display:flex;gap:8px;align-items:center;justify-content:flex-end;flex:1 0 100%;padding-top:10px;border-top:1px solid var(--line,rgba(255,255,255,.1));position:relative;z-index:7}
       .voice-ready-actions button{pointer-events:auto!important;min-height:40px!important;padding:8px 13px!important;border-radius:8px!important;font-size:11px!important;white-space:nowrap}
       .voice-remove-action{color:var(--red,#ff5d68)!important;border-color:rgba(255,93,104,.28)!important}

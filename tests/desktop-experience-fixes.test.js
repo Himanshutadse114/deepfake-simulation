@@ -20,6 +20,7 @@ test('voice recording keeps the 3-2-1 countdown and automatic save flow', () => 
   assert.match(fixes, /Recording starts automatically/);
   assert.match(fixes, /autoStopTimer = setTimeout\(\(\) => finishRecording\(false\), AUTO_RECORD_SECONDS \* 1000\)/);
   assert.match(fixes, /Your recording will save automatically/);
+  assert.match(fixes, /fileName\.textContent = 'Recording ready'/);
   assert.doesNotMatch(fixes, />Use recording</);
 });
 

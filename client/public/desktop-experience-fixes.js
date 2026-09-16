@@ -131,7 +131,7 @@
     const status = byId('audioStatus');
     if (prompt) prompt.style.display = 'none';
     ready?.classList.add('show');
-    if (fileName) fileName.textContent = file.name;
+    if (fileName) fileName.textContent = 'Recording ready';
     if (status) {
       status.textContent = 'Voice ready';
       status.classList.add('ready');
