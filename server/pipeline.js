@@ -9,9 +9,6 @@ const { generateAvatarVideo: generateDidVideo } = require('./services/did');
 const { generateAvatarVideo: generateHeyGenVideo } = require('./services/heygen');
 const { generateAvatarVideo: generatePrunaVideo } = require('./services/pruna');
 const { createWatermarkedVideo } = require('./services/watermark');
-const { assertAudioDuration } = require('./services/audio-duration');
-const { normalizeReferenceAudio } = require('./services/audio-normalize');
-const { transcribeAudio, compareTranscripts } = require('./services/transcription');
 
 function didConfigured() {
   return config.providers.didEnabled && Boolean(config.providers.didKey);
@@ -76,100 +73,13 @@ async function generateVoice(session, speechPath, text, stage = 'cloning_voice')
   throw new Error(`Unsupported VOICE_PROVIDER: ${provider}`);
 }
 
-async function prepareVoiceReference(session, directory, dependencies = {}) {
-  const normalize = dependencies.normalizeReferenceAudio || normalizeReferenceAudio;
-  const checkDuration = dependencies.assertAudioDuration || assertAudioDuration;
-  const transcribe = dependencies.transcribeAudio || transcribeAudio;
-  const normalizedPath = path.join(directory, 'reference-voice.wav');
-
-  updateStatus(session, 'preparing_voice', 'Normalizing and transcribing the consented voice sample.');
-  await normalize(session.voice.path, normalizedPath, { maxSeconds: config.maxReferenceAudioSeconds });
-  const duration = await checkDuration(normalizedPath, {
-    label: 'Reference voice sample',
-    minSeconds: config.minReferenceAudioSeconds,
-    maxSeconds: config.maxReferenceAudioSeconds
-  });
-  const referenceText = await transcribe(normalizedPath, {
-    label: 'Whisper reference voice transcription',
-    onMetric: (metric) => recordReplicateMetric(session, metric)
-  });
-
-  session.voice = {
-    ...session.voice,
-    path: normalizedPath,
-    mime: 'audio/wav',
-    duration,
-    referenceText,
-    transcriptSource: 'server-whisper'
-  };
-  return session.voice;
-}
-
-async function verifyGeneratedSpeech(session, speechPath, expectedText, { label = 'Generated speech' } = {}) {
-  updateStatus(session, 'verifying_audio', `${label} is being checked against the administrator script.`);
-  const transcript = await transcribeAudio(speechPath, {
-    label: `Whisper ${label.toLowerCase()} verification`,
-    onMetric: (metric) => recordReplicateMetric(session, metric)
-  });
-  return compareTranscripts(expectedText, transcript);
-}
-
 async function generateCheckedAudioTracks(session, { whatsappPath, videoSpeechPath }, dependencies = {}) {
   const generateVoiceTrack = dependencies.generateVoice || generateVoice;
-  const checkDuration = dependencies.assertAudioDuration || assertAudioDuration;
-  const verifySpeech = dependencies.verifyGeneratedSpeech || verifyGeneratedSpeech;
-  const maxAttempts = dependencies.maxAttempts || config.voiceGenerationAttempts;
 
-  session.transcriptAudit = session.transcriptAudit || {};
-
-  async function generateVerifiedTrack({ outputPath, text, stage, kind, label }) {
-    let lastError;
-    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-      try {
-        await generateVoiceTrack(session, outputPath, text, stage);
-        const duration = await checkDuration(outputPath, {
-          label,
-          maxSeconds: config.maxGeneratedAudioSeconds
-        });
-        const verification = await verifySpeech(session, outputPath, text, { label });
-        session.transcriptAudit[kind] = {
-          verified: verification.matches,
-          attempt,
-          duration,
-          wordErrorRate: verification.wordErrorRate,
-          expectedWordCount: verification.expectedWordCount,
-          actualWordCount: verification.actualWordCount
-        };
-        if (!verification.matches) {
-          throw new Error(`${label} did not match the administrator script (word error rate ${(verification.wordErrorRate * 100).toFixed(1)}%).`);
-        }
-        return outputPath;
-      } catch (error) {
-        lastError = error;
-        if (attempt < maxAttempts) {
-          console.warn(`[voice-verification:${session.id?.slice(0, 8) || 'unknown'}:${kind}] attempt ${attempt} rejected: ${error.message}`);
-        }
-      }
-    }
-    throw new Error(`${lastError?.message || `${label} verification failed`} Audio was rejected before video generation.`);
-  }
-
-  await generateVerifiedTrack({
-    outputPath: whatsappPath,
-    text: session.scripts.whatsapp,
-    stage: 'cloning_whatsapp',
-    kind: 'whatsapp',
-    label: 'Generated awareness audio',
-  });
+  await generateVoiceTrack(session, whatsappPath, session.scripts.whatsapp, 'cloning_whatsapp');
   session.whatsappAudioOutput = whatsappPath;
 
-  await generateVerifiedTrack({
-    outputPath: videoSpeechPath,
-    text: session.scripts.video,
-    stage: 'cloning_video',
-    kind: 'video',
-    label: 'Generated video audio',
-  });
+  await generateVoiceTrack(session, videoSpeechPath, session.scripts.video, 'cloning_video');
   session.videoAudioOutput = videoSpeechPath;
 }
 
@@ -261,7 +171,6 @@ async function generateSimulation(session) {
     }
 
     const mediaWork = async () => {
-      await prepareVoiceReference(session, directory);
       await generateCheckedAudioTracks(session, { whatsappPath, videoSpeechPath });
 
       const video = await generateVideoWithFallback(session, session.videoAudioOutput);
@@ -349,7 +258,5 @@ module.exports = {
   completeDemoSession,
   runInitialGeneration,
   ensurePerformance,
-  recordReplicateMetric,
-  prepareVoiceReference,
-  verifyGeneratedSpeech
+  recordReplicateMetric
 };

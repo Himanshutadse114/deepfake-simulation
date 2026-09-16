@@ -69,12 +69,9 @@ router.post('/:id/voice', loadAuthorisedSession, upload.single('voice'), async (
   try {
     if (req.simulation.status !== 'collecting') return res.status(409).json({ error: 'This session is no longer accepting media.' });
     const saved = await persistParticipantFile(req.simulation.id, 'voice', req.file);
-    // Never trust a client-supplied transcript for voice cloning. The server
-    // normalizes and transcribes the actual uploaded audio before calling Qwen.
-    saved.referenceText = '';
-    saved.clientTranscriptProvided = Boolean(String(req.body?.referenceText || '').trim());
+    saved.referenceText = String(req.body?.referenceText || '').trim().slice(0, 1200);
     req.simulation.voice = saved;
-    res.json({ ok: true, size: saved.size, mime: saved.mime, transcriptSource: 'server-transcription' });
+    res.json({ ok: true, size: saved.size, mime: saved.mime, transcriptProvided: Boolean(saved.referenceText) });
   } catch (error) { next(error); }
 });
 
@@ -101,8 +98,7 @@ router.get('/:id/status', loadAuthorisedSession, (req, res) => {
     videoAudioOutput,
     output,
     mode,
-    performance,
-    transcriptAudit
+    performance
   } = req.simulation;
   res.json({
     status,
@@ -117,7 +113,6 @@ router.get('/:id/status', loadAuthorisedSession, (req, res) => {
     videoAudioReady: status === 'completed' && Boolean(videoAudioOutput),
     videoReady: status === 'completed' && Boolean(output),
     variantCount: variants.length,
-    speechVerified: Boolean(transcriptAudit?.whatsapp?.verified && transcriptAudit?.video?.verified),
     performance: performance || null
   });
 });

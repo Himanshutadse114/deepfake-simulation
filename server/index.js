@@ -63,7 +63,6 @@ app.get('/api/health', (_req, res) => {
     customAwarenessScripts: true,
     audioTracks: ['whatsapp', 'video'],
     durationLimits: {
-      generatedAudioSeconds: config.maxGeneratedAudioSeconds,
       videoSeconds: config.maxVideoSeconds
     },
     scriptPolicy: {
@@ -91,17 +90,6 @@ app.get('/api/health', (_req, res) => {
     },
     qwenModel: config.providers.qwenModel,
     qwenLanguage: config.providers.qwenLanguage,
-    speechVerification: {
-      enabled: true,
-      model: config.providers.whisperModel,
-      language: config.providers.whisperLanguage,
-      attempts: config.voiceGenerationAttempts,
-      maxWordErrorRate: config.transcriptMaxWordErrorRate,
-      referenceAudioSeconds: {
-        min: config.minReferenceAudioSeconds,
-        max: config.maxReferenceAudioSeconds
-      }
-    },
     fluxEnabled: config.providers.fluxEnabled,
     fluxGridImages: config.providers.fluxGridImages,
     videoProviderPreference: config.providers.videoProviderPreference

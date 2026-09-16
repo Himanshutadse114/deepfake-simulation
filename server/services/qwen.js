@@ -13,16 +13,16 @@ function buildVoiceCloneInput({ referenceAudio, referenceText, text, language })
   const exactText = String(text ?? '');
   const transcript = String(referenceText || '').trim();
   if (!exactText.trim()) throw new Error('The administrator script is empty.');
-  if (!referenceAudio) throw new Error('The normalized reference audio is missing.');
-  if (!transcript) throw new Error('An exact transcript of the normalized reference audio is required for Qwen voice cloning.');
-  return {
+  if (!referenceAudio) throw new Error('The reference audio is missing.');
+  const input = {
     mode: 'voice_clone',
     text: exactText,
     language: language || 'English',
     reference_audio: referenceAudio,
-    reference_text: transcript.slice(0, 1200),
-    style_instruction: 'Read the provided text verbatim from beginning to end. Do not add, omit, repeat, paraphrase, preface, append, or improvise any words. Speak naturally and clearly.'
+    style_instruction: 'Read the entire provided text verbatim from the first word through the final word. Do not add, omit, repeat, paraphrase, preface, append, shorten, summarize, or improvise any words. Do not stop early. Finish only after speaking the final word. Speak naturally and clearly.'
   };
+  if (transcript) input.reference_text = transcript.slice(0, 1200);
+  return input;
 }
 
 async function saveOutput(output, targetPath) {

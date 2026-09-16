@@ -18,14 +18,17 @@ test('sends the administrator script to Qwen without replacing or rewriting it',
   assert.match(input.style_instruction, /verbatim/i);
 });
 
-test('refuses Qwen voice cloning without an exact reference transcript', () => {
-  assert.throws(
-    () => buildVoiceCloneInput({
-      referenceAudio: Buffer.from('audio'),
-      referenceText: '',
-      text: 'Administrator script',
-      language: 'English'
-    }),
-    /exact transcript/
-  );
+test('accepts the uploaded voice sample without a reference transcript', () => {
+  const input = buildVoiceCloneInput({
+    referenceAudio: Buffer.from('audio'),
+    referenceText: '',
+    text: 'Administrator script',
+    language: 'English'
+  });
+
+  assert.equal(input.mode, 'voice_clone');
+  assert.equal(input.text, 'Administrator script');
+  assert.equal(input.reference_audio.toString(), 'audio');
+  assert.equal('reference_text' in input, false);
+  assert.match(input.style_instruction, /Do not stop early/i);
 });

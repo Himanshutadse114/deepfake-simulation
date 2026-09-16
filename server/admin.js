@@ -61,7 +61,7 @@ function renderAdminPage() {
 </head>
 <body>
 <main class="wrap">
-  <div class="top"><div class="kicker">Internal configuration</div><h1>Simulation script admin</h1><p class="muted">Set the two approved awareness scripts. Qwen generates one WhatsApp track and one video track; each must be 12 seconds or less before Pruna can be called.</p></div>
+  <div class="top"><div class="kicker">Internal configuration</div><h1>Simulation script admin</h1><p class="muted">Set the two approved awareness scripts. Qwen generates one complete cloned-voice track for WhatsApp and one for the video.</p></div>
   <section class="card">
     <label for="adminKey">Admin key</label>
     <input id="adminKey" type="password" autocomplete="current-password" placeholder="Enter ADMIN_KEY">
@@ -73,7 +73,7 @@ function renderAdminPage() {
     <textarea id="videoScript" maxlength="${max}" placeholder="Deepfake video script"></textarea>
 
     <div class="actions"><button class="btn secondary" id="loadScripts" type="button">Load current</button><button class="btn primary" id="saveScripts" type="button">Save scripts</button></div>
-    <div class="note">Each script is limited to ${config.scriptPolicy.maxWords} words. Generated speech is transcribed and must match the saved administrator script before Pruna can be called. Sensitive payment and credential requests remain blocked by the core simulation safeguard.</div>
+    <div class="note">Each script is limited to ${config.scriptPolicy.maxWords} words. Qwen receives the saved script exactly as written and the participant's uploaded voice sample directly. The delivered video is limited to 10 seconds. Sensitive payment and credential requests remain blocked by the core simulation safeguard.</div>
     <div class="status" id="adminStatus"></div>
   </section>
 </main>
