@@ -15,10 +15,27 @@ function runFfmpeg(args) {
   });
 }
 
-function buildTrimArgs(inputPath, outputPath, maxSeconds) {
+function atempoChain(speed) {
+  const filters = [];
+  let remaining = speed;
+  while (remaining > 2) {
+    filters.push('atempo=2');
+    remaining /= 2;
+  }
+  filters.push(`atempo=${remaining.toFixed(6)}`);
+  return filters;
+}
+
+function buildFitArgs(inputPath, outputPath, originalSeconds, maxSeconds) {
+  const speed = originalSeconds / maxSeconds;
+  const filters = [
+    ...atempoChain(speed),
+    `atrim=duration=${maxSeconds}`,
+    'asetpts=N/SR/TB'
+  ];
   return [
     '-i', inputPath,
-    '-t', String(maxSeconds),
+    '-af', filters.join(','),
     '-acodec', 'pcm_s16le',
     '-ar', '24000',
     '-ac', '1',
@@ -37,17 +54,17 @@ async function capAudioDuration(filePath, maxSeconds = 10) {
       path: filePath,
       originalSeconds,
       finalSeconds: originalSeconds,
-      trimmed: false
+      adjusted: false
     };
   }
 
   const ext = path.extname(filePath) || '.wav';
-  const tempPath = `${filePath}.trimmed${ext}`;
-  await runFfmpeg(buildTrimArgs(filePath, tempPath, maxSeconds));
+  const tempPath = `${filePath}.normalised${ext}`;
+  await runFfmpeg(buildFitArgs(filePath, tempPath, originalSeconds, maxSeconds));
   const finalSeconds = await probeAudioDuration(tempPath);
   if (!Number.isFinite(finalSeconds) || finalSeconds <= 0 || finalSeconds > maxSeconds + 0.05) {
     await fs.rm(tempPath, { force: true }).catch(() => {});
-    throw new Error(`Generated audio could not be capped to ${maxSeconds} seconds.`);
+    throw new Error(`Generated audio could not be normalised to ${maxSeconds} seconds.`);
   }
 
   await fs.rename(tempPath, filePath);
@@ -55,8 +72,8 @@ async function capAudioDuration(filePath, maxSeconds = 10) {
     path: filePath,
     originalSeconds,
     finalSeconds,
-    trimmed: true
+    adjusted: true
   };
 }
 
-module.exports = { capAudioDuration, buildTrimArgs };
+module.exports = { capAudioDuration, buildFitArgs, atempoChain };
