@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { generateCheckedAudioTracks } = require('../server/pipeline');
 
-test('does not continue to Pruna when either generated audio exceeds twelve seconds', async () => {
+test('uses the ten-second generated-audio ceiling before Pruna', async () => {
   const session = {
     scripts: {
       whatsapp: 'Administrator WhatsApp script',
@@ -19,14 +19,15 @@ test('does not continue to Pruna when either generated audio exceeds twelve seco
     }, {
       generateVoice: async (_session, outputPath, script) => generated.push([outputPath, script]),
       assertAudioDuration: async (outputPath, options) => {
-        assert.equal(options.maxSeconds, 12);
-        if (outputPath === 'video.wav') throw new Error('Generated video audio exceeds 12 seconds');
+        assert.equal(options.maxSeconds, 10);
+        if (outputPath === 'video.wav') throw new Error('Generated video audio could not be normalised to 10 seconds');
       }
     });
 
-    // This represents the next pipeline step and must remain unreachable.
+    // This represents the next pipeline step and must remain unreachable when
+    // local normalisation/validation itself fails.
     prunaCalls += 1;
-  }, /exceeds 12 seconds/);
+  }, /normalised to 10 seconds/);
 
   assert.deepEqual(generated, [
     ['whatsapp.wav', 'Administrator WhatsApp script'],
