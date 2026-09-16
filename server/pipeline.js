@@ -8,8 +8,10 @@ const {
 } = require('./store');
 const {
   persistGeneratedFile,
+  persistTemporaryProviderFile,
   materialize,
-  deleteRef
+  deleteRef,
+  isObjectRef
 } = require('./storage');
 const { describeScript, sameScript } = require('./script-audit');
 const { synthesizeScript: synthesizeQwen } = require('./services/qwen');
@@ -24,6 +26,8 @@ const { generateAvatarVideo: generateHeyGenVideo } = require('./services/heygen'
 const { generateAvatarVideo: generatePrunaVideo } = require('./services/pruna');
 const { createWatermarkedVideo } = require('./services/watermark');
 const { assertAudioDuration } = require('./services/audio-duration');
+const { normalizeReferenceAudio } = require('./services/audio-normalize');
+const { transcribeAudio, compareTranscripts } = require('./services/transcription');
 
 function didConfigured() {
   return config.providers.didEnabled && Boolean(config.providers.didKey);
@@ -45,8 +49,11 @@ function buildFluxItems(existing = []) {
 
 function ensureStages(session) {
   session.stages ||= {};
+  session.stages.referenceVoice ||= { status: 'pending', predictionId: null };
   session.stages.whatsappAudio ||= { status: 'pending', predictionId: null };
+  session.stages.whatsappVerification ||= { status: 'pending', predictionId: null };
   session.stages.videoAudio ||= { status: 'pending', predictionId: null };
+  session.stages.videoVerification ||= { status: 'pending', predictionId: null };
   session.stages.pruna ||= { status: 'pending', predictionId: null, providerUrl: null };
   session.stages.flux ||= { status: 'pending', predictionId: null, providerUrl: null };
   session.stages.flux.items = buildFluxItems(session.stages.flux.items || []);
@@ -170,7 +177,12 @@ async function generateVoice(session, speechPath, text, status = 'cloning_voice'
   if (provider === 'qwen') {
     if (!config.providers.replicateToken) throw new Error('REPLICATE_API_TOKEN is required when VOICE_PROVIDER=qwen.');
     const callbacks = predictionCallbacks(session, stageKey);
-    await synthesizeQwen(session.voice, speechPath, session.voice?.referenceText || '', text, {
+    const verifiedVoice = {
+      ...session.voice,
+      path: session.voice?.normalizedPath || session.voice?.path,
+      mime: session.voice?.normalizedPath ? 'audio/wav' : session.voice?.mime
+    };
+    await synthesizeQwen(verifiedVoice, speechPath, session.voice?.referenceText || '', text, {
       ...callbacks,
       onRateLimit: rateLimitStatus(session)
     });
@@ -225,10 +237,72 @@ async function validateGeneratedTrack(session, stageKey, filePath, options, chec
   }
 }
 
+function verificationStageKey(stageKey) {
+  return stageKey === 'videoAudio' ? 'videoVerification' : 'whatsappVerification';
+}
+
+async function verifyGeneratedSpeech(session, stageKey, speechPath, expectedText, dependencies = {}) {
+  const transcribe = dependencies.transcribeAudio || transcribeAudio;
+  const compare = dependencies.compareTranscripts || compareTranscripts;
+  const verificationKey = verificationStageKey(stageKey);
+  const verificationStage = ensureStages(session)[verificationKey];
+
+  updateStatus(session, 'verifying_audio', 'Checking the generated voice against the administrator script.');
+  await persistSession(session);
+
+  let transcript = verificationStage.transcript;
+  if (verificationStage.status !== 'completed' || !transcript) {
+    const callbacks = predictionCallbacks(session, verificationKey);
+    try {
+      transcript = await transcribe(speechPath, 'audio/wav', {
+        ...callbacks,
+        label: `${stageKey === 'videoAudio' ? 'Video' : 'WhatsApp'} generated-speech verification`,
+        onRateLimit: rateLimitStatus(session)
+      });
+    } catch (error) {
+      verificationStage.status = error.code === 'REPLICATE_CREATE_AMBIGUOUS'
+        ? 'creation_ambiguous'
+        : error.nonRetryable ? 'provider_failed' : 'interrupted';
+      verificationStage.validationError = error.message;
+      await persistSession(session);
+      throw error;
+    }
+  }
+
+  const result = compare(expectedText, transcript);
+  verificationStage.transcript = transcript;
+  verificationStage.transcriptAudit = {
+    verified: result.matches,
+    wordErrorRate: result.wordErrorRate,
+    expectedWordCount: result.expectedWordCount,
+    actualWordCount: result.actualWordCount,
+    expected: describeScript(expectedText),
+    actual: describeScript(transcript)
+  };
+
+  if (!result.matches) {
+    const message = `Generated speech did not match the administrator script (word error rate ${(result.wordErrorRate * 100).toFixed(1)}%). Audio was rejected before video generation.`;
+    verificationStage.status = 'validation_failed';
+    verificationStage.validationError = message;
+    session.stages[stageKey].status = 'validation_failed';
+    session.stages[stageKey].validationError = message;
+    await persistSession(session);
+    const error = new Error(message);
+    error.code = 'GENERATED_TRANSCRIPT_MISMATCH';
+    error.nonRetryable = true;
+    throw error;
+  }
+
+  verificationStage.status = 'completed';
+  await persistSession(session);
+  return result;
+}
+
 async function generateCheckedAudioTracks(session, { whatsappPath, videoSpeechPath }, dependencies = {}) {
   ensureStages(session);
   const generateVoiceTrack = dependencies.generateVoice || generateVoice;
   const checkDuration = dependencies.assertAudioDuration || assertAudioDuration;
+  const verifySpeech = dependencies.verifyGeneratedSpeech || verifyGeneratedSpeech;
 
   if (session.stages.whatsappAudio.status !== 'completed' || !session.whatsappAudioOutput) {
     await generateVoiceTrack(session, whatsappPath, session.scripts.whatsapp, 'cloning_whatsapp', 'whatsappAudio');
@@ -236,6 +310,7 @@ async function generateCheckedAudioTracks(session, { whatsappPath, videoSpeechPa
       label: 'Generated awareness audio',
       maxSeconds: config.maxGeneratedAudioSeconds
     }, checkDuration);
+    await verifySpeech(session, 'whatsappAudio', whatsappPath, session.scripts.whatsapp);
     await persistAudioTrack(session, 'whatsappAudio', whatsappPath, 'whatsapp-speech.wav');
   }
 
@@ -245,6 +320,7 @@ async function generateCheckedAudioTracks(session, { whatsappPath, videoSpeechPa
       label: 'Generated video audio',
       maxSeconds: config.maxVideoSeconds
     }, checkDuration);
+    await verifySpeech(session, 'videoAudio', videoSpeechPath, session.scripts.video);
     await persistAudioTrack(session, 'videoAudio', videoSpeechPath, 'video-speech.wav');
   }
 }
@@ -256,31 +332,83 @@ function extensionForAudioMime(mime) {
   return 'webm';
 }
 
-async function validateParticipantVoice(session, workspace) {
-  if (session.voicePreflight?.status === 'completed') return session.voicePreflight;
+async function validateParticipantVoice(session, workspace, dependencies = {}) {
   if (!session.voice?.path) throw new Error('Participant voice sample is missing.');
 
-  updateStatus(session, 'validating', 'Preparing the voice sample locally before the paid AI request.');
+  ensureStages(session);
+  const normalize = dependencies.normalizeReferenceAudio || normalizeReferenceAudio;
+  const checkDuration = dependencies.assertAudioDuration || assertAudioDuration;
+  const transcribe = dependencies.transcribeAudio || transcribeAudio;
+  const persistProviderFile = dependencies.persistTemporaryProviderFile || persistTemporaryProviderFile;
+  const materializeInput = dependencies.materialize || materialize;
+  const normalizedPath = path.join(workspace, 'reference-voice.wav');
+
+  if (session.voicePreflight?.status === 'completed' && session.voice?.normalizedPath && session.voice?.referenceText) {
+    if (isObjectRef(session.voice.normalizedPath)) return session.voicePreflight;
+    try {
+      await fs.access(session.voice.normalizedPath);
+      return session.voicePreflight;
+    } catch {
+      // A local worker workspace can be removed after an interrupted run. The
+      // normalized file is recreated below while its saved Whisper transcript
+      // and prediction checkpoint remain reusable.
+    }
+  }
+
+  updateStatus(session, 'validating', 'Normalizing and transcribing the consented voice sample.');
   await persistSession(session);
 
   const localPath = path.join(workspace, `reference-voice.${extensionForAudioMime(session.voice.mime)}`);
-  await materialize(session.voice.path, localPath);
+  await materializeInput(session.voice.path, localPath);
   try {
-    const seconds = await assertAudioDuration(localPath, {
-      label: 'Voice sample',
-      minSeconds: 2,
+    await normalize(localPath, normalizedPath, { maxSeconds: config.maxReferenceAudioSeconds });
+    const seconds = await checkDuration(normalizedPath, {
+      label: 'Normalized voice sample',
+      minSeconds: config.minReferenceAudioSeconds,
       maxSeconds: config.maxReferenceAudioSeconds
     });
-    session.voicePreflight = { status: 'completed', durationSeconds: Number(seconds.toFixed(3)) };
+    session.voice.normalizedPath = await persistProviderFile(
+      session.id,
+      'reference-voice.wav',
+      normalizedPath,
+      'audio/wav'
+    );
+    session.voicePreflight = { status: 'transcribing', durationSeconds: Number(seconds.toFixed(3)) };
     await persistSession(session);
-    return session.voicePreflight;
   } catch (cause) {
     session.voicePreflight = { status: 'failed', error: cause.message };
+    session.stages.referenceVoice.status = 'validation_failed';
+    session.stages.referenceVoice.validationError = cause.message;
     await persistSession(session);
     const error = new Error(`Voice sample preparation failed before paid AI work: ${cause.message}`);
     error.code = 'REFERENCE_AUDIO_INVALID';
     error.nonRetryable = true;
     error.cause = cause;
+    throw error;
+  }
+
+  try {
+    if (session.stages.referenceVoice.status !== 'completed' || !session.voice.referenceText) {
+      const callbacks = predictionCallbacks(session, 'referenceVoice');
+      session.voice.referenceText = await transcribe(session.voice.normalizedPath, 'audio/wav', {
+        ...callbacks,
+        label: 'Reference voice transcription',
+        onRateLimit: rateLimitStatus(session)
+      });
+    }
+    session.stages.referenceVoice.status = 'completed';
+    session.stages.referenceVoice.transcriptAudit = describeScript(session.voice.referenceText);
+    session.voice.transcriptSource = 'server-whisper';
+    session.voicePreflight.status = 'completed';
+    await persistSession(session);
+    return session.voicePreflight;
+  } catch (error) {
+    const stage = session.stages.referenceVoice;
+    stage.status = error.code === 'REPLICATE_CREATE_AMBIGUOUS'
+      ? 'creation_ambiguous'
+      : error.nonRetryable ? 'provider_failed' : 'interrupted';
+    session.voicePreflight = { ...session.voicePreflight, status: 'interrupted', error: error.message };
+    await persistSession(session);
     throw error;
   } finally {
     await fs.rm(localPath, { force: true }).catch(() => {});
@@ -563,6 +691,7 @@ module.exports = {
   generateVideoWithFallback,
   generateVoice,
   generateCheckedAudioTracks,
+  verifyGeneratedSpeech,
   validateGeneratedTrack,
   validateParticipantVoice,
   completeDemoSession,

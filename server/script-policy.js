@@ -3,12 +3,12 @@ const config = require('./config');
 const MAX_SCRIPT_CHARS = config.scriptPolicy.maxChars;
 const MIN_SCRIPT_CHARS = config.scriptPolicy.minChars;
 
-const awarenessTerms = /\b()\b/i;
+const awarenessTerms = /\b(ai|deepfake|synthetic|clone|cloned|security|cybersecurity|awareness|simulation|verify|verification|impersonation|fake|faked)\b/i;
 const urlPattern = /(?:https?:\/\/|www\.|\b[a-z0-9-]+\.(?:com|net|org|io|in|co)\b)/i;
-const secretPattern = /\b()\b/i;
-const requestVerb = /\b()\b/i;
-const moneyRequest = /\b()\b[\s\S]{0,45}\b()\b/i;
-const warningContext = /\b()\b/i;
+const secretPattern = /\b(password|passcode|otp|pin|credential|credentials|security code|recovery code)\b/i;
+const requestVerb = /\b(send|share|tell|give|provide|enter|reveal|disclose)\b/i;
+const moneyRequest = /\b(send|transfer|wire|pay|approve)\b[\s\S]{0,35}\b(money|payment|funds?|cash|rupees?|dollars?|euros?)\b/i;
+const warningContext = /\b(do not|don't|never|avoid|refuse|warning|scam|fraud|suspicious|verify)\b/i;
 
 function normalizeScript(value) {
   return String(value || '').replace(/\s+/g, ' ').trim();

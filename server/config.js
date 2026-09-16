@@ -24,9 +24,11 @@ module.exports = {
 
   maxImageBytes: numberEnv('MAX_IMAGE_SIZE_MB', 8) * 1024 * 1024,
   maxAudioBytes: numberEnv('MAX_AUDIO_SIZE_MB', 20) * 1024 * 1024,
-  maxReferenceAudioSeconds: Math.min(numberEnv('MAX_REFERENCE_AUDIO_SECONDS', 60), 120),
+  minReferenceAudioSeconds: Math.min(numberEnv('MIN_REFERENCE_AUDIO_SECONDS', 3), 10),
+  maxReferenceAudioSeconds: Math.min(numberEnv('MAX_REFERENCE_AUDIO_SECONDS', 15), 15),
   maxGeneratedAudioSeconds: Math.min(numberEnv('MAX_GENERATED_AUDIO_SECONDS', 20), 30),
   maxVideoSeconds: Math.min(numberEnv('MAX_VIDEO_SECONDS', 20), 20),
+  transcriptMaxWordErrorRate: Math.min(numberEnv('TRANSCRIPT_MAX_WORD_ERROR_RATE', 0.05), 0.2),
   retentionMs: numberEnv('MEDIA_RETENTION_MINUTES', 30) * 60 * 1000,
 
   // Temporary project login: username defaults to "innvikta". A Render
@@ -75,6 +77,8 @@ module.exports = {
     voiceProvider: String(process.env.VOICE_PROVIDER || 'qwen').trim().toLowerCase(),
     qwenModel: process.env.QWEN_MODEL || 'qwen/qwen3-tts',
     qwenLanguage: process.env.QWEN_LANGUAGE || 'auto',
+    whisperModel: process.env.WHISPER_MODEL || 'openai/whisper',
+    whisperLanguage: process.env.WHISPER_LANGUAGE || 'auto',
 
     chatterboxModel: process.env.CHATTERBOX_MODEL || 'resemble-ai/chatterbox-multilingual:9cfba4c265e685f840612be835424f8c33bdee685d7466ece7684b0d9d4c0b1c',
     chatterboxLanguage: process.env.CHATTERBOX_LANGUAGE || 'en',

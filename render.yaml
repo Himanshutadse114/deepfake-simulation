@@ -73,8 +73,16 @@ services:
         value: qwen/qwen3-tts
       - key: QWEN_LANGUAGE
         value: auto
+      - key: WHISPER_MODEL
+        value: openai/whisper
+      - key: WHISPER_LANGUAGE
+        value: auto
+      - key: MIN_REFERENCE_AUDIO_SECONDS
+        value: 3
       - key: MAX_REFERENCE_AUDIO_SECONDS
-        value: 60
+        value: 15
+      - key: TRANSCRIPT_MAX_WORD_ERROR_RATE
+        value: 0.05
       - key: MAX_GENERATED_AUDIO_SECONDS
         value: 20
       - key: MAX_VIDEO_SECONDS

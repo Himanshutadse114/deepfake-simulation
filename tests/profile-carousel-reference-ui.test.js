@@ -7,6 +7,7 @@ const root = path.join(__dirname, '..');
 const read = (relative) => fs.readFileSync(path.join(root, relative), 'utf8');
 
 const referenceUi = read('client/public/profile-carousel-reference-ui.js');
+const bootstrap = read('client/public/ui-bootstrap.js');
 const index = read('client/index.html');
 const demo = read('server/demo.js');
 
@@ -55,7 +56,6 @@ test('reference layer keeps generated Instagram image bindings and is loaded in 
   assert.match(referenceUi, /data-carousel-photo="1"/);
   assert.match(referenceUi, /data-carousel-photo="2"/);
   assert.match(referenceUi, /data-carousel-photo="3"/);
-  assert.match(index, /profile-carousel-reference-ui\.js\?v=reference-carousel-20260824-1/);
-  assert.match(demo, /profile-carousel-reference-ui\.js\?v=reference-carousel-20260824-1/);
+  assert.match(bootstrap, /profile-carousel-reference-ui\.js\?v=reference-ui-20260824-2/);
   assert.doesNotThrow(() => new Function(referenceUi));
 });

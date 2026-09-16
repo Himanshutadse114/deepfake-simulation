@@ -33,11 +33,9 @@ function buildVoiceCloneInput({ text, language, referenceAudio, referenceText = 
     style_instruction: EXACT_SCRIPT_STYLE
   };
 
-  // Replicate/Qwen recommends supplying the transcript when it is known. We
-  // only send it for the guided in-app recording where the transcript is exact;
-  // arbitrary uploads are still accepted without inspecting/verifying speech.
   const transcript = String(referenceText || '').trim();
-  if (transcript) input.reference_text = transcript.slice(0, 1200);
+  if (!transcript) throw new Error('Qwen3-TTS voice cloning requires the server-verified reference transcript.');
+  input.reference_text = transcript.slice(0, 1200);
   return input;
 }
 

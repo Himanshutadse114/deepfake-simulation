@@ -122,10 +122,9 @@ router.post('/:id/voice', loadAuthorisedSession, upload.single('voice'), async (
   try {
     if (req.simulation.status !== 'collecting') return res.status(409).json({ error: 'This session is no longer accepting media.' });
     const saved = await persistParticipantFile(req.simulation.id, 'voice', req.file);
-    saved.referenceText = String(req.body?.referenceText || '').trim().slice(0, 1200);
     req.simulation.voice = saved;
     await saveSession(req.simulation);
-    res.json({ ok: true, size: saved.size, mime: saved.mime, transcriptProvided: Boolean(saved.referenceText) });
+    res.json({ ok: true, size: saved.size, mime: saved.mime, transcriptSource: 'server-verification-pending' });
   } catch (error) { next(error); }
 });
 

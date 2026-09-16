@@ -64,7 +64,7 @@ test('bootstrap loads carousel after participant-name guard and entry pages cach
   const carouselIndex = bootstrap.indexOf('/profile-carousel-experience.js?v=cloned-profiles-20260824-2');
   assert.ok(nameIndex >= 0);
   assert.ok(carouselIndex > nameIndex);
-  assert.match(index, /ui-bootstrap\.js\?v=profile-carousel-20260824-4/);
-  assert.match(demo, /ui-bootstrap\.js\?v=profile-carousel-20260824-4/);
+  assert.match(index, /ui-bootstrap\.js\?v=retained-polish-20260824-7/);
+  assert.match(demo, /ui-bootstrap\.js\?v=retained-polish-20260824-7/);
   assert.doesNotThrow(() => new Function(carousel));
 });

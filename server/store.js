@@ -26,8 +26,11 @@ function sessionStateObjectKey(id) {
 
 function buildStages() {
   return {
+    referenceVoice: { status: 'pending', predictionId: null },
     whatsappAudio: { status: 'pending', predictionId: null },
+    whatsappVerification: { status: 'pending', predictionId: null },
     videoAudio: { status: 'pending', predictionId: null },
+    videoVerification: { status: 'pending', predictionId: null },
     pruna: { status: 'pending', predictionId: null, providerUrl: null },
     flux: { status: 'pending', predictionId: null, providerUrl: null }
   };
