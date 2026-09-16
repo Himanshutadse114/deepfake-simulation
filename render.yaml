@@ -74,7 +74,7 @@ services:
       - key: QWEN_LANGUAGE
         value: auto
       - key: WHISPER_MODEL
-        value: openai/whisper
+        value: openai/whisper:8099696689d249cf8b122d833c36ac3f75505c666a395ca40ef26f68e7d3d16e
       - key: WHISPER_LANGUAGE
         value: auto
       - key: MIN_REFERENCE_AUDIO_SECONDS

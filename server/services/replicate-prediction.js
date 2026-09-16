@@ -15,8 +15,29 @@ function authHeaders(extra = {}) {
 
 function modelParts(model) {
   const [owner, name, extra] = String(model || '').split('/');
-  if (!owner || !name || extra) throw new Error(`Expected an official Replicate model in owner/name form, received: ${model}`);
+  if (!owner || !name || extra || name.includes(':')) {
+    throw new Error(`Expected an official Replicate model in owner/name form, received: ${model}`);
+  }
   return { owner, name };
+}
+
+function predictionCreateRequest(model, input) {
+  const identifier = String(model || '').trim();
+  const versionMatch = identifier.match(/^([^/\s]+)\/([^/:\s]+):([a-f0-9]{64})$/i);
+  if (versionMatch) {
+    return {
+      url: `${API}/predictions`,
+      body: { version: identifier, input },
+      type: 'versioned'
+    };
+  }
+
+  const { owner, name } = modelParts(identifier);
+  return {
+    url: `${API}/models/${encodeURIComponent(owner)}/${encodeURIComponent(name)}/predictions`,
+    body: { input },
+    type: 'official'
+  };
 }
 
 async function parseResponse(response, label, { creation = false } = {}) {
@@ -37,17 +58,16 @@ async function parseResponse(response, label, { creation = false } = {}) {
 }
 
 async function createOfficialPrediction(model, input, { cancelAfter = '5m' } = {}) {
-  const { owner, name } = modelParts(model);
-  const url = `${API}/models/${encodeURIComponent(owner)}/${encodeURIComponent(name)}/predictions`;
+  const request = predictionCreateRequest(model, input);
   let response;
   try {
-    response = await fetch(url, {
+    response = await fetch(request.url, {
       method: 'POST',
       headers: authHeaders({
         'content-type': 'application/json',
         'Cancel-After': cancelAfter
       }),
-      body: JSON.stringify({ input }),
+      body: JSON.stringify(request.body),
       signal: AbortSignal.timeout(30_000)
     });
   } catch (cause) {
@@ -197,5 +217,7 @@ module.exports = {
   runOfficialPrediction,
   cancelSessionPredictions,
   collectPredictionIds,
-  retryableReadError
+  retryableReadError,
+  modelParts,
+  predictionCreateRequest
 };

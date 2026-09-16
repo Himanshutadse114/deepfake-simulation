@@ -13,6 +13,8 @@ const booleanEnv = (name, fallback) => {
 
 const ROOT = path.resolve(__dirname, '..');
 const UPLOAD_ROOT = path.join(ROOT, 'uploads');
+const WHISPER_VERSION = 'openai/whisper:8099696689d249cf8b122d833c36ac3f75505c666a395ca40ef26f68e7d3d16e';
+const configuredWhisperModel = String(process.env.WHISPER_MODEL || '').trim();
 
 module.exports = {
   port: Number(process.env.PORT || 10000),
@@ -77,7 +79,12 @@ module.exports = {
     voiceProvider: String(process.env.VOICE_PROVIDER || 'qwen').trim().toLowerCase(),
     qwenModel: process.env.QWEN_MODEL || 'qwen/qwen3-tts',
     qwenLanguage: process.env.QWEN_LANGUAGE || 'auto',
-    whisperModel: process.env.WHISPER_MODEL || 'openai/whisper',
+    // openai/whisper is a versioned community model, not an official-model
+    // endpoint. Upgrade the earlier owner/name setting automatically so an
+    // existing Render environment cannot keep producing creation-time 404s.
+    whisperModel: !configuredWhisperModel || configuredWhisperModel === 'openai/whisper'
+      ? WHISPER_VERSION
+      : configuredWhisperModel,
     whisperLanguage: process.env.WHISPER_LANGUAGE || 'auto',
 
     chatterboxModel: process.env.CHATTERBOX_MODEL || 'resemble-ai/chatterbox-multilingual:9cfba4c265e685f840612be835424f8c33bdee685d7466ece7684b0d9d4c0b1c',
