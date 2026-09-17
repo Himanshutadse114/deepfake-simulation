@@ -21,6 +21,9 @@ test('voice recording keeps the 3-2-1 countdown and automatic save flow', () => 
   assert.match(fixes, /autoStopTimer = setTimeout\(\(\) => finishRecording\(false\), AUTO_RECORD_SECONDS \* 1000\)/);
   assert.match(fixes, /Your recording will save automatically/);
   assert.match(fixes, /fileName\.textContent = 'Recording ready'/);
+  assert.match(fixes, /const stream = activeStream/);
+  assert.match(fixes, /if \(activeRecorder === recorder\) activeRecorder = null/);
+  assert.match(fixes, /recordingBusy = false/);
   assert.doesNotMatch(fixes, />Use recording</);
 });
 
@@ -59,12 +62,12 @@ test('the rejected LinkedIn Facebook and newspaper polish is no longer applied',
 test('retained polish loads after the existing carousel and WhatsApp runtime', () => {
   const baseCarousel = bootstrap.indexOf('/profile-carousel-experience.js?v=cloned-profiles-20260824-2');
   const referenceCarousel = bootstrap.indexOf('/profile-carousel-reference-ui.js?v=reference-ui-20260824-2');
-  const desktopFixes = bootstrap.indexOf('/desktop-experience-fixes.js?v=recording-preview-20260916-2');
+  const desktopFixes = bootstrap.indexOf('/desktop-experience-fixes.js?v=project-audit-20260917-1');
   assert.ok(baseCarousel >= 0);
   assert.ok(referenceCarousel > baseCarousel);
   assert.ok(desktopFixes > referenceCarousel);
   assert.match(bootstrap, /whatsapp-copy-fix\.js\?v=whatsapp-final-flow-20260824-4/);
-  assert.match(index, /ui-bootstrap\.js\?v=recording-preview-20260916-2/);
-  assert.match(demo, /ui-bootstrap\.js\?v=recording-preview-20260916-2/);
+  assert.match(index, /ui-bootstrap\.js\?v=project-audit-20260917-1/);
+  assert.match(demo, /ui-bootstrap\.js\?v=project-audit-20260917-1/);
   assert.doesNotThrow(() => new Function(fixes));
 });

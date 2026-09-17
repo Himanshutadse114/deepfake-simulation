@@ -21,6 +21,14 @@ test('generation polling reconnects without abandoning the active session', () =
   assert.match(generation, /15 \* 60 \* 1000/);
 });
 
+test('an ambiguous generate response is reconciled without deleting paid work', () => {
+  assert.match(integration, /responseError\.status = response\.status/);
+  assert.match(generation, /async function recoverAmbiguousGenerationAdmission/);
+  assert.match(generation, /No duplicate AI work will be started/);
+  assert.match(generation, /admissionRequestStarted && liveSession && error\?\.isNetworkError/);
+  assert.match(generation, /payload\.status === 'collecting'/);
+});
+
 test('the loading screen presents a neutral reconnection message', () => {
   assert.match(polish, /case 'reconnecting'/);
   assert.doesNotMatch(polish, /Failed to fetch/);

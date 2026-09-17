@@ -16,9 +16,13 @@ jobs:
         with:
           node-version: 20
       - name: Install server dependencies
-        run: npm install
+        run: npm ci
       - name: Install client dependencies
-        run: npm --prefix client install
+        run: npm --prefix client ci
+      - name: Dependency audit
+        run: |
+          npm audit --omit=dev
+          npm --prefix client audit --omit=dev
       - name: Unit tests
         run: npm test
       - name: Syntax check server and UI runtime
@@ -50,6 +54,7 @@ jobs:
           node --check server/services/replicate-prediction.js
           node --check server/services/download.js
           node --check server/services/process-limit.js
+          node --check server/services/media-process.js
           node --check server/services/audio-duration.js
           node --check server/services/audio-signal.js
           node --check server/services/video-audio.js

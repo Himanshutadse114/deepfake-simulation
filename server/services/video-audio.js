@@ -1,5 +1,4 @@
-const { spawn } = require('node:child_process');
-const { withMediaProcessSlot } = require('./process-limit');
+const { runMediaProcess } = require('./media-process');
 
 function buildVideoAudioArgs(inputPath, outputPath, maxSeconds = 10) {
   return [
@@ -13,21 +12,13 @@ function buildVideoAudioArgs(inputPath, outputPath, maxSeconds = 10) {
   ];
 }
 
-function createVideoAudioInput(inputPath, outputPath, { maxSeconds = 10 } = {}) {
-  return withMediaProcessSlot(() => new Promise((resolve, reject) => {
-    const process = spawn(
-      'ffmpeg',
-      ['-hide_banner', '-loglevel', 'error', '-y', ...buildVideoAudioArgs(inputPath, outputPath, maxSeconds)],
-      { stdio: ['ignore', 'ignore', 'pipe'] }
-    );
-    let stderr = '';
-    process.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
-    process.on('error', (error) => reject(new Error(`FFmpeg is required to prepare the 10-second video audio: ${error.message}`)));
-    process.on('close', (code) => {
-      if (code === 0) resolve(outputPath);
-      else reject(new Error(stderr.slice(-1200) || `FFmpeg video-audio preparation exited with code ${code}`));
-    });
-  }));
+async function createVideoAudioInput(inputPath, outputPath, { maxSeconds = 10 } = {}) {
+  await runMediaProcess(
+    'ffmpeg',
+    ['-hide_banner', '-loglevel', 'error', '-y', ...buildVideoAudioArgs(inputPath, outputPath, maxSeconds)],
+    { label: 'FFmpeg video-audio preparation', timeoutMs: 60_000 }
+  );
+  return outputPath;
 }
 
 module.exports = { createVideoAudioInput, buildVideoAudioArgs };

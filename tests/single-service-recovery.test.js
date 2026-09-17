@@ -5,7 +5,8 @@ const {
   getSession,
   saveSession,
   updateStatus,
-  deleteSession
+  deleteSession,
+  deletionObjectKey
 } = require('../server/store');
 const { predictionCallbacks } = require('../server/pipeline');
 
@@ -55,4 +56,22 @@ test('paid prediction creation boundary is checkpointed before a prediction id e
   session.expiresAt = Date.now() - 1;
   await saveSession(session);
   await deleteSession(session.id, { cancelPredictions: false });
+});
+
+test('an active worker cannot recreate a session after explicit deletion', async () => {
+  const session = await createSession(
+    { faceOwnership: true, voiceOwnership: true, processing: true },
+    { mode: 'demo', scripts: { whatsapp: 'Awareness script for voice verification.', video: 'Awareness script for video verification.' } }
+  );
+
+  assert.equal(await deleteSession(session.id, { cancelPredictions: true }), true);
+  session.status = 'completed';
+  session.output = 'late-worker-output.mp4';
+
+  await assert.rejects(
+    saveSession(session),
+    (error) => error?.code === 'SESSION_DELETED' && error?.nonRetryable === true
+  );
+  assert.equal(await getSession(session.id), undefined);
+  assert.equal(deletionObjectKey(session.id), `control/deletions/${session.id}.json`);
 });

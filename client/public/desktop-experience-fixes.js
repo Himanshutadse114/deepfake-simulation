@@ -17,9 +17,14 @@
 
   const byId = (id) => document.getElementById(id);
 
+  function stopStream(stream) {
+    if (!stream) return;
+    try { stream.getTracks().forEach((track) => track.stop()); } catch (_) {}
+  }
+
   function stopTracks() {
     if (!activeStream) return;
-    try { activeStream.getTracks().forEach((track) => track.stop()); } catch (_) {}
+    stopStream(activeStream);
     activeStream = null;
   }
 
@@ -150,14 +155,21 @@
     clearRecordingTimers();
 
     if (activeRecorder && activeRecorder.state !== 'inactive') {
-      try { activeRecorder.stop(); } catch (_) { stopTracks(); }
+      try {
+        activeRecorder.stop();
+      } catch (_) {
+        stopTracks();
+        activeRecorder = null;
+        recordingBusy = false;
+      }
     } else {
       stopTracks();
+      activeRecorder = null;
+      recordingBusy = false;
     }
 
     const container = byId('recordContainer');
     if (container) container.style.display = 'none';
-    recordingBusy = false;
   }
 
   async function startRecordingWithCountdown(event) {
@@ -212,21 +224,25 @@
         const preferred = typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported?.('audio/webm;codecs=opus')
           ? 'audio/webm;codecs=opus'
           : '';
-        activeRecorder = new MediaRecorder(activeStream, preferred ? { mimeType: preferred } : undefined);
-        activeRecorder.ondataavailable = (chunkEvent) => {
+        const stream = activeStream;
+        const recorder = new MediaRecorder(stream, preferred ? { mimeType: preferred } : undefined);
+        activeRecorder = recorder;
+        recorder.ondataavailable = (chunkEvent) => {
           if (chunkEvent.data?.size) recordingChunks.push(chunkEvent.data);
         };
-        activeRecorder.onstop = () => {
-          const mime = activeRecorder?.mimeType || 'audio/webm';
+        recorder.onstop = () => {
+          const mime = recorder.mimeType || 'audio/webm';
           const blob = !recordingCancelled && recordingChunks.length
             ? new Blob(recordingChunks, { type: mime })
             : null;
           if (blob) applyRecordedAudio(blob, mime);
-          stopTracks();
-          activeRecorder = null;
+          stopStream(stream);
+          if (activeStream === stream) activeStream = null;
+          if (activeRecorder === recorder) activeRecorder = null;
           recordingChunks = [];
+          recordingBusy = false;
         };
-        activeRecorder.start(500);
+        recorder.start(500);
         setTeleprompterMode('recording');
         recordingSeconds = 0;
         if (timer) timer.textContent = '00:00';

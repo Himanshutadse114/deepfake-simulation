@@ -133,21 +133,32 @@ function entitlementObjectKey(identity) {
   return `control/entitlements/${digest}.json`;
 }
 
+async function reserveRedisEntitlement(redis, key, sessionId, ttlSeconds = 7 * 24 * 60 * 60) {
+  const script = `
+    local existing = redis.call('GET', KEYS[1])
+    if existing then
+      if existing == ARGV[1] then return {1, existing} end
+      return {0, existing}
+    end
+    redis.call('SET', KEYS[1], ARGV[1], 'EX', ARGV[2])
+    return {1, ARGV[1]}
+  `;
+  const result = await redis.eval(script, 1, key, sessionId, String(ttlSeconds));
+  if (Number(result?.[0]) === 1) return { enforced: true };
+
+  const error = new Error('This learner already has an AI generation reserved for this campaign.');
+  error.status = 409;
+  error.code = 'AI_SIMULATION_ALREADY_RESERVED';
+  throw error;
+}
+
 async function reserveLaunchEntitlement(identity, sessionId) {
   if (!identity?.userId || !identity?.tenantId || !identity?.campaignId) return { enforced: false };
   const redisKey = `deepfake:entitlement:${identity.tenantId}:${identity.campaignId}:${identity.userId}`;
   const redis = getRedisClient();
 
   if (redis) {
-    const existing = await redis.get(redisKey);
-    if (existing && existing !== sessionId) {
-      const error = new Error('This learner already has an AI generation reserved for this campaign.');
-      error.status = 409;
-      error.code = 'AI_SIMULATION_ALREADY_RESERVED';
-      throw error;
-    }
-    await redis.set(redisKey, sessionId, 'EX', 7 * 24 * 60 * 60, 'NX');
-    return { enforced: true };
+    return reserveRedisEntitlement(redis, redisKey, sessionId);
   }
 
   return withLocalLock(async () => {
@@ -182,5 +193,6 @@ module.exports = {
   reserveLaunchEntitlement,
   utcDay,
   durableBudgetPrefix,
-  entitlementObjectKey
+  entitlementObjectKey,
+  reserveRedisEntitlement
 };

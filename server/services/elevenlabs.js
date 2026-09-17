@@ -1,9 +1,8 @@
 const fs = require('node:fs/promises');
 const path = require('node:path');
-const { spawn } = require('node:child_process');
 const config = require('../config');
 const { isObjectRef, materialize } = require('../storage');
-const { withMediaProcessSlot } = require('./process-limit');
+const { runMediaProcess } = require('./media-process');
 
 const BASE = 'https://api.elevenlabs.io';
 
@@ -35,13 +34,11 @@ async function elevenFetch(endpoint, options = {}) {
 }
 
 function runFfmpeg(args) {
-  return withMediaProcessSlot(() => new Promise((resolve, reject) => {
-    const child = spawn('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', ...args]);
-    let stderr = '';
-    child.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
-    child.on('error', reject);
-    child.on('close', (code) => code === 0 ? resolve() : reject(new Error(stderr || `FFmpeg failed (${code}).`)));
-  }));
+  return runMediaProcess(
+    'ffmpeg',
+    ['-hide_banner', '-loglevel', 'error', '-y', ...args],
+    { label: 'ElevenLabs audio conversion', timeoutMs: 90_000 }
+  );
 }
 
 async function createTemporaryVoice(voiceFile, sessionId) {

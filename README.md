@@ -46,12 +46,14 @@ There is no Redis requirement in the one-service deployment. The in-process queu
 
 ## Active AI flow
 
-The simulation uses two Qwen voice-clone predictions, three FLUX profile-image predictions and one Pruna talking-head prediction.
+The simulation uses two Qwen voice-clone predictions, four FLUX profile-image predictions and one Pruna talking-head prediction.
 
 ```text
-Admin WhatsApp script ──→ Qwen3-TTS ──→ WhatsApp cloned audio ≤12 s
+Admin WhatsApp script ──→ Qwen3-TTS ──→ complete WhatsApp cloned audio
 
-Admin video script ─────→ Qwen3-TTS ──→ video cloned audio ≤10 s
+Admin video script ─────→ Qwen3-TTS ──→ complete video cloned audio
+                                             │
+                                   first 10 seconds only
                                              │
 Consented portrait ──────────────────────────┤
                                              ▼
@@ -63,31 +65,31 @@ Consented portrait ────────────────────�
                                              ▼
                                    permanent disclosure
 
-Consented portrait ──→ FLUX.2 Pro × 3 at 1 MP
-                        ├── close portrait
-                        ├── half-body lifestyle post
-                        └── near-full-body lifestyle post
+Consented portrait ──→ FLUX.2 Pro × 4 at 1 MP
+                        ├── office lifestyle post
+                        ├── cafe lifestyle post
+                        ├── city lifestyle post
+                        └── close park selfie
 ```
 
-The Instagram simulation displays **exactly three photo posts**. The deepfake video remains in the video-call part of the experience and is not reused as a social-media post.
+The Instagram simulation displays **exactly four photo posts**. The deepfake video remains in the video-call part of the experience and is not reused as a social-media post.
 
 ## Instagram realism
 
 Each FLUX generation is an independent square `1 MP` request using the same private identity reference. The reference is resized to no more than 1024 px on either side before provider use.
 
-The three prompts deliberately use different framing while prioritising the same recognisable face:
+The four prompts deliberately use different framing, setting and clothing while prioritising the same recognisable face:
 
-1. close head-and-shoulders / upper-chest portrait;
-2. natural waist-up / half-body social photo;
-3. near-full-body or full-body lifestyle photo, with the person kept large enough in frame for the face to remain clear.
+1. office or coworking lifestyle photo;
+2. cafe lifestyle photo;
+3. city promenade or public-plaza lifestyle photo;
+4. close head-and-shoulders park selfie.
 
-Prompts avoid studio, fashion-editorial and cinematic styling so the results resemble ordinary smartphone Instagram posts rather than three repeated AI portraits.
+Prompts avoid studio, fashion-editorial and cinematic styling so the results resemble ordinary smartphone Instagram posts rather than repeated AI portraits.
 
 ## Generation-time UI
 
-When a learner starts generation, the loading screen explains that the complete simulation **usually takes about two minutes to prepare** and shows an estimated `02:00` countdown.
-
-The timer is an expectation aid rather than a hard provider timeout. If generation takes longer, the UI changes to `Finishing up…` and continues polling normally. Queueing and provider rate limits can make real completion time longer than two minutes.
+When a learner starts generation, the loading screen reports queue and provider progress while the browser polls durable session state. It deliberately does not promise a fixed completion time because queueing and provider rate limits vary.
 
 ## Script integrity
 
@@ -106,11 +108,11 @@ The server is deliberately conservative because provider calls are billable.
 - Default FFmpeg/ffprobe concurrency is `2`.
 - Default queue admission limit is `250` jobs.
 - Each AI simulation reserves a configurable estimated amount before entering the paid queue.
-- The current default reservation is `$0.40` per simulation.
+- The current default reservation is `$0.70` per simulation.
 - Daily reservations are persisted in R2 so a Render restart does not reset the budget counter.
-- Pruna receives video audio capped at **10 seconds**, matching the final video cap.
-- WhatsApp cloned audio may be up to **12 seconds**.
-- FLUX makes exactly **three independent 1 MP predictions**.
+- Qwen receives each complete admin-approved script; generated audio is not rejected based on duration.
+- Pruna receives at most the first **10 seconds** of the cloned video track, and the final video is capped at **10 seconds**.
+- FLUX makes exactly **four independent 1 MP predictions**.
 - Each FLUX prediction has its own durable creation/prediction checkpoint so a restart does not blindly repurchase successful sibling images.
 - Paid video fallback is disabled.
 - Production video selection is locked to **Pruna only**, even if a stale hosting environment still contains an older provider preference.
@@ -159,16 +161,17 @@ This project is restricted to authorised participant-facing awareness training.
 3. Media setup
    - first name and surname
    - JPEG/PNG portrait upload or camera capture
-   - voice upload or browser recording
-4. Generation queue and approximately two-minute loading estimate
-5. Qwen WhatsApp voice generation and duration validation
-6. Qwen video voice generation and 10-second duration validation
-7. Pruna talking-head video + three independent FLUX 1 MP profile images
+   - browser voice recording with playback preview
+   - silence/inaudible-recording rejection before paid AI work
+4. Generation queue and live provider progress
+5. Qwen WhatsApp voice generation from the complete admin-approved script
+6. Qwen video voice generation from the complete admin-approved script
+7. Pruna talking-head video using at most 10 seconds of cloned audio + four independent FLUX 1 MP profile images
 8. Local video watermarking
 9. WhatsApp impersonation simulation
 10. Incoming WhatsApp video-call simulation
 11. Follow-on QR/payment scam simulation
-12. Three-post synthetic Instagram profile simulation
+12. Four-post synthetic Instagram profile simulation
 13. Analysis/learning
 14. Nine-question knowledge check
 15. Completion score and cleanup
@@ -194,7 +197,7 @@ AI_WORKER_CONCURRENCY=4
 FFMPEG_CONCURRENCY=2
 AI_MAX_QUEUED_JOBS=250
 AI_DAILY_BUDGET_USD=50
-ESTIMATED_SIMULATION_COST_USD=0.40
+ESTIMATED_SIMULATION_COST_USD=0.70
 
 VOICE_PROVIDER=qwen
 QWEN_MODEL=qwen/qwen3-tts
@@ -266,6 +269,7 @@ GET /api/simulation/:id/video?token=...
 GET /api/simulation/:id/variant/0?token=...
 GET /api/simulation/:id/variant/1?token=...
 GET /api/simulation/:id/variant/2?token=...
+GET /api/simulation/:id/variant/3?token=...
 ```
 
 Explicit cleanup:
@@ -290,22 +294,23 @@ sessions/<id>/generated/simulation.mp4
 sessions/<id>/generated/variant-1.jpg
 sessions/<id>/generated/variant-2.jpg
 sessions/<id>/generated/variant-3.jpg
+sessions/<id>/generated/variant-4.jpg
 ```
 
 Original participant media is deleted after successful provider work. Generated assets and session state remain only for the configured retention period. Expired session prefixes are deleted server-side.
 
-Control objects used for daily cost/learner reservations are stored separately under the private `control/` prefix.
+Control objects used for daily cost/learner reservations are stored separately under the private `control/` prefix. Short-lived deletion tombstones also use that prefix so an interrupted cleanup cannot restore an explicitly deleted session after a restart.
 
 ## Build and verification
 
 ```bash
-npm install
-npm --prefix client install
+npm ci
+npm --prefix client ci
 npm test
 npm --prefix client run build
 ```
 
-CI additionally performs Node syntax checks, a Docker build and an FFmpeg watermark smoke test.
+CI additionally performs production dependency audits, Node syntax checks, a Docker build, and FFmpeg audio-signal, video-audio, and watermark smoke tests.
 
 ## Deployment
 

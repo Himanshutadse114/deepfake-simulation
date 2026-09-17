@@ -1,6 +1,5 @@
-const { spawn } = require('node:child_process');
 const { downloadWithRetry } = require('./download');
-const { withMediaProcessSlot } = require('./process-limit');
+const { runMediaProcess } = require('./media-process');
 
 const WATERMARK_TEXT = 'AI-GENERATED SECURITY AWARENESS SIMULATION';
 
@@ -18,13 +17,11 @@ function buildWatermarkFilter() {
 }
 
 function spawnFfmpeg(args) {
-  return withMediaProcessSlot(() => new Promise((resolve, reject) => {
-    const process = spawn('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', ...args], { stdio: ['ignore', 'ignore', 'pipe'] });
-    let stderr = '';
-    process.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
-    process.on('error', (error) => reject(new Error(`FFmpeg is required to process the awareness video: ${error.message}`)));
-    process.on('close', (code) => code === 0 ? resolve() : reject(new Error(stderr.slice(-1200) || `ffmpeg exit ${code}`)));
-  }));
+  return runMediaProcess(
+    'ffmpeg',
+    ['-hide_banner', '-loglevel', 'error', '-y', ...args],
+    { label: 'Awareness video processing', timeoutMs: 4 * 60_000 }
+  );
 }
 
 function buildFfmpegArgs(inputPath, outputPath, maxSeconds) {

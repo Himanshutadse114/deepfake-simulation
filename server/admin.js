@@ -131,7 +131,7 @@ function renderAdminPage() {
       <div class="status" id="storageStatus"></div>
     </div>
 
-    <div class="note">Keep WhatsApp speech within 12 seconds and video speech within 10 seconds. Sensitive payment and credential requests remain blocked by the core simulation safeguard.</div>
+    <div class="note">The complete approved scripts are sent to Qwen without an audio-duration limit. Only the audio passed to Pruna and the final video are capped at 10 seconds. Sensitive payment and credential requests remain blocked by the core simulation safeguard.</div>
     <div class="status" id="adminStatus"></div>
   </section>
 </main>

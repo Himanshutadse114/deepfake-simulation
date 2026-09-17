@@ -1,5 +1,4 @@
-const { spawn } = require('node:child_process');
-const { withMediaProcessSlot } = require('./process-limit');
+const { runMediaProcess } = require('./media-process');
 
 const MIN_AUDIBLE_PEAK_DB = -45;
 
@@ -27,22 +26,15 @@ function assertAudibleLevels(levels, { minPeakDb = MIN_AUDIBLE_PEAK_DB } = {}) {
 }
 
 async function inspectAudioSignal(filePath) {
-  return withMediaProcessSlot(() => new Promise((resolve, reject) => {
-    const process = spawn('ffmpeg', [
+  try {
+    const { stderr } = await runMediaProcess('ffmpeg', [
       '-hide_banner', '-nostats', '-i', filePath,
       '-vn', '-af', 'volumedetect', '-f', 'null', '-'
-    ], { stdio: ['ignore', 'ignore', 'pipe'], windowsHide: true });
-    let stderr = '';
-    process.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
-    process.on('error', (error) => reject(microphoneError(`Audio signal check could not start: ${error.message}`)));
-    process.on('close', (code) => {
-      if (code !== 0) {
-        reject(microphoneError(`Audio signal check failed${stderr ? `: ${stderr.trim().slice(-500)}` : ` with exit code ${code}`}`));
-        return;
-      }
-      resolve(parseVolumeLevels(stderr));
-    });
-  }));
+    ], { label: 'Audio signal check', timeoutMs: 45_000 });
+    return parseVolumeLevels(stderr);
+  } catch (error) {
+    throw microphoneError(error.message);
+  }
 }
 
 async function assertAudibleAudio(filePath, options) {

@@ -2,12 +2,11 @@ const crypto = require('node:crypto');
 const fs = require('node:fs/promises');
 const fsSync = require('node:fs');
 const path = require('node:path');
-const { spawn } = require('node:child_process');
 const multer = require('multer');
 const config = require('./config');
 const { persistInputFile } = require('./storage');
-const { withMediaProcessSlot } = require('./services/process-limit');
 const { assertAudibleAudio } = require('./services/audio-signal');
+const { runMediaProcess } = require('./services/media-process');
 
 fsSync.mkdirSync(config.stagingRoot, { recursive: true });
 
@@ -103,19 +102,11 @@ async function readHeader(filePath, maxBytes = 1024 * 1024) {
 }
 
 function spawnFfmpeg(args, label) {
-  return withMediaProcessSlot(() => new Promise((resolve, reject) => {
-    const child = spawn('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', ...args], {
-      stdio: ['ignore', 'ignore', 'pipe'],
-      windowsHide: true
-    });
-    let stderr = '';
-    child.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
-    child.on('error', (error) => reject(new Error(`${label} failed to start: ${error.message}`)));
-    child.on('close', (code) => {
-      if (code === 0) return resolve();
-      reject(new Error(`${label} failed${stderr ? `: ${stderr.trim().slice(-900)}` : ` with exit code ${code}`}`));
-    });
-  }));
+  return runMediaProcess(
+    'ffmpeg',
+    ['-hide_banner', '-loglevel', 'error', '-y', ...args],
+    { label, timeoutMs: 60_000 }
+  );
 }
 
 async function normalizeJpegOrientation(inputPath) {

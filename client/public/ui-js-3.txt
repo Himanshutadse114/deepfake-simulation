@@ -23,6 +23,23 @@ async function uploadSessionMedia(session) {
   await apiRequest(`/api/simulation/${session.id}/voice`, { method: 'POST', body: voiceForm }, session.token);
 }
 
+async function recoverAmbiguousGenerationAdmission() {
+  if (!liveSession) throw new Error('Simulation session is unavailable.');
+  updateGenerationFromServer({
+    status: 'reconnecting',
+    detail: 'Confirming your existing generation request. No duplicate AI work will be started.'
+  });
+
+  // POST /generate is server-side idempotent. Repeating it is safe when the
+  // browser cannot tell whether the original response was lost in transit.
+  await apiRequest(
+    `/api/simulation/${liveSession.id}/generate`,
+    { method: 'POST', body: JSON.stringify({}) },
+    liveSession.token
+  );
+  await pollGenerationUntilReady();
+}
+
 async function startGeneration() {
   if (generationInProgress) return;
   generationInProgress = true;
@@ -31,6 +48,7 @@ async function startGeneration() {
   const generateButton = document.getElementById('generateBtn');
   if (generateButton) generateButton.disabled = true;
   if (liveSession) await cleanupLiveSession();
+  let admissionRequestStarted = false;
   try {
     const whatsappScript = safeScriptClientCheck(whatsappScriptInput?.value, 'WhatsApp audio script');
     const videoScript = safeScriptClientCheck(videoScriptInput?.value, 'Deepfake video audio script');
@@ -56,9 +74,18 @@ async function startGeneration() {
 
     updateGenerationFromServer({ status: 'validating', detail: 'Loading your facial structure and voice sample…' });
     await uploadSessionMedia(liveSession);
+    admissionRequestStarted = true;
     await apiRequest(`/api/simulation/${liveSession.id}/generate`, { method: 'POST', body: JSON.stringify({}) }, liveSession.token);
     await pollGenerationUntilReady();
   } catch (error) {
+    if (admissionRequestStarted && liveSession && error?.isNetworkError) {
+      try {
+        await recoverAmbiguousGenerationAdmission();
+        return;
+      } catch (recoveryError) {
+        error = recoveryError;
+      }
+    }
     clearTimeout(generationPollTimer);
     const eta = document.getElementById('genEta');
     if (eta) eta.textContent = error.message;
@@ -74,6 +101,7 @@ async function pollGenerationUntilReady() {
   if (!liveSession) throw new Error('Simulation session is unavailable.');
   let disconnectedAt = 0;
   let reconnectAttempts = 0;
+  let collectingSince = 0;
   for (;;) {
     let payload;
     try {
@@ -103,6 +131,26 @@ async function pollGenerationUntilReady() {
       await new Promise((resolve) => setTimeout(resolve, 500));
       startWhatsAppSimulation();
       return;
+    }
+    if (payload.status === 'collecting') {
+      if (!collectingSince) collectingSince = Date.now();
+      if (Date.now() - collectingSince > 15 * 60 * 1000) {
+        throw new Error('Generation queue admission could not be confirmed. Please return to media setup and try again.');
+      }
+      if (Date.now() - collectingSince > 10_000) {
+        try {
+          await apiRequest(
+            `/api/simulation/${liveSession.id}/generate`,
+            { method: 'POST', body: JSON.stringify({}) },
+            liveSession.token
+          );
+          collectingSince = Date.now();
+        } catch (error) {
+          if (!error?.isNetworkError) throw error;
+        }
+      }
+    } else {
+      collectingSince = 0;
     }
     await new Promise((resolve) => { generationPollTimer = setTimeout(resolve, 1800); });
   }

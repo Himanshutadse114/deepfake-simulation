@@ -54,6 +54,10 @@ function unsafePaidRetryReason(session) {
   return null;
 }
 
+function generationHasStarted(session) {
+  return !['collecting', 'failed'].includes(String(session?.status || ''));
+}
+
 async function loadAuthorisedSession(req, res, next) {
   try {
     const session = await getSession(req.params.id);
@@ -132,12 +136,27 @@ router.post('/:id/voice', loadAuthorisedSession, upload.single('voice'), async (
 router.post('/:id/generate', loadAuthorisedSession, async (req, res, next) => {
   const session = req.simulation;
   if (generationAdmissions.has(session.id)) {
-    return res.status(409).json({ error: 'Generation admission is already in progress for this session.' });
+    return res.status(202).json({
+      status: session.status,
+      mode: session.mode,
+      admissionInProgress: true,
+      alreadyStarted: true
+    });
   }
   generationAdmissions.add(session.id);
 
   try {
-    if (session.status !== 'collecting') return res.status(409).json({ error: `Simulation is already ${session.status}.` });
+    // POST /generate is deliberately idempotent. If the browser loses the
+    // response after admission, it can safely repeat the request without
+    // reserving budget again or enqueueing a second paid pipeline.
+    if (generationHasStarted(session)) {
+      return res.status(session.status === 'completed' ? 200 : 202).json({
+        status: session.status,
+        mode: session.mode,
+        alreadyStarted: true
+      });
+    }
+    if (session.status === 'failed') return res.status(409).json({ error: 'Use the safe retry endpoint for a failed simulation.' });
     if (!session.face?.path || !session.voice?.path) return res.status(400).json({ error: 'Upload both a validated face image and a voice sample first.' });
 
     if (session.mode !== 'demo') {

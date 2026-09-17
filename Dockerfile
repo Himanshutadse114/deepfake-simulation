@@ -1,7 +1,7 @@
 FROM node:20-bookworm-slim AS client-builder
 WORKDIR /app
-COPY client/package.json ./client/package.json
-RUN npm --prefix client install
+COPY client/package.json client/package-lock.json ./client/
+RUN npm --prefix client ci
 COPY client ./client
 RUN npm --prefix client run build
 
@@ -10,8 +10,8 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends ffmpeg fonts-dejavu-core ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
-COPY package.json ./package.json
-RUN npm install --omit=dev
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev
 COPY server ./server
 COPY --from=client-builder /app/client/dist ./client/dist
 COPY Deepfake.png ./client/dist/Deepfake.png

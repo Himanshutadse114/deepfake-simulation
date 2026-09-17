@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const config = require('../server/config');
 const { unsafeAutomaticResumeReason } = require('../server/queue');
+const { reserveRedisEntitlement } = require('../server/cost-guard');
 
 const root = path.join(__dirname, '..');
 const read = (relative) => fs.readFileSync(path.join(root, relative), 'utf8');
@@ -30,6 +31,15 @@ test('defaults to four paid pipelines and two local media processes in one-servi
 test('generate endpoint queues work instead of launching an unbounded pipeline', () => {
   assert.match(routes, /enqueueGeneration\(session\)/);
   assert.doesNotMatch(routes, /setImmediate\(\(\)\s*=>\s*generateSimulation/);
+  assert.match(routes, /generationHasStarted/);
+  assert.match(routes, /alreadyStarted: true/);
+});
+
+test('shutdown stops new local queue admission and dispatch', () => {
+  assert.match(queue, /let queueClosing = false/);
+  assert.match(queue, /if \(queueClosing\) return/);
+  assert.match(queue, /GENERATION_QUEUE_DRAINING/);
+  assert.match(queue, /async function closeQueue\(\) \{[\s\S]*queueClosing = true/);
 });
 
 test('single-service sessions and unfinished queue state are durable in R2', () => {
@@ -66,6 +76,23 @@ test('daily budget and learner entitlement survive a Render restart through R2',
   assert.match(costGuard, /control\/entitlements/);
   assert.match(costGuard, /putJson/);
   assert.match(costGuard, /listKeys/);
+});
+
+test('Redis learner entitlement admission is atomic across concurrent web instances', async () => {
+  const redis = {
+    async eval(_script, keyCount, key, sessionId, ttl) {
+      assert.equal(keyCount, 1);
+      assert.equal(key, 'entitlement-key');
+      assert.equal(sessionId, 'session-b');
+      assert.equal(Number(ttl), 7 * 24 * 60 * 60);
+      return [0, 'session-a'];
+    }
+  };
+
+  await assert.rejects(
+    reserveRedisEntitlement(redis, 'entitlement-key', 'session-b'),
+    (error) => error?.code === 'AI_SIMULATION_ALREADY_RESERVED' && error?.status === 409
+  );
 });
 
 test('uploads use disk staging rather than multer memoryStorage', () => {

@@ -1,6 +1,5 @@
 const fs = require('node:fs/promises');
 const path = require('node:path');
-const { spawn } = require('node:child_process');
 const config = require('../config');
 const {
   materialize,
@@ -9,7 +8,7 @@ const {
   deleteRef
 } = require('../storage');
 const { downloadWithRetry } = require('./download');
-const { withMediaProcessSlot } = require('./process-limit');
+const { runMediaProcess } = require('./media-process');
 const { runOfficialPrediction } = require('./replicate-prediction');
 
 const PROFILE_VARIANT_COUNT = 4;
@@ -50,18 +49,11 @@ const PROFILE_VARIANT_PROMPTS = [
 ];
 
 function runFfmpeg(args, label) {
-  return withMediaProcessSlot(() => new Promise((resolve, reject) => {
-    const child = spawn('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', ...args], {
-      windowsHide: true
-    });
-    let stderr = '';
-    child.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
-    child.on('error', (error) => reject(new Error(`${label} failed to start: ${error.message}`)));
-    child.on('close', (code) => {
-      if (code === 0) return resolve();
-      reject(new Error(`${label} failed${stderr ? `: ${stderr.trim()}` : ` with exit code ${code}`}`));
-    });
-  }));
+  return runMediaProcess(
+    'ffmpeg',
+    ['-hide_banner', '-loglevel', 'error', '-y', ...args],
+    { label, timeoutMs: 60_000 }
+  );
 }
 
 async function createFluxReference(sourcePath, targetPath) {

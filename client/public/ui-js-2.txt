@@ -148,6 +148,8 @@ async function apiRequest(path, options = {}, token = '') {
   const payload = contentType.includes('application/json') ? await response.json().catch(() => ({})) : {};
   if (!response.ok) {
     const responseError = new Error(payload.error || payload.message || `Request failed (${response.status}).`);
+    responseError.status = response.status;
+    responseError.code = payload.code || '';
     responseError.isNetworkError = [408, 425, 429, 502, 503, 504].includes(response.status);
     throw responseError;
   }

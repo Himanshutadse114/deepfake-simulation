@@ -1,12 +1,11 @@
 const fs = require('node:fs/promises');
 const path = require('node:path');
-const { spawn } = require('node:child_process');
 const Replicate = require('replicate');
 const config = require('../config');
 const { isObjectRef, materialize } = require('../storage');
 const { runWithReplicateRetry } = require('./replicate-retry');
 const { downloadWithRetry } = require('./download');
-const { withMediaProcessSlot } = require('./process-limit');
+const { runMediaProcess } = require('./media-process');
 
 function requireReplicate() {
   if (!config.providers.replicateToken) throw new Error('REPLICATE_API_TOKEN is not configured.');
@@ -14,13 +13,11 @@ function requireReplicate() {
 }
 
 function runFfmpeg(args) {
-  return withMediaProcessSlot(() => new Promise((resolve, reject) => {
-    const child = spawn('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', ...args]);
-    let stderr = '';
-    child.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
-    child.on('error', reject);
-    child.on('close', (code) => code === 0 ? resolve() : reject(new Error(stderr || `FFmpeg failed (${code}).`)));
-  }));
+  return runMediaProcess(
+    'ffmpeg',
+    ['-hide_banner', '-loglevel', 'error', '-y', ...args],
+    { label: 'Chatterbox audio processing', timeoutMs: 90_000 }
+  );
 }
 
 function splitScript(text, max = 280) {

@@ -11,6 +11,7 @@ let workerConnection = null;
 const localJobs = [];
 const localJobIds = new Set();
 let localActive = 0;
+let queueClosing = false;
 
 function queueMode() {
   if (redisConfigured()) return 'bullmq';
@@ -75,8 +76,9 @@ async function markFinalWorkerFailure(sessionId, error) {
 }
 
 async function processLocalQueue() {
+  if (queueClosing) return;
   const limit = Math.max(1, Number(config.aiWorkerConcurrency || 4));
-  while (localActive < limit && localJobs.length) {
+  while (!queueClosing && localActive < limit && localJobs.length) {
     const job = localJobs.shift();
     localActive += 1;
     setImmediate(async () => {
@@ -106,6 +108,12 @@ async function processLocalQueue() {
 }
 
 async function enqueueGeneration(session) {
+  if (queueClosing) {
+    const error = new Error('The generation queue is restarting. Please retry shortly.');
+    error.status = 503;
+    error.code = 'GENERATION_QUEUE_DRAINING';
+    throw error;
+  }
   assertDistributedStorageReady();
   const attempt = Math.max(1, Number(session.queueAttempt || 1));
   const id = `simulation-${session.id}-${attempt}`;
@@ -318,7 +326,8 @@ async function getQueueStats() {
       mode: queueMode(),
       active: localActive,
       waiting: localJobs.filter((job) => job.name === 'generate').length,
-      durableState: objectStorageConfigured()
+      durableState: objectStorageConfigured(),
+      draining: queueClosing
     };
   }
   const counts = await getQueue().getJobCounts('waiting', 'active', 'delayed', 'failed');
@@ -326,6 +335,9 @@ async function getQueueStats() {
 }
 
 async function closeQueue() {
+  // Stop admission and local dispatch before awaiting distributed resources.
+  // Waiting local sessions remain durable in R2 and are recovered next boot.
+  queueClosing = true;
   await worker?.close().catch(() => {});
   await queue?.close().catch(() => {});
   worker = null;
